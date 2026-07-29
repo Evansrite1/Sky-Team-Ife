@@ -9,8 +9,8 @@
    data. The service_role key must NEVER appear in this file.
    ===================================================================== */
 window.CONFIG = {
-  supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
-  supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
+  supabaseUrl: 'https://xuxukwrvyduilmxyswik.supabase.co',
+  supabaseAnonKey: 'sb_publishable_t4HoL9y_7ZYAo8xzf1TquA_imDgKZGe',
 
   organisation: 'Sky Team Ife',
 

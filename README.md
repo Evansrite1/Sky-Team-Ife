@@ -16,8 +16,8 @@ Vercel     ──►  index.html     the staff app — admins and offices, signe
                      ▼
 Supabase   ──►  Postgres       every table, protected by row level security
                 Auth           email and password, with password reset
-                Functions      claim_office, claim_admin, scan_lookup, record_scan,
-                               ensure_week_events — all SECURITY DEFINER
+                Functions      claim_office, claim_admin, check_join_code, scan_lookup,
+                               record_scan, center_lookup, ensure_week_events — SECURITY DEFINER
 ```
 
 The browser only ever holds the Supabase **anon key**, which is designed to be public. Row
@@ -31,16 +31,9 @@ key must never appear anywhere in this repository.
 **1. Create the schema.** Open your Supabase project → SQL editor → paste the whole of
 [`supabase/schema.sql`](supabase/schema.sql) → Run. It is safe to run twice.
 
-**2. Point the site at the project.** In [`config.js`](config.js) replace the two
-placeholders with the values from Supabase → Project Settings → API:
-
-```js
-supabaseUrl: 'https://xxxxxxxxxxxx.supabase.co',
-supabaseAnonKey: 'eyJhbGciOi...'
-```
-
-Commit and push — Vercel redeploys on its own. Until those are filled in the site shows a
-short "not connected yet" page instead of failing silently.
+**2. Point the site at the project.** Already done — [`config.js`](config.js) carries the
+project URL and the publishable (anon) key. If you ever move projects, swap the two values
+there, commit and push; Vercel redeploys on its own.
 
 **3. Sign up as the Super Admin.** The bootstrap address is set in the schema:
 
@@ -51,16 +44,23 @@ insert into app_settings (key, value) values ('bootstrap_admin', 'ademiluaolufem
 Sign up on the live site with that address and you land as Super Admin. Change the row
 first if you want a different one.
 
-**4. Create your centers,** then hand the office join code to each office. Both codes live
-under *Centers & admins* and can be changed there at any time.
+**4. Create your centers,** then hand out the access codes. Sign-up is locked behind them:
+nobody even sees the sign-up form without the right code.
+
+| Joining as | Access code |
+|---|---|
+| An office | `SKY-OFC-4Q7M` |
+| A leader | `SKY-LDR-9T2X` |
+
+Both live under *Centers & leaders* in the app and can be changed there at any time.
 
 ---
 
 ## Who can do what
 
-| | Super Admin | Platform Admin | Office |
+| | Super Admin | Leader | Office |
 |---|---|---|---|
-| Create centers, add admins, change join codes | yes | – | – |
+| Create centers, add leaders, change access codes | yes | – | – |
 | Every center, every office, every report | yes | yes | – |
 | Wednesday evaluation list, monthly summary, rankings | yes | yes | own center |
 | File the weekly report | – | – | own office |
@@ -89,7 +89,9 @@ center event you create by hand.
 
 ## Attendance
 
-Each session carries a QR code and a short code. The QR points at
+Each session carries a QR code and a short code, and every **center has one permanent QR**
+(`scan.html?center=<id>`) you can download as a printable poster from the center page —
+scan it and you pick the session happening now. A per-session QR points at
 `scan.html?c=<CODE>`. A distributor scans it with a phone camera, picks their office,
 finds their name, and they are in. No account needed.
 

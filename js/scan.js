@@ -10,7 +10,7 @@
   const { esc, ico } = U;
   const root = document.getElementById('root');
 
-  const S = { step: 'load', code: '', data: null, office: null, dist: null, q: '', error: '' };
+  const S = { step: 'load', code: '', data: null, office: null, dist: null, q: '', error: '', center: null };
 
   /* One stable id per phone, so the same handset cannot sign in twice. */
   function deviceId() {
@@ -49,6 +49,22 @@
         + '<div class="field"><input class="input mono" id="s-code" placeholder="SM-XXXXXX-202631" '
         + 'autocapitalize="characters" autocomplete="off" value="' + esc(S.code) + '"></div>'
         + '<button class="btn btn-a btn-pop btn-lg btn-block" id="s-go">Find the session</button>');
+      return;
+    }
+
+    if (S.step === 'pick') {
+      const c = S.center.center, evs = S.center.events;
+      root.innerHTML = shell(
+        '<div class="card-h"><div><div class="card-t">' + esc(c.name) + '</div>'
+        + '<div class="card-s">' + esc(c.area) + ' · pick the session happening now.</div></div></div>'
+        + '<div class="auto" style="max-height:320px">'
+        + (evs.length ? evs.map(e => '<button data-code="' + esc(e.code) + '">'
+          + '<span style="flex:1"><span style="display:block;font-weight:500">' + esc(e.name) + '</span>'
+          + '<span class="sub">' + esc(U.fullDate(e.date)) + ' · ' + esc(e.time) + '</span></span>'
+          + (e.status === 'open' ? U.tag('Open', 't-ok') : U.tag(e.status === 'scheduled' ? 'Not open yet' : 'Closed', 't-mute'))
+          + '</button>').join('')
+          : '<div class="empty-d">No sessions this week yet. Ask the office.</div>')
+        + '</div>');
       return;
     }
 
@@ -125,6 +141,23 @@
     + (e.elig === 'sm'
       ? U.note('info', 'crown', 'This session is for Senior Managers and above.') + '<div style="height:14px"></div>' : '');
 
+  /* The center QR — one code per center, forever. Look the center up,
+     list this week's sessions, and let the distributor pick one. */
+  async function lookupCenter(id) {
+    S.step = 'load'; paint();
+    try {
+      const { data, error } = await A.sb.rpc('center_lookup', { p_center: id });
+      if (error) throw new Error(error.message);
+      if (!data || !data.ok) {
+        S.step = 'code'; S.error = (data && data.error) || 'That QR code does not match any center.';
+        paint(); return;
+      }
+      S.center = data; S.step = 'pick'; paint();
+    } catch (err) {
+      S.step = 'code'; S.error = err.message; paint();
+    }
+  }
+
   async function lookup(code) {
     S.step = 'load'; paint();
     try {
@@ -159,6 +192,8 @@
 
   /* --------------------------------------------------------- events */
   document.addEventListener('click', (e) => {
+    const ev = e.target.closest('[data-code]');
+    if (ev) { lookup(ev.dataset.code); return; }
     const off = e.target.closest('[data-office]');
     if (off) { S.office = S.data.offices.find(o => o.id === off.dataset.office); S.q = ''; S.step = 'name'; return paint(); }
     const d = e.target.closest('[data-dist]');
@@ -196,7 +231,9 @@
   /* ----------------------------------------------------------- boot */
   const params = new URLSearchParams(location.search);
   const code = (params.get('c') || params.get('code') || '').trim();
+  const center = (params.get('center') || '').trim();
   if (!window.CONFIG.ready || !A.ready) paint();
+  else if (center) lookupCenter(center);
   else if (code) lookup(code);
   else { S.step = 'code'; paint(); }
 })();

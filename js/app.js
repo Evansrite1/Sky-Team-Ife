@@ -37,7 +37,7 @@
       { grp: 'People & admin' },
       { p: 'distributors', l: 'Distributors', i: 'users' },
       { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-      { p: 'admin', l: 'Centers & admins', i: 'shield' },
+      { p: 'admin', l: 'Centers & leaders', i: 'shield' },
       { p: 'account', l: 'Account', i: 'lock' }
     ],
     platform_admin: [
@@ -93,8 +93,8 @@
         + '<span>' + esc(n.l) + '</span>'
         + (n.c ? '<span class="cnt">' + n.c() + '</span>' : '') + '</a>').join('') + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
-      + '<div><div class="sb-user-nm">' + esc(me.full_name || 'Signed in') + '</div>'
-      + '<div class="sb-user-em">' + esc(me.email) + '</div></div></div>'
+      + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
+      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office' }[me.role] || '') + '</div></div></div>'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button></div></aside>';
   }
 
@@ -158,6 +158,7 @@
 
   /* =============================== AUTH ============================= */
   const art = (h, p, steps) => '<div class="auth-r"><div class="blob blob-1"></div><div class="blob blob-2"></div>'
+    + '<div class="scene"><div class="cube"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>'
     + '<div class="auth-art auth-art-inner"><h2>' + h + '</h2><p>' + p + '</p>'
     + '<div class="auth-steps">' + steps.map((s, i) => '<div class="auth-step"><i>' + (i + 1) + '</i><div>' + s + '</div></div>').join('')
     + '</div></div></div>';
@@ -169,20 +170,57 @@
   const RIGHT = art(
     'Every office, every week, <span class="hl">on one line</span>.',
     'Trainings scan themselves in. Reports land before Tuesday closes. The center evaluates on Wednesday at 2:45pm, and month after month it builds the history the forecast will run on.',
-    ['The Super Admin creates a center and adds Platform Admins.',
-      'An office signs up with the in-house code and picks its center.',
-      'Distributors scan in at the Wednesday and Friday trainings.',
-      'One report a week, read at the Wednesday evaluation.']);
+    ['Unlock sign-up with your team\'s access code.',
+      'Distributors scan in at the door with one QR.',
+      'One report a week, filed before Tuesday closes.',
+      'Rankings, attendance and history build themselves.']);
+
+  /* The gate. Sign-up stays locked until the right access code is typed,
+     and each role has its own code. Nothing personal is asked for here. */
+  const gate = {
+    read() {
+      try { return JSON.parse(sessionStorage.getItem('sti-gate') || 'null'); } catch (e) { return null; }
+    },
+    save(kind, code) {
+      try { sessionStorage.setItem('sti-gate', JSON.stringify({ kind, code })); } catch (e) { /* ignore */ }
+    },
+    clear() { try { sessionStorage.removeItem('sti-gate'); } catch (e) { /* ignore */ } }
+  };
 
   function renderAuth(which) {
     const r = $('#root');
+    if (which === 'join') {
+      const g = gate.read() || {};
+      const kind = g.kind || 'office';
+      r.innerHTML = authShell(
+        '<h1 class="auth-h">First, the code</h1>'
+        + '<p class="auth-s">Sign-up is by invitation. Pick what you are joining as, then type the access code you were given.</p>'
+        + '<div class="gate-pick">'
+        + '<button type="button" class="gate-opt ' + (kind === 'office' ? 'on' : '') + '" data-act="gate-pick" data-v="office">'
+        + '<span class="go-ic">' + ico('building', 19) + '</span><span class="go-t">An office</span>'
+        + '<span class="go-d">Files the weekly report and runs its own distributors.</span></button>'
+        + '<button type="button" class="gate-opt ' + (kind === 'leader' ? 'on' : '') + '" data-act="gate-pick" data-v="leader">'
+        + '<span class="go-ic">' + ico('crown', 19) + '</span><span class="go-t">A leader</span>'
+        + '<span class="go-d">Sees every center and runs the Wednesday evaluation.</span></button>'
+        + '</div>'
+        + '<form id="gate-form">'
+        + '<div class="field gate-code"><label for="g-code">Access code</label>'
+        + '<input class="input mono" id="g-code" required autocomplete="off" spellcheck="false" placeholder="XXX-XXX-XXXX"></div>'
+        + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="gate-go">Unlock sign-up</button>'
+        + '</form>'
+        + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>', RIGHT);
+      const el = $('#gate-form'); if (el) el.dataset.kind = kind;
+      return;
+    }
     if (which === 'signup') {
+      const g = gate.read();
+      if (!g) { go('#/join'); return; }
       r.innerHTML = authShell(
         '<h1 class="auth-h">Create your account</h1>'
-        + '<p class="auth-s">Offices and admins both start here. You pick what you are joining as on the next step.</p>'
+        + '<p class="auth-s">Joining as ' + (g.kind === 'leader' ? 'a leader' : 'an office') + '. '
+        + '<a href="#/join" style="text-decoration:underline">Not right?</a> '
+        + 'Just an email and a password — nothing else.</p>'
         + '<form id="signup-form">'
-        + '<div class="field"><label for="su-name">Full name</label>'
-        + '<input class="input" id="su-name" required autocomplete="name" placeholder="Your name"></div>'
         + '<div class="field"><label for="su-email">Email</label>'
         + '<input class="input" id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
         + '<div class="field"><label for="su-pass">Password</label>'
@@ -216,7 +254,7 @@
     }
     r.innerHTML = authShell(
       '<h1 class="auth-h">Sign in</h1>'
-      + '<p class="auth-s">Offices, Platform Admins and the Super Admin all sign in here.</p>'
+      + '<p class="auth-s">Welcome back. Your dashboard is waiting.</p>'
       + '<form id="login-form">'
       + '<div class="field"><label for="li-email">Email</label>'
       + '<input class="input" id="li-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -226,45 +264,41 @@
       + '</form>'
       + '<div class="auth-alt"><a href="#/forgot">Forgot your password?</a></div>'
       + '<div class="divider">New here</div>'
-      + '<a class="btn btn-lg btn-block" href="#/signup">Create an account</a>', RIGHT);
+      + '<a class="btn btn-lg btn-block" href="#/join">I have an access code</a>', RIGHT);
   }
 
   /* --------------------------------------------------- onboarding */
   async function renderOnboard() {
     const centers = await A.join.publicCenters();
+    const g = gate.read() || {};
+    const officeOn = g.kind !== 'leader';
     $('#root').innerHTML = authShell(
       '<h1 class="auth-h">One more step</h1>'
-      + '<p class="auth-s">Tell us what you are joining as. Your center leader has the codes.</p>'
+      + '<p class="auth-s">Your access code places you. Nothing else about you is collected.</p>'
       + '<div class="seg" style="width:100%;margin-bottom:18px">'
-      + '<button style="flex:1" class="on" data-act="ob-tab" data-v="office">An office</button>'
-      + '<button style="flex:1" data-act="ob-tab" data-v="admin">A platform admin</button></div>'
+      + '<button style="flex:1" class="' + (officeOn ? 'on' : '') + '" data-act="ob-tab" data-v="office">An office</button>'
+      + '<button style="flex:1" class="' + (officeOn ? '' : 'on') + '" data-act="ob-tab" data-v="admin">A leader</button></div>'
 
-      + '<form id="ob-office">'
-      + '<div class="field"><label for="ob-code">Office join code</label>'
-      + '<input class="input mono" id="ob-code" required placeholder="SKY-OFFICE-0000"></div>'
+      + '<form id="ob-office" class="' + (officeOn ? '' : 'hide') + '">'
+      + '<div class="field gate-code"><label for="ob-code">Office access code</label>'
+      + '<input class="input mono" id="ob-code" required placeholder="XXX-XXX-XXXX" value="'
+      + esc(officeOn && g.code ? g.code : '') + '"></div>'
       + '<div class="field"><label for="ob-center">Which center?</label>'
       + '<select class="select" id="ob-center" required>'
       + (centers.length ? centers.map(c => '<option value="' + c.id + '">' + esc(c.name) + ' · ' + esc(c.area) + '</option>').join('')
         : '<option value="">No centers exist yet</option>') + '</select></div>'
       + '<div class="two"><div class="field"><label for="ob-name">Office name</label>'
       + '<input class="input" id="ob-name" required placeholder="Lagere Office"></div>'
-      + '<div class="field"><label for="ob-ocode">Office code</label>'
+      + '<div class="field"><label for="ob-ocode">Office short code</label>'
       + '<input class="input mono" id="ob-ocode" required placeholder="LG-01"></div></div>'
-      + '<div class="field"><label for="ob-manager">Manager</label>'
-      + '<input class="input" id="ob-manager" required placeholder="Who runs this office"></div>'
-      + '<div class="two"><div class="field"><label for="ob-area">Area</label>'
-      + '<input class="input" id="ob-area" placeholder="Lagere"></div>'
-      + '<div class="field"><label for="ob-address">Address</label>'
-      + '<input class="input" id="ob-address" placeholder="14 Ondo Road"></div></div>'
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-office">Join as an office</button>'
       + '</form>'
 
-      + '<form id="ob-admin" class="hide">'
-      + '<div class="field"><label for="ob-acode">Admin join code</label>'
-      + '<input class="input mono" id="ob-acode" required placeholder="SKY-ADMIN-0000"></div>'
-      + '<div class="field"><label for="ob-aname">Full name</label>'
-      + '<input class="input" id="ob-aname" placeholder="Your name"></div>'
-      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-admin">Join as a platform admin</button>'
+      + '<form id="ob-admin" class="' + (officeOn ? 'hide' : '') + '">'
+      + '<div class="field gate-code"><label for="ob-acode">Leader access code</label>'
+      + '<input class="input mono" id="ob-acode" required placeholder="XXX-XXX-XXXX" value="'
+      + esc(!officeOn && g.code ? g.code : '') + '"></div>'
+      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-admin">Join as a leader</button>'
       + '</form>'
 
       + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>', RIGHT);
@@ -302,12 +336,38 @@
     }
   };
 
+  ACT['gate-pick'] = (el) => {
+    U.$$('[data-act="gate-pick"]').forEach(b => b.classList.toggle('on', b === el));
+    const f = $('#gate-form'); if (f) f.dataset.kind = el.dataset.v;
+    const c = $('#g-code'); if (c) c.focus();
+  };
+
+  ACT['gate-go'] = async (el, e) => {
+    e.preventDefault();
+    const kind = ($('#gate-form').dataset.kind) || 'office';
+    const code = val('#g-code');
+    if (!code) return toast('Type the access code you were given.', 'no');
+    const btn = $('[data-act="gate-go"]');
+    busy(btn, true, 'Checking…');
+    try {
+      const ok = await A.join.checkCode(kind, code);
+      if (!ok) {
+        busy(btn, false);
+        const f = $('#g-code');
+        if (f) { f.classList.add('gate-shake'); setTimeout(() => f.classList.remove('gate-shake'), 450); }
+        return toast('That code is not right for ' + (kind === 'leader' ? 'a leader' : 'an office') + '.', 'no');
+      }
+      gate.save(kind, code.toUpperCase());
+      go('#/signup');
+    } catch (err) { busy(btn, false); toast(err.message, 'no'); }
+  };
+
   ACT['do-signup'] = async (el, e) => {
     e.preventDefault();
     const btn = $('[data-act="do-signup"]');
     busy(btn, true, 'Creating…');
     try {
-      const out = await A.auth.signUp(val('#su-email'), $('#su-pass').value, val('#su-name'));
+      const out = await A.auth.signUp(val('#su-email'), $('#su-pass').value, '');
       if (out && out.session) { await boot(true); go('#/dashboard'); return; }
       busy(btn, false);
       modal('Check your email', '',
@@ -356,8 +416,9 @@
     try {
       await A.join.office(val('#ob-code'), {
         name: val('#ob-name'), officeCode: val('#ob-ocode'), centerId: val('#ob-center'),
-        manager: val('#ob-manager'), area: val('#ob-area'), address: val('#ob-address')
+        manager: '', area: '', address: ''
       });
+      gate.clear();
       await boot(true);
       toast('Welcome. Your office is set up.');
       go('#/dashboard');
@@ -369,7 +430,8 @@
     const btn = $('[data-act="do-join-admin"]');
     busy(btn, true, 'Joining…');
     try {
-      await A.join.admin(val('#ob-acode'), val('#ob-aname'));
+      await A.join.admin(val('#ob-acode'), '');
+      gate.clear();
       await boot(true);
       toast('You are in.');
       go('#/dashboard');
@@ -386,6 +448,20 @@
     navigator.clipboard.writeText(el.dataset.v)
       .then(() => toast('Link copied.'))
       .catch(() => toast('Could not copy — select the link instead.', 'no'));
+  };
+  ACT['qr-download'] = (el) => {
+    const d = el.dataset;
+    U.downloadQrPoster({
+      brand: brand(),
+      url: d.url,
+      title: d.title || '',
+      sub: d.sub || '',
+      code: d.code || '',
+      lines: (d.lines || '').split('|').filter(Boolean),
+      foot: d.foot || '',
+      file: d.file || 'qr-poster'
+    });
+    toast('Poster downloaded. Print it and put it at the door.');
   };
 
   /* --- centers ----------------------------------------------------- */
@@ -597,12 +673,12 @@
   /* --- admin ------------------------------------------------------- */
   ACT['make-admin'] = async (el) => {
     busy(el, true, 'Promoting…');
-    try { await A.people.setRole(el.dataset.id, 'platform_admin'); toast('They are a Platform Admin now.'); route(); }
+    try { await A.people.setRole(el.dataset.id, 'platform_admin'); toast('They are a Leader now.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
   ACT['drop-admin'] = async (el) => {
     busy(el, true, 'Removing…');
-    try { await A.people.setRole(el.dataset.id, 'pending'); toast('Admin access removed.'); route(); }
+    try { await A.people.setRole(el.dataset.id, 'pending'); toast('Leader access removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
   ACT['codes-save'] = async (el) => {

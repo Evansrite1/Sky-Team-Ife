@@ -252,6 +252,82 @@
     }
   };
 
+  /* A printable A-series poster with the QR on it, downloaded as a PNG.
+     opts: { url, title, sub, lines[], code, foot, file } */
+  function downloadQrPoster(opts) {
+    const W = 1080, H = 1500;
+    const navy = '#0d1b3d', blue = '#2f6bff', tint = '#e9efff', grey = '#8790a5';
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    const font = w => w + 'px "Space Grotesk", sans-serif';
+    const rr = (x, y, w, h, r) => {
+      g.beginPath();
+      g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+      g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+    };
+
+    // paper + frame
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.strokeStyle = navy; g.lineWidth = 6; rr(16, 16, W - 32, H - 32, 40); g.stroke();
+
+    // header band
+    g.fillStyle = navy; rr(48, 48, W - 96, 240, 28); g.fill();
+    g.fillStyle = blue; rr(84, 92, 64, 64, 16); g.fill();
+    g.fillStyle = '#fff'; g.font = '700 ' + font(40); g.textBaseline = 'middle';
+    g.fillText((opts.brand || 'S')[0].toUpperCase(), 104, 128);
+    g.font = '600 ' + font(34); g.fillText(opts.brand || 'Sky Team Ife', 170, 124);
+    g.font = '700 ' + font(52); g.fillStyle = '#fff';
+    g.fillText(opts.title || '', 84, 214);
+
+    // QR
+    let qsize = 0, qn = 0, q = null;
+    try {
+      q = window.qrcode(0, 'M'); q.addData(String(opts.url)); q.make();
+      qn = q.getModuleCount();
+    } catch (e) { /* leave empty */ }
+    const box = 620, bx = (W - box) / 2, by = 340;
+    g.strokeStyle = navy; g.lineWidth = 5; rr(bx - 20, by - 20, box + 40, box + 40, 32); g.stroke();
+    if (q) {
+      qsize = box / qn;
+      g.fillStyle = navy;
+      for (let r = 0; r < qn; r++) for (let c = 0; c < qn; c++) {
+        if (q.isDark(r, c)) g.fillRect(bx + c * qsize, by + r * qsize, Math.ceil(qsize), Math.ceil(qsize));
+      }
+    }
+
+    // code chip
+    let y = by + box + 74;
+    if (opts.code) {
+      g.font = '600 44px ui-monospace, Menlo, monospace';
+      const tw = g.measureText(opts.code).width;
+      g.fillStyle = tint; rr((W - tw - 88) / 2, y - 44, tw + 88, 84, 20); g.fill();
+      g.strokeStyle = navy; g.lineWidth = 4; rr((W - tw - 88) / 2, y - 44, tw + 88, 84, 20); g.stroke();
+      g.fillStyle = navy; g.textAlign = 'center'; g.fillText(opts.code, W / 2, y);
+      g.textAlign = 'left';
+      y += 96;
+    }
+
+    // details
+    g.textAlign = 'center';
+    if (opts.sub) { g.fillStyle = navy; g.font = '600 ' + font(40); g.fillText(opts.sub, W / 2, y); y += 58; }
+    (opts.lines || []).forEach(t => {
+      if (!t) return;
+      g.fillStyle = grey; g.font = '500 ' + font(32); g.fillText(t, W / 2, y); y += 48;
+    });
+
+    // footer band
+    g.fillStyle = blue; rr(48, H - 168, W - 96, 120, 28); g.fill();
+    g.fillStyle = '#fff'; g.font = '600 ' + font(36);
+    g.fillText(opts.foot || 'Scan with your phone camera to sign in', W / 2, H - 108);
+    g.textAlign = 'left';
+
+    const a = document.createElement('a');
+    a.download = (opts.file || 'qr-poster') + '.png';
+    a.href = cv.toDataURL('image/png');
+    a.click();
+  }
+
   /* ------------------------------------------------------- toast, modal */
   function toast(msg, kind) {
     const host = $('#toasts');
@@ -304,7 +380,7 @@
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
     ico, IC, kpi, tag, note, empty, bar, change, table,
-    chart, chartToggle, barChart, lineChart, qrSvg,
+    chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster,
     toast, modal, closeModal, busy, confirmDialog
   };
 })();

@@ -5,8 +5,8 @@
 -- It is idempotent: running it a second time will not destroy data.
 --
 -- Roles
---   super_admin     creates centers, adds platform admins, sees everything
---   platform_admin  sees every center, runs the Wednesday evaluation
+--   super_admin     creates centers, adds leaders, sees everything
+--   platform_admin  a Leader — sees every center, runs the Wednesday evaluation
 --   office          files one weekly report, manages its own distributors
 --
 -- A week runs Wednesday -> Tuesday. The evaluation sits on the Wednesday
@@ -54,11 +54,15 @@ create table if not exists app_settings (
 
 insert into app_settings (key, value) values
   ('organisation',      'Sky Team Ife'),
-  ('office_join_code',  'SKY-OFFICE-2026'),
-  ('admin_join_code',   'SKY-ADMIN-2026'),
+  ('office_join_code',  'SKY-OFC-4Q7M'),
+  ('admin_join_code',   'SKY-LDR-9T2X'),
   ('bootstrap_admin',   'ademiluaolufemi@gmail.com'),
   ('training_time',     '2:45pm')
 on conflict (key) do nothing;
+
+-- If the old default codes are still in place, move them to the new ones.
+update app_settings set value = 'SKY-OFC-4Q7M' where key = 'office_join_code' and value = 'SKY-OFFICE-2026';
+update app_settings set value = 'SKY-LDR-9T2X' where key = 'admin_join_code'  and value = 'SKY-ADMIN-2026';
 
 create or replace function setting(p_key text)
 returns text language sql stable security definer set search_path = public as $$
@@ -474,7 +478,7 @@ begin
   if auth.uid() is null then
     raise exception 'Not signed in';
   end if;
-  if p_code is distinct from setting('office_join_code') then
+  if upper(trim(coalesce(p_code, ''))) <> upper(coalesce(setting('office_join_code'), '')) then
     raise exception 'That office code is not right. Ask your center leader for the current one.';
   end if;
   if exists (select 1 from profiles where id = auth.uid() and role <> 'pending') then
@@ -505,8 +509,8 @@ begin
   if auth.uid() is null then
     raise exception 'Not signed in';
   end if;
-  if p_code is distinct from setting('admin_join_code') then
-    raise exception 'That admin code is not right.';
+  if upper(trim(coalesce(p_code, ''))) <> upper(coalesce(setting('admin_join_code'), '')) then
+    raise exception 'That leader code is not right.';
   end if;
   if exists (select 1 from profiles where id = auth.uid() and role <> 'pending') then
     raise exception 'This account already has a role.';
@@ -517,6 +521,19 @@ begin
          full_name = coalesce(nullif(p_full_name, ''), full_name)
    where id = auth.uid();
 end $$;
+
+-- The join gate. Nobody sees the sign-up form until they hold the right
+-- code, and the check happens here — the codes never travel to the
+-- browser. Rate limiting is Supabase's own; the codes are low-value.
+create or replace function check_join_code(p_kind text, p_code text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select case
+    when p_kind = 'office' then upper(trim(p_code)) = upper(coalesce(setting('office_join_code'), ''))
+    when p_kind = 'leader' then upper(trim(p_code)) = upper(coalesce(setting('admin_join_code'), ''))
+    else false
+  end;
+$$;
 
 -- =====================================================================
 -- The two weekly trainings create themselves, per center, per week
@@ -657,10 +674,75 @@ begin
   return jsonb_build_object('ok', true, 'name', v_dist.full_name, 'event', v_event.name);
 end $$;
 
+-- One QR per center. It opens the scan page with the center id, this
+-- call lists that center's sessions for the current week, and the
+-- distributor picks the one happening now.
+create or replace function center_lookup(p_center uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_center record;
+  v_evs    jsonb;
+begin
+  select * into v_center from centers where id = p_center;
+  if v_center is null then
+    return jsonb_build_object('ok', false, 'error', 'That QR code does not match any center.');
+  end if;
+
+  perform ensure_week_events_for(p_center, week_start());
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'name', e.name, 'code', e.code, 'status', e.status, 'elig', e.elig,
+           'date', e.event_date, 'time', e.event_time)
+           order by e.status = 'open' desc, e.event_date), '[]'::jsonb)
+    into v_evs
+    from events e
+   where e.center_id = p_center and e.week_start = week_start();
+
+  return jsonb_build_object(
+    'ok', true,
+    'center', jsonb_build_object('id', v_center.id, 'name', v_center.name, 'area', v_center.area),
+    'events', v_evs
+  );
+end $$;
+
+-- The per-center half of ensure_week_events, callable without a session
+-- so the center QR still works for a distributor with no account.
+create or replace function ensure_week_events_for(p_center uuid, p_week date)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  c record;
+begin
+  select id into c from centers where id = p_center;
+  if c is null then return; end if;
+
+  if not exists (select 1 from events where center_id = p_center and week_start = p_week and type = 'SM') then
+    insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
+    values (p_center, 'training', 'SM', 'Senior Manager Training', 'sm', p_week, p_week,
+            coalesce(setting('training_time'), '2:45pm'),
+            'SM-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
+            case when p_week > current_date then 'scheduled' else 'closed' end);
+  end if;
+
+  if not exists (select 1 from events where center_id = p_center and week_start = p_week and type = 'DT') then
+    insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
+    values (p_center, 'training', 'DT', 'Distributor Training', 'all', p_week, p_week + 2,
+            coalesce(setting('training_time'), '2:45pm'),
+            'DT-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
+            case when p_week + 2 > current_date then 'scheduled' else 'closed' end);
+  end if;
+end $$;
+
 revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text)   from public;
+revoke all on function check_join_code(text, text)     from public;
+revoke all on function center_lookup(uuid)             from public;
+revoke all on function ensure_week_events_for(uuid, date) from public;
 grant execute on function scan_lookup(text)             to anon, authenticated;
 grant execute on function record_scan(text, uuid, text) to anon, authenticated;
+grant execute on function check_join_code(text, text)   to anon, authenticated;
+grant execute on function center_lookup(uuid)           to anon, authenticated;
 grant execute on function claim_office(text, text, text, uuid, text, text, text) to authenticated;
 grant execute on function claim_admin(text, text)       to authenticated;
 grant execute on function ensure_week_events(date)      to authenticated;

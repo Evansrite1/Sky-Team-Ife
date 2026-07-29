@@ -89,10 +89,10 @@
       crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · open until Tuesday'),
       html:
         (!A.store.centers.length ? note('gold', 'info',
-          '<b>No centers yet.</b> Create your first center under <a href="' + link('admin') + '" style="text-decoration:underline">Centers &amp; admins</a>, then hand the office join code to your offices.') + '<div style="height:18px"></div>' : '')
+          '<b>No centers yet.</b> Create your first center under <a href="' + link('admin') + '" style="text-decoration:underline">Centers &amp; admins</a>, then hand the office access code to your offices.') + '<div style="height:18px"></div>' : '')
         + '<div class="grid g4">'
         + kpi('Orders this week', t.orders.toLocaleString(), U.change(t.orders, p.orders), 'trend')
-        + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-lime')
+        + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-blue')
         + kpi('Reports in', t.count + ' of ' + offices.length,
           missing.length ? esc(missing.length + ' still missing') : 'Every office has filed', 'file')
         + kpi('Leading office', top ? esc(top.office.name) : '—',
@@ -108,7 +108,7 @@
         + '<div class="card"><div class="card-h"><div><div class="card-t">Centers this week</div>'
         + '<div class="card-s">Ranked by amount.</div></div></div>'
         + (centerRows.length ? centerRows.map(r =>
-          '<a href="' + link('centers', r.c.id) + '" style="display:block;padding:11px 0;border-bottom:1px solid #eee">'
+          '<a href="' + link('centers', r.c.id) + '" style="display:block;padding:11px 0;border-bottom:1px solid #edf0f7">'
           + '<div class="spread"><div class="nm">' + esc(r.c.name) + '</div>'
           + '<div class="num nm">' + usd(r.amount) + '</div></div>'
           + '<div style="margin-top:7px">' + bar(r.amount, maxCenter, true) + '</div>'
@@ -162,7 +162,7 @@
         + kpi('Your orders', mine ? Number(mine.orders).toLocaleString() : '—',
           mine ? U.change(mine.orders, prevMine ? prevMine.orders : 0) : 'No report for this week', 'trend')
         + kpi('Your amount', mine ? usd(mine.amount) : '—',
-          mine ? U.change(mine.amount, prevMine ? prevMine.amount : 0) : 'Nothing filed yet', 'cash', 'kpi-lime')
+          mine ? U.change(mine.amount, prevMine ? prevMine.amount : 0) : 'Nothing filed yet', 'cash', 'kpi-blue')
         + kpi('Rank in center', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
           ranked.length ? esc((A.centerById(off.center_id) || {}).name || '') : '', 'crown', 'kpi-dark')
         + kpi('Distributors', dists.length.toLocaleString(),
@@ -179,7 +179,7 @@
         + '<div class="card"><div class="card-h"><div><div class="card-t">This week in your center</div>'
         + '<div class="card-s">Ranked by amount.</div></div></div>'
         + (ranked.length ? ranked.slice(0, 6).map(r =>
-          '<div class="spread" style="padding:9px 0;border-bottom:1px solid #eee">'
+          '<div class="spread" style="padding:9px 0;border-bottom:1px solid #edf0f7">'
           + '<div class="row" style="gap:9px"><span class="rk rk-' + r.rank + '">' + r.rank + '</span>'
           + '<span class="' + (r.office_id === off.id ? 'nm' : '') + '">' + esc(r.office.name)
           + (r.office_id === off.id ? ' <span class="tag t-ok">You</span>' : '') + '</span></div>'
@@ -191,7 +191,7 @@
         + '<div class="card-s">Your distributors, across this week\'s sessions.</div></div></div>'
         + (evs.length ? evs.map(e => {
           const a = mineScans.filter(s => s.event_id === e.id).length;
-          return '<div class="spread" style="padding:9px 0;border-bottom:1px solid #eee">'
+          return '<div class="spread" style="padding:9px 0;border-bottom:1px solid #edf0f7">'
             + '<div><div class="nm">' + esc(e.name) + '</div><div class="sub">' + esc(U.fullDate(e.event_date))
             + ' · ' + esc(e.event_time) + '</div></div>'
             + '<div class="num nm">' + a + '</div></div>';
@@ -225,7 +225,7 @@
         + '<div class="card-a">' + centerPick(cid, 'center') + '</div></div>'
         + '<div class="grid g4" style="margin-bottom:4px">'
         + kpi('Offices', offs.length, '', 'building')
-        + kpi('Filed', t.count + ' of ' + offs.length, '', 'file', t.count === offs.length ? 'kpi-lime' : '')
+        + kpi('Filed', t.count + ' of ' + offs.length, '', 'file', t.count === offs.length ? 'kpi-blue' : '')
         + kpi('Orders', t.orders.toLocaleString(), '', 'trend')
         + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-dark')
         + '</div></div>'
@@ -253,7 +253,7 @@
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
               + '<td style="max-width:280px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
           }),
-          { empty: empty('clipboard', 'No offices in this center', 'Offices appear here once they sign up with the join code.') })
+          { empty: empty('clipboard', 'No offices in this center', 'Offices appear here once they sign up with the access code.') })
         + '</div>'
     };
   }
@@ -279,7 +279,7 @@
       title: 'Monthly summary', picker: 'month', crumbs: esc(U.monthLabel(key)),
       html: '<div class="grid g4">'
         + kpi('Orders', t.orders.toLocaleString(), esc(weeks.length + ' weeks'), 'trend')
-        + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-lime')
+        + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-blue')
         + kpi('Reports filed', t.count, mine ? '' : esc('across ' + offices.length + ' offices'), 'file')
         + kpi(mine ? 'Best week' : 'Best office',
           mine ? (series.length ? series.reduce((a, b) => b.v > a.v ? b : a, series[0]).l : '—')
@@ -296,7 +296,7 @@
         + '<div class="card"><div class="card-h"><div><div class="card-t">Niches this month</div>'
         + '<div class="card-s">How often each product carried the orders.</div></div></div>'
         + (tally.length ? tally.slice(0, 10).map(([n, c]) =>
-          '<div class="spread" style="padding:8px 0;border-bottom:1px solid #eee">'
+          '<div class="spread" style="padding:8px 0;border-bottom:1px solid #edf0f7">'
           + '<div>' + esc(n) + '</div><div class="row" style="width:120px">' + bar(c, tally[0][1], true)
           + '<span class="num nm" style="width:26px">' + c + '</span></div></div>').join('')
           : empty('star', 'No niches yet', 'They come from the weekly reports.'))
@@ -366,13 +366,34 @@
     const t = totals(reps);
     const scans = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
 
+    const centerUrl = window.CONFIG.appUrl + '/scan.html?center=' + encodeURIComponent(c.id);
     return {
       title: c.name, crumbs: '<a href="' + link('centers') + '">Centers</a> · ' + esc(c.area), picker: 'week',
       html: '<div class="grid g4">'
         + kpi('Offices', offs.length, '', 'building')
         + kpi('Distributors', dists.length, dists.filter(d => SM_PLUS.includes(d.status)).length + ' SM and above', 'users')
-        + kpi('Amount this week', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-lime')
+        + kpi('Amount this week', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-blue')
         + kpi('Leader', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
+        + '</div>'
+
+        + '<div style="margin-top:18px;max-width:660px">'
+        + '<div class="ticket tilt"><div class="ticket-h">'
+        + '<div class="t-n">Center QR — one code for every session</div>'
+        + '<div class="t-m">' + esc(c.name) + ' · ' + esc(c.area) + '</div></div>'
+        + '<div class="ticket-b"><div class="qr-box">' + U.qrSvg(centerUrl) + '</div>'
+        + '<div><div class="card-s" style="margin:0 0 10px">Print this once and keep it at the door. '
+        + 'A distributor scans it, picks today\'s session, and is signed in — the QR never changes.</div>'
+        + '<div class="row">'
+        + '<button class="btn btn-a btn-pop btn-sm" data-act="qr-download"'
+        + ' data-url="' + esc(centerUrl) + '"'
+        + ' data-title="' + esc(c.name) + '"'
+        + ' data-sub="' + esc('Training sign-in · ' + c.area) + '"'
+        + ' data-lines="' + esc((c.address || '') + '|' + (c.leader_name ? 'Leader: ' + c.leader_name : '')) + '"'
+        + ' data-file="' + esc('qr-' + c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '">'
+        + ico('qr', 14) + 'Download poster</button>'
+        + '<button class="btn btn-sm" data-act="copy" data-v="' + esc(centerUrl) + '">' + ico('copy', 14) + 'Copy link</button>'
+        + '<a class="btn btn-sm" href="' + esc(centerUrl) + '" target="_blank" rel="noopener">' + ico('scan', 14) + 'Open</a>'
+        + '</div></div></div></div>'
         + '</div>'
 
         + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
@@ -453,7 +474,7 @@
       html: '<div class="grid g4">'
         + kpi('Reports filed', reps.length, 'all time', 'file')
         + kpi('Total orders', t.orders.toLocaleString(), '', 'trend')
-        + kpi('Total amount', usd(t.amount), '', 'cash', 'kpi-lime')
+        + kpi('Total amount', usd(t.amount), '', 'cash', 'kpi-blue')
         + kpi('Distributors', dists.length, dists.filter(d => LEADER.includes(d.status)).length + ' at Director level', 'users', 'kpi-dark')
         + '</div>'
 
@@ -694,20 +715,28 @@
       crumbs: '<a href="' + link(e.kind === 'training' ? 'trainings' : 'events') + '">'
         + (e.kind === 'training' ? 'Trainings' : 'Center events') + '</a> · ' + esc(c.name || ''),
       html: '<div class="grid g-1-2">'
-        + '<div class="ticket"><div class="ticket-h">'
+        + '<div class="ticket tilt"><div class="ticket-h">'
         + '<div class="t-n">' + esc(e.name) + '</div>'
         + '<div class="t-m">' + esc(c.name || '') + ' · ' + esc(U.fullDate(e.event_date)) + ' · ' + esc(e.event_time) + '</div></div>'
         + '<div class="ticket-b"><div class="qr-box">' + U.qrSvg(scanUrl) + '</div>'
         + '<div><div class="card-s" style="margin:0 0 8px">Distributors scan this with a phone camera, or open the link and type the code.</div>'
         + '<div class="code">' + esc(e.code) + '</div>'
         + '<div class="row" style="margin-top:12px">'
+        + '<button class="btn btn-a btn-pop btn-sm" data-act="qr-download"'
+        + ' data-url="' + esc(scanUrl) + '"'
+        + ' data-title="' + esc(e.name) + '"'
+        + ' data-sub="' + esc((c.name || '') + ' · ' + U.fullDate(e.event_date) + ' · ' + e.event_time) + '"'
+        + ' data-code="' + esc(e.code) + '"'
+        + ' data-lines="' + esc(e.elig === 'sm' ? 'Senior Managers and above' : 'All distributors welcome') + '"'
+        + ' data-file="' + esc('qr-' + e.code.toLowerCase()) + '">'
+        + ico('qr', 14) + 'Download poster</button>'
         + '<button class="btn btn-sm" data-act="copy" data-v="' + esc(scanUrl) + '">' + ico('copy', 14) + 'Copy link</button>'
         + '<a class="btn btn-sm" href="' + esc(scanUrl) + '" target="_blank" rel="noopener">' + ico('scan', 14) + 'Open</a>'
         + '</div></div></div></div>'
 
         + '<div class="stack">'
         + '<div class="grid g3">'
-        + kpi('Scanned in', acc.length, '', 'check', 'kpi-lime')
+        + kpi('Scanned in', acc.length, '', 'check', 'kpi-blue')
         + kpi('Eligible', eligible.length, e.elig === 'sm' ? 'SM and above' : 'all distributors', 'users')
         + kpi('Turnout', eligible.length ? U.pct((acc.length / eligible.length) * 100) : '—', '', 'trend', 'kpi-dark')
         + '</div>'
@@ -881,31 +910,31 @@
 
         + (pending.length ? '<div class="card"><div class="card-h"><div>'
           + '<div class="card-t">Waiting to be placed · ' + pending.length + '</div>'
-          + '<div class="card-s">These accounts signed up but have not joined an office or been made an admin.</div></div></div>'
+          + '<div class="card-s">These accounts signed up but have not joined an office or been made a leader.</div></div></div>'
           + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Signed up' }, { label: '' }],
             pending.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
               + '<td>' + esc(p.email) + '</td><td class="sub">' + esc(U.timeAgo(p.created_at)) + '</td>'
               + '<td class="num"><button class="btn btn-sm" data-act="make-admin" data-id="' + p.id + '">'
-              + ico('shield', 13) + 'Make platform admin</button></td></tr>'))
+              + ico('shield', 13) + 'Make a leader</button></td></tr>'))
           + '</div>' : '')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
-        + '<div class="card-s">Platform Admins see every center and run the evaluation. They cannot create centers.</div></div></div>'
+        + '<div class="card-s">Leaders see every center and run the Wednesday evaluation. They cannot create centers.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
           admins.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
             + '<td>' + esc(p.email) + '</td>'
-            + '<td>' + (p.role === 'super_admin' ? tag('Super Admin', 't-gold') : tag('Platform Admin', 't-ok')) + '</td>'
+            + '<td>' + (p.role === 'super_admin' ? tag('Super Admin', 't-gold') : tag('Leader', 't-ok')) + '</td>'
             + '<td class="sub">' + esc(U.fullDate(p.created_at)) + '</td>'
             + '<td class="num">' + (p.role === 'platform_admin' && p.id !== A.store.me.id
               ? '<button class="btn btn-sm btn-d" data-act="drop-admin" data-id="' + p.id + '">Remove</button>' : '') + '</td></tr>'))
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Join codes</div>'
-        + '<div class="card-s">Hand the office code to a new office. The admin code makes someone a Platform Admin.</div></div></div>'
+        + '<div class="card-s">Hand each code only to the people it is for: the office code unlocks office sign-up, the leader code unlocks leader sign-up.</div></div></div>'
         + '<div class="two">'
-        + '<div class="field"><label for="s-office-code">Office join code</label>'
+        + '<div class="field"><label for="s-office-code">Office access code</label>'
         + '<input class="input mono" id="s-office-code" value="' + esc(st.office_join_code || '') + '"></div>'
-        + '<div class="field"><label for="s-admin-code">Admin join code</label>'
+        + '<div class="field"><label for="s-admin-code">Leader access code</label>'
         + '<input class="input mono" id="s-admin-code" value="' + esc(st.admin_join_code || '') + '"></div></div>'
         + '<div class="row" style="justify-content:flex-end"><button class="btn btn-p" data-act="codes-save">'
         + ico('check', 15) + 'Save codes</button></div>'
@@ -918,7 +947,7 @@
      =================================================================== */
   async function account() {
     const me = A.store.me;
-    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Platform Admin', office: 'Office', pending: 'Not placed yet' };
+    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office', pending: 'Not placed yet' };
     return {
       title: 'Account',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">You</div></div></div>'

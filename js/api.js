@@ -285,6 +285,13 @@
     /* The sign-up screen needs the centers before the user has a role. */
     async publicCenters() {
       return rows(await sb.from('centers').select('id,name,area').order('name'));
+    },
+    /* The gate. True only when the code matches the one for that role —
+       checked in the database, so the codes never reach the browser. */
+    async checkCode(kind, code) {
+      const { data, error } = await sb.rpc('check_join_code', { p_kind: kind, p_code: code });
+      if (error) throw new Error(error.message);
+      return data === true;
     }
   };
 
