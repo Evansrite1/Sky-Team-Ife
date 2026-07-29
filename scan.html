@@ -3,26 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Sign in — Sky Team Ife</title>
-<meta name="theme-color" content="#0C2C5A">
+<title>Scan in — Sky Team Ife</title>
+<meta name="theme-color" content="#191a23">
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23b9ff66'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='19' font-weight='700' text-anchor='middle' fill='%23191a23'%3ES%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&family=Lora:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
-<style>
-  body{background:var(--bg)}
-  .scan-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px}
-  .scan-card{width:100%;max-width:430px;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 18px 44px -20px rgba(12,44,90,.4)}
-  .scan-card .phone-b{padding:20px}
-  .scan-foot{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:700}
-  .auto button{width:100%}
-  .digit input{width:66px;height:68px;font-size:26px}
-</style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div class="loading"><div class="spinner"></div></div></div>
+<div id="modal"></div>
+<div class="toasts" id="toasts"></div>
+
 <script src="config.js"></script>
+<script src="js/vendor/supabase.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/api.js"></script>
 <script src="js/scan.js"></script>
 </body>
 </html>

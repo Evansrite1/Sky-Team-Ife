@@ -1,29 +1,32 @@
 /* =====================================================================
    Sky Team Ife — configuration
-   Fill these in with your own Supabase project values, commit, and the
-   site works. None of these are secrets: the anon key is designed to be
-   public and is only useful alongside the row-level security policies in
-   supabase/schema.sql. The service role key must NEVER appear here.
+   ---------------------------------------------------------------------
+   Fill in the two Supabase values below, commit, and the site is live.
+   Find them in Supabase -> Project Settings -> Data API / API Keys.
+
+   Neither value is a secret. The anon key is designed to sit in public
+   HTML; row level security in supabase/schema.sql is what protects the
+   data. The service_role key must NEVER appear in this file.
    ===================================================================== */
 window.CONFIG = {
-  // Supabase → Project Settings → API
   supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
   supabaseAnonKey: 'YOUR-ANON-PUBLIC-KEY',
 
-  // Where this site is served from. Used to build the QR code links.
-  // GitHub Pages example: https://yourname.github.io/sky-team-ife
+  organisation: 'Sky Team Ife',
+
+  /* Where this site is served from — used to build the QR links that
+     distributors scan. Left alone it works the origin out by itself. */
   appUrl: window.location.origin + window.location.pathname.replace(/\/(index|scan)\.html$/, '').replace(/\/$/, ''),
 
-  // Billing. Change these together with PLAN_AMOUNT_KOBO on the edge functions.
-  plan: {
-    amountNgn: 6500,
-    days: 30,
-    trialDays: 30,
-    name: 'Office plan',
-  },
+  /* How many weeks of history the pickers and charts offer. */
+  weeksShown: 12,
 
-  // How many weeks of history the pickers and charts offer.
-  weeksShown: 9,
-
-  organisation: 'Sky Team Ife',
+  /* Phase 2. Until Paystack is wired up the subscription page says so. */
+  billingEnabled: false,
+  plan: { amountNgn: 6500, days: 30, trialDays: 30, name: 'Office plan' }
 };
+
+/* The app checks this before it tries to talk to the database, so a site
+   with the placeholders still in it explains itself instead of hanging. */
+window.CONFIG.ready = /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(window.CONFIG.supabaseUrl.trim())
+  && window.CONFIG.supabaseAnonKey.trim().length > 40;
