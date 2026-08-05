@@ -16,7 +16,20 @@
 
   /* ------------------------------------------------------- aggregation */
   const sumBy = (arr, f) => arr.reduce((a, r) => a + (Number(f(r)) || 0), 0);
-  const totals = rs => ({ orders: sumBy(rs, r => r.orders), amount: sumBy(rs, r => r.amount), count: rs.length });
+  const totals = rs => ({
+    orders: sumBy(rs, r => r.orders), amount: sumBy(rs, r => r.amount), count: rs.length,
+    dists: sumBy(rs, r => r.num_distributors), sms: sumBy(rs, r => r.num_senior_managers),
+    newbies: sumBy(rs, r => r.num_newbies), prospects: sumBy(rs, r => r.num_prospects)
+  });
+
+  /* The room, as reported. Shown wherever a set of reports is summed. */
+  const roomRow = (t) => '<div class="room">'
+    + [['Distributors', t.dists, 'users'], ['Senior managers', t.sms, 'crown'],
+    ['Newbies', t.newbies, 'plus'], ['New prospects', t.prospects, 'star']]
+      .map(c => '<div class="room-c">' + ico(c[2], 15)
+        + '<div><div class="room-v">' + (c[1] || 0).toLocaleString() + '</div>'
+        + '<div class="room-l">' + c[0] + '</div></div></div>').join('')
+    + '</div>';
 
   function rankOffices(reps, offices) {
     const by = {};
@@ -98,6 +111,10 @@
         + kpi('Leading office', top ? esc(top.office.name) : '—',
           top ? usdFull(top.amount) + ' · ' + top.orders + ' orders' : 'No reports filed yet', 'crown', 'kpi-dark')
         + '</div>'
+        + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+        + '<div class="card-t">The room this week</div>'
+        + '<div class="card-s">Headcount across every office that filed.</div></div></div>'
+        + roomRow(t) + '</div>'
 
         + '<div class="grid g-2-1" style="margin-top:18px">'
         + '<div class="card"><div class="card-h"><div><div class="card-t">Amount by week</div>'
@@ -228,7 +245,7 @@
         + kpi('Filed', t.count + ' of ' + offs.length, '', 'file', t.count === offs.length ? 'kpi-blue' : '')
         + kpi('Orders', t.orders.toLocaleString(), '', 'trend')
         + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-dark')
-        + '</div></div>'
+        + '</div>' + roomRow(t) + '</div>'
 
         + '<div class="card">' + table(
           [{ label: '#' }, { label: 'Office' }, { label: 'Last week', num: true }, { label: 'This week', num: true },
@@ -597,6 +614,24 @@
         + '<div class="field"><label for="f-total">Total distributors in the office</label>'
         + '<input class="input" id="f-total" type="number" min="0" step="1" value="' + (mine ? mine.total_office : dists.length) + '"></div>'
         + '</div>'
+
+        + '<div class="field"><label>Who came into the office this week?</label>'
+        + '<div class="hint" style="margin:-2px 0 10px">Headcount for the week, not names. '
+        + 'This is what the center reads to see whether the room is growing.</div>'
+        + '<div class="g4 gsm">'
+        + '<div class="field"><label for="f-dist">Distributors</label>'
+        + '<input class="input" id="f-dist" type="number" min="0" step="1" placeholder="0" value="'
+        + (mine ? mine.num_distributors : (dists.filter(d => d.status === 'Distributor').length || '')) + '"></div>'
+        + '<div class="field"><label for="f-sm">Senior managers</label>'
+        + '<input class="input" id="f-sm" type="number" min="0" step="1" placeholder="0" value="'
+        + (mine ? mine.num_senior_managers : (dists.filter(d => SM_PLUS.includes(d.status)).length || '')) + '"></div>'
+        + '<div class="field"><label for="f-new">Newbies</label>'
+        + '<input class="input" id="f-new" type="number" min="0" step="1" placeholder="0" value="'
+        + (mine ? mine.num_newbies : '') + '"></div>'
+        + '<div class="field"><label for="f-pros">New prospects</label>'
+        + '<input class="input" id="f-pros" type="number" min="0" step="1" placeholder="0" value="'
+        + (mine ? mine.num_prospects : '') + '"></div>'
+        + '</div></div>'
 
         + '<div class="field"><label>Which niches did the orders come from?</label>'
         + '<div class="chips" id="niche-chips">' + nicheChips(niches) + '</div>'

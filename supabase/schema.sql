@@ -313,6 +313,13 @@ create table if not exists reports (
 create index if not exists reports_week_idx on reports(week_start);
 create index if not exists reports_center_week_idx on reports(center_id, week_start);
 
+-- Who was in the office that week. office_size counts the people who
+-- actually wrote orders; these count the room.
+alter table reports add column if not exists num_distributors    integer not null default 0;
+alter table reports add column if not exists num_senior_managers integer not null default 0;
+alter table reports add column if not exists num_newbies         integer not null default 0;
+alter table reports add column if not exists num_prospects       integer not null default 0;
+
 create or replace function sync_report_center()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin

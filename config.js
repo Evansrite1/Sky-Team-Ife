@@ -21,8 +21,11 @@ window.CONFIG = {
   /* How many weeks of history the pickers and charts offer. */
   weeksShown: 12,
 
-  /* Phase 2. Until Paystack is wired up the subscription page says so. */
-  billingEnabled: false,
+  /* Shows the pay button. The lock itself is switched on separately, by
+     setting billing_enabled to 'true' in app_settings — do that only
+     once the two Edge Functions are deployed, or offices will be locked
+     out with a button that cannot reach Paystack. */
+  billingEnabled: true,
   plan: { amountNgn: 6500, days: 30, trialDays: 16, name: 'Office plan' }
 };
 

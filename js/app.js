@@ -16,66 +16,70 @@
     q: '',
     form: {},
     booted: false,
-    editRequest: false   // a waiting account asked to change what it sent
+    editRequest: false,  // a waiting account asked to change what it sent
+    moreOpen: false      // the folded half of the sidebar
   };
   window.APP = { state, go, refresh };
 
   /* ------------------------------------------------------------- nav */
+  /* Five places you go every week, and everything else folded away.
+     A sidebar of fourteen links is a list to read; five is a place to
+     go. `more` opens on click and stays open while you are inside it. */
   const NAV = {
-    super_admin: [
-      { grp: 'Overview' },
-      { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-      { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
-      { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-      { grp: 'Performance' },
-      { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
-      { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
-      { p: 'rankings', l: 'Office rankings', i: 'crown' },
-      { p: 'reports', l: 'Weekly reports', i: 'file' },
-      { grp: 'Attendance' },
-      { p: 'trainings', l: 'Trainings', i: 'qr' },
-      { p: 'events', l: 'Center events', i: 'star' },
-      { grp: 'People & admin' },
-      { p: 'distributors', l: 'Distributors', i: 'users' },
-      { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-      { p: 'admin', l: 'Centers & directors', i: 'shield',
-        c: () => A.store.leaders || '', alertC: () => A.store.waiting || '' },
-      { p: 'account', l: 'Account', i: 'lock' },
-      { p: 'guide', l: 'Guide', i: 'info' }
-    ],
-    platform_admin: [
-      { grp: 'Overview' },
-      { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-      { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
-      { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-      { grp: 'Performance' },
-      { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
-      { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
-      { p: 'rankings', l: 'Office rankings', i: 'crown' },
-      { p: 'reports', l: 'Weekly reports', i: 'file' },
-      { grp: 'Attendance' },
-      { p: 'trainings', l: 'Trainings', i: 'qr' },
-      { p: 'events', l: 'Center events', i: 'star' },
-      { grp: 'People' },
-      { p: 'distributors', l: 'Distributors', i: 'users' },
-      { p: 'account', l: 'Account', i: 'lock' },
-      { p: 'guide', l: 'Guide', i: 'info' }
-    ],
-    office: [
-      { grp: 'This week' },
-      { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-      { p: 'reports', l: 'Weekly report', i: 'clipboard' },
-      { grp: 'Attendance' },
-      { p: 'trainings', l: 'Trainings', i: 'qr' },
-      { p: 'events', l: 'Center events', i: 'star' },
-      { grp: 'Your office' },
-      { p: 'distributors', l: 'Distributors', i: 'users' },
-      { p: 'center', l: 'Center performance', i: 'layers' },
-      { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-      { p: 'subscriptions', l: 'Subscription', i: 'card' },
-      { p: 'account', l: 'Account', i: 'lock' },
-      { p: 'guide', l: 'Guide', i: 'info' }
-    ]
+    super_admin: {
+      main: [
+        { p: 'dashboard', l: 'Dashboard', i: 'grid' },
+        { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
+        { p: 'reports', l: 'Weekly reports', i: 'file' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'admin', l: 'Approvals & centers', i: 'shield', alertC: () => A.store.waiting || '' }
+      ],
+      more: [
+        { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
+        { p: 'rankings', l: 'Office rankings', i: 'crown' },
+        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
+        { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
+        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'distributors', l: 'Distributors', i: 'users' },
+        { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
+        { p: 'account', l: 'Account', i: 'lock' },
+        { p: 'guide', l: 'Guide', i: 'info' }
+      ]
+    },
+    platform_admin: {
+      main: [
+        { p: 'dashboard', l: 'Dashboard', i: 'grid' },
+        { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
+        { p: 'reports', l: 'Weekly reports', i: 'file' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' }
+      ],
+      more: [
+        { p: 'rankings', l: 'Office rankings', i: 'crown' },
+        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
+        { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
+        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'distributors', l: 'Distributors', i: 'users' },
+        { p: 'account', l: 'Account', i: 'lock' },
+        { p: 'guide', l: 'Guide', i: 'info' }
+      ]
+    },
+    office: {
+      main: [
+        { p: 'dashboard', l: 'Dashboard', i: 'grid' },
+        { p: 'reports', l: 'Weekly report', i: 'clipboard' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'distributors', l: 'Distributors', i: 'users' },
+        { p: 'center', l: 'Your center', i: 'layers' }
+      ],
+      more: [
+        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
+        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'subscriptions', l: 'Subscription', i: 'card' },
+        { p: 'account', l: 'Account', i: 'lock' },
+        { p: 'guide', l: 'Guide', i: 'info' }
+      ]
+    }
   };
   const ALLOWED = {
     super_admin: null,   // everything
@@ -87,20 +91,29 @@
   const brand = () => (A.store.settings.organisation || window.CONFIG.organisation || 'Sky Team Ife');
 
   /* ============================== CHROME ============================= */
+  const navLink = (n, active) => {
+    const cnt = n.c ? n.c() : '';
+    const alert = n.alertC ? n.alertC() : '';
+    return '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
+      + '<span>' + esc(n.l) + '</span>'
+      + (cnt ? '<span class="cnt">' + cnt + '</span>' : '')
+      + (alert ? '<span class="cnt cnt-a">' + alert + '</span>' : '') + '</a>';
+  };
+
   function sidebar(active) {
     const me = A.store.me;
-    const nav = NAV[me.role] || [];
+    const nav = NAV[me.role] || { main: [], more: [] };
+    /* Open if they asked for it, or if the page they are on lives in there. */
+    const openMore = state.moreOpen || nav.more.some(n => n.p === active);
     return '<aside class="sb"><div class="sb-top"><div class="brand">'
       + '<span class="brand-mk">' + U.logo(22) + '</span>' + esc(brand()) + '</div></div>'
-      + '<nav class="sb-nav">' + nav.map(n => {
-        if (n.grp) return '<div class="sb-grp">' + esc(n.grp) + '</div>';
-        const cnt = n.c ? n.c() : '';
-        const alert = n.alertC ? n.alertC() : '';
-        return '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
-          + '<span>' + esc(n.l) + '</span>'
-          + (cnt ? '<span class="cnt">' + cnt + '</span>' : '')
-          + (alert ? '<span class="cnt cnt-a">' + alert + '</span>' : '') + '</a>';
-      }).join('') + '</nav>'
+      + '<nav class="sb-nav">'
+      + nav.main.map(n => navLink(n, active)).join('')
+      + '<button class="sb-more' + (openMore ? ' on' : '') + '" data-act="more">'
+      + ico('down', 16) + '<span>More</span></button>'
+      + '<div class="sb-sub' + (openMore ? ' open' : '') + '"><div>'
+      + nav.more.map(n => navLink(n, active)).join('')
+      + '</div></div></nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
@@ -572,6 +585,12 @@
 
   /* --- chrome ------------------------------------------------------ */
   ACT['nav'] = () => document.body.classList.toggle('nav-open');
+  ACT['more'] = (el) => {
+    state.moreOpen = !state.moreOpen;
+    el.classList.toggle('on', state.moreOpen);
+    const sub = el.nextElementSibling;
+    if (sub) sub.classList.toggle('open', state.moreOpen);
+  };
 
   ACT['install'] = async () => {
     const p = window.__installPrompt;
@@ -759,6 +778,10 @@
         new_niches: state.form.newNiches || [],
         office_size: Number(val('#f-size')) || 0,
         total_office: Number(val('#f-total')) || 0,
+        num_distributors: Number(val('#f-dist')) || 0,
+        num_senior_managers: Number(val('#f-sm')) || 0,
+        num_newbies: Number(val('#f-new')) || 0,
+        num_prospects: Number(val('#f-pros')) || 0,
         issues: val('#f-issues'),
         submitted_by: A.store.me.id,
         submitted_at: new Date().toISOString()

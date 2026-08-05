@@ -50,7 +50,9 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+/* min-height, never height: a fixed 100% turns body into a box that
+   clips anything past the fold instead of letting the page scroll. */
+html, body { min-height: 100%; }
 body {
   margin: 0;
   font-family: var(--font);
@@ -104,7 +106,10 @@ svg { display: block; flex: none; }
 
 /* ================================ SHELL ============================== */
 .shell { display: flex; min-height: 100vh; position: relative; }
-.shell > .main, .shell > .sb, .shell > .tabs, .shell > .inst { position: relative; z-index: 2; }
+/* Only .main needs lifting above the 3D field. Setting position on .sb
+   or .tabs here would override the fixed positioning they take on a
+   phone, drop them back into the flex row, and crush .main to nothing. */
+.shell > .main { position: relative; z-index: 2; }
 .sb {
   width: var(--sb-w); flex: none; background: rgba(10,16,36,.72); color: var(--white);
   display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
@@ -142,6 +147,25 @@ svg { display: block; flex: none; }
 /* Accounts waiting to be approved — this one should catch the eye. */
 .sb-a .cnt-a { background: var(--blue); color: #fff; }
 .sb-a.on .cnt-a { background: #fff; color: var(--blue); }
+/* The folded half of the sidebar. */
+.sb-more {
+  display: flex; align-items: center; gap: 11px; width: 100%; margin-top: 10px;
+  padding: 9px 12px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--faint); font-size: 12px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; cursor: pointer; transition: color .15s ease;
+}
+.sb-more:hover { color: #d3d4dc; }
+.sb-more svg { transition: transform .2s ease; }
+.sb-more.on svg { transform: rotate(180deg); }
+.sb-more.on { color: #d3d4dc; }
+.sb-sub {
+  display: grid; grid-template-rows: 0fr; overflow: hidden;
+  transition: grid-template-rows .26s cubic-bezier(.3,.8,.35,1);
+}
+.sb-sub.open { grid-template-rows: 1fr; }
+.sb-sub > div { min-height: 0; overflow: hidden; }
+.sb-sub .sb-a:first-child { margin-top: 2px; }
+
 .sb-btm { padding: 14px; border-top: 1px solid var(--dark-3); }
 .sb-user { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .av {
@@ -764,16 +788,25 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   .inst-t span { font-size: 11.5px; color: #aeb6cd; }
   .inst-x { border: 0; background: none; color: #7e88a3; padding: 4px; cursor: pointer; flex: none; }
 
+  /* A card header is a title and an action side by side. At this width
+     they do not fit, so the action drops underneath. */
+  .card-h { flex-wrap: wrap; }
+  .card-h .card-a { margin-left: 0; width: 100%; }
+  .card-h .card-a .btn { width: 100%; }
+
   /* Touch targets and inputs that iOS will not zoom into. */
   .btn { min-height: 44px; }
-  .btn-sm { min-height: 34px; }
+  .btn-sm { min-height: 36px; }
+  .seg button { min-height: 38px; padding-left: 16px; padding-right: 16px; }
   .input, .select, textarea.input { font-size: 16px; padding: 12px 13px; }
   .sb-a { padding-top: 11px; padding-bottom: 11px; }
   .card { padding: 18px 16px; }
   .tw { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
 
-  /* Nothing may push the page sideways. */
-  html, body { max-width: 100%; overflow-x: hidden; }
+  /* Nothing may push the page sideways. `clip` rather than `hidden`,
+     because `hidden` makes an element a scroll container and that is
+     what stops the page scrolling down at all. */
+  html, body { max-width: 100%; overflow-x: clip; }
 }
 
 /* Standalone: no browser bar, so the header carries the status bar. */
@@ -844,6 +877,21 @@ html.standalone .inst { display: none; }
 
 /* The scan page is opened on a phone, always. Give it the notch too. */
 .scan-brand { display: grid; place-items: center; color: var(--blue); margin-bottom: 14px; }
+
+/* ================== WHO WAS IN THE ROOM THIS WEEK ==================== */
+.room { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.room-c {
+  display: flex; align-items: center; gap: 11px; padding: 14px;
+  border: 1px solid var(--hair); border-radius: var(--r); background: var(--grey);
+}
+.room-c svg { color: var(--blue-soft); flex: none; }
+.room-v { font-size: 21px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+.room-l { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+/* The four headcount inputs on the report form. */
+.gsm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.gsm .field { margin: 0; }
+@media (max-width: 900px) { .room, .gsm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .room { grid-template-columns: minmax(0, 1fr); } }
 
 /* ===================== WHAT THE PLATFORM DOES ======================== */
 .ticks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
