@@ -101,7 +101,8 @@
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office' }[me.role] || '') + '</div></div></div>'
-      + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button></div></aside>';
+      + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
+      + '<div class="sb-credit">Site developed by <b>Large Technologies</b></div></div></aside>';
   }
 
   /* On a phone the sidebar is the wrong shape entirely. These are the
@@ -216,44 +217,41 @@
   async function refresh() { await route(); }
 
   /* =============================== AUTH ============================= */
-  /* The mark, alive. The two blocks fly in and settle, the star turns
-     slowly in the gap between them, and the whole thing breathes. The
-     star is a hole punched through a mask, so it stays transparent and
-     the panel behind it shows through. */
-  const markAnim = '<div class="scene">'
-    + '<svg class="mark" viewBox="0 0 120 120" aria-hidden="true">'
-    + '<defs><mask id="mkStar" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
-    + '<rect width="120" height="120" fill="#fff"/>'
-    + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
-    + '</mask>'
-    + '<linearGradient id="mkFill" x1="0" y1="0" x2="1" y2="1">'
-    + '<stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#2f6bff"/>'
-    + '</linearGradient></defs>'
-    + '<g mask="url(#mkStar)" fill="url(#mkFill)">'
-    + '<path class="mk-top" d="M110 12H34a24 24 0 0 0 0 48h76Z"/>'
-    + '<path class="mk-bot" d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
-    + '</g></svg>'
-    + '<span class="mk-glow"></span></div>';
+  /* The mark, alive. The two blocks fly in and settle, the star turns in
+     the gap between them, and the whole thing breathes. The star is a
+     hole punched through a mask, so it stays transparent and whatever is
+     behind it shows through. Each one needs its own mask id. */
+  let markSeq = 0;
+  function animMark(cls) {
+    const id = 'mk' + (++markSeq);
+    return '<svg class="mark ' + (cls || '') + '" viewBox="0 0 120 120" aria-hidden="true">'
+      + '<defs><mask id="' + id + '" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
+      + '<rect width="120" height="120" fill="#fff"/>'
+      + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
+      + '</mask></defs>'
+      + '<g mask="url(#' + id + ')" fill="currentColor">'
+      + '<path class="mk-top" d="M110 12H34a24 24 0 0 0 0 48h76Z"/>'
+      + '<path class="mk-bot" d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
+      + '</g></svg>';
+  }
 
-  const art = (h, p, steps) => '<div class="auth-r"><div class="blob blob-1"></div><div class="blob blob-2"></div>'
-    + markAnim
-    + '<div class="auth-art auth-art-inner"><h2>' + h + '</h2><p>' + p + '</p>'
-    + '<div class="auth-steps">' + steps.map((s, i) => '<div class="auth-step"><i>' + (i + 1) + '</i><div>' + s + '</div></div>').join('')
-    + '</div></div></div>';
+  /* The field the card floats on: six marks at wildly different sizes,
+     drifting and turning past each other, over two slow colour washes.
+     All decoration, so none of it is reachable or readable. */
+  const authBackdrop = () => '<div class="auth-bg" aria-hidden="true">'
+    + '<span class="wash wash-1"></span><span class="wash wash-2"></span>'
+    + ['bm-1', 'bm-2', 'bm-3', 'bm-4', 'bm-5', 'bm-6']
+      .map(c => '<span class="bm ' + c + '">' + animMark('bm-mark') + '</span>').join('')
+    + '<span class="auth-veil"></span></div>';
 
-  const authShell = (inner, right) => '<div class="auth"><div class="auth-l"><div class="auth-card">'
-    + '<div class="auth-brand"><span class="brand-mk">' + U.logo(26) + '</span>' + esc(brand()) + '</div>'
-    + inner + '</div></div>' + right + '</div>';
+  const CREDIT = '<div class="credit">Site developed by <b>Large Technologies</b></div>';
 
-  const RIGHT = art(
-    'A community is built on <span class="hl">what it writes down</span>.',
-    'Sky Team Ife is people before it is numbers. But the orders you wrote, the trainings '
-    + 'you sat through and the people who showed up are the record of the work, and a record '
-    + 'is the only thing you can look back on, learn from and grow against. This is where '
-    + 'that record lives.',
-    ['<b>Write the week down.</b> Orders, products, the people who sold, and what got in the way.',
-      '<b>Keep the room honest.</b> Everyone signs in at the door, so attendance is a fact.',
-      '<b>Watch it compound.</b> Week on week, office by office, the picture builds itself.']);
+  const authShell = (inner) => '<div class="auth">' + authBackdrop()
+    + '<div class="auth-mid">'
+    + '<div class="auth-card">'
+    + '<div class="auth-brand">' + animMark('brand-anim') + '<span>' + esc(brand()) + '</span></div>'
+    + inner + '</div>'
+    + CREDIT + '</div></div>';
 
   /* Which of the two they picked on #/join. Kept for the hop through
      account creation so the details form knows what to ask for. */
@@ -281,7 +279,7 @@
         + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A leader or director</span>'
         + '<span class="pick-d">You oversee centers. You see every office and run the Wednesday evaluation.</span></button>'
         + '</div>'
-        + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>', RIGHT);
+        + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>');
       return;
     }
     if (which === 'signup') {
@@ -303,7 +301,7 @@
         + '<input class="input" id="su-pass" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></div>'
         + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-signup">Create account</button>'
         + '</form>'
-        + '<div class="auth-alt">Already have one? <a href="#/login">Sign in</a></div>', RIGHT);
+        + '<div class="auth-alt">Already have one? <a href="#/login">Sign in</a></div>');
       return;
     }
     if (which === 'forgot') {
@@ -314,7 +312,7 @@
         + '<div class="field"><label for="fg-email">Email</label>'
         + '<input class="input" id="fg-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
         + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-forgot">Send the link</button>'
-        + '</form><div class="auth-alt"><a href="#/login">Back to sign in</a></div>', RIGHT);
+        + '</form><div class="auth-alt"><a href="#/login">Back to sign in</a></div>');
       return;
     }
     if (which === 'reset') {
@@ -325,22 +323,22 @@
         + '<div class="field"><label for="rs-pass">New password</label>'
         + '<input class="input" id="rs-pass" type="password" required minlength="8" autocomplete="new-password"></div>'
         + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-reset">Save password</button>'
-        + '</form>', RIGHT);
+        + '</form>');
       return;
     }
     r.innerHTML = authShell(
-      '<h1 class="auth-h">Sign in</h1>'
-      + '<p class="auth-s">Welcome back. Your dashboard is waiting.</p>'
+      '<h1 class="auth-h">Welcome back</h1>'
+      + '<p class="auth-s">A community is built on what it writes down. '
+      + 'Sign in and pick up where the week left off.</p>'
       + '<form id="login-form">'
-      + '<div class="field"><label for="li-email">Email</label>'
+      + '<div class="field"><label for="li-email">Email address</label>'
       + '<input class="input" id="li-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
       + '<div class="field"><label for="li-pass">Password</label>'
       + '<input class="input" id="li-pass" type="password" required autocomplete="current-password" placeholder="Your password"></div>'
+      + '<div class="auth-row"><a href="#/forgot">Forgot your password?</a></div>'
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-login">Sign in</button>'
       + '</form>'
-      + '<div class="auth-alt"><a href="#/forgot">Forgot your password?</a></div>'
-      + '<div class="divider">New here</div>'
-      + '<a class="btn btn-lg btn-block" href="#/join">Create an account</a>', RIGHT);
+      + '<div class="auth-alt">Are you a new member? <a href="#/join">Create an account</a></div>');
   }
 
   /* --------------------------------------------------- onboarding */
@@ -389,7 +387,7 @@
       + (turned ? 'Send it again' : 'Ask to join') + '</button>'
       + '</form>'
 
-      + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>', RIGHT);
+      + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>');
   }
 
   /* The account is in, the request is filed, and it is the Super Admin's
@@ -411,7 +409,7 @@
       + '<div class="row" style="margin-top:18px">'
       + '<button class="btn btn-a btn-block" data-act="check-approval">' + ico('refresh', 15) + 'Check again</button></div>'
       + '<div class="auth-alt"><a href="#" data-act="ob-edit">Change what I asked for</a> · '
-      + '<a href="#" data-act="signout">Sign out</a></div>', RIGHT);
+      + '<a href="#" data-act="signout">Sign out</a></div>');
   }
 
   /* ============================= SETUP GATE ========================= */

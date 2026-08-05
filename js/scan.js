@@ -38,7 +38,8 @@
   const shell = (body, foot) => '<div class="scan-wrap">'
     + '<div class="scan-brand">' + U.logo(26) + '</div>'
     + '<div class="card scan-card">' + body + '</div>'
-    + '<div class="scan-foot">' + esc(foot || (window.CONFIG.organisation || 'Sky Team Ife')) + '</div></div>';
+    + '<div class="scan-foot">' + esc(foot || (window.CONFIG.organisation || 'Sky Team Ife')) + '</div>'
+    + '<div class="credit">Site developed by <b>Large Technologies</b></div></div>';
 
   function paint() {
     if (!window.CONFIG.ready || !A.ready) {
