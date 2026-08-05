@@ -78,12 +78,14 @@ $$;
 create table if not exists centers (
   id             uuid primary key default gen_random_uuid(),
   name           text not null,
-  area           text not null,
   address        text not null default '',
   leader_name    text not null default '',
   assistant_name text not null default '',
   created_at     timestamptz not null default now()
 );
+
+-- A center is named, not zoned. The address is the only location it needs.
+alter table centers drop column if exists area;
 
 -- ---------------------------------------------------------------------
 -- Offices
@@ -92,21 +94,26 @@ create table if not exists offices (
   id           uuid primary key default gen_random_uuid(),
   center_id    uuid not null references centers(id) on delete restrict,
   name         text not null,
-  code         text not null unique,
   manager_name text not null default '',
   email        text not null default '',
-  area         text not null default '',
   address      text not null default '',
   active       boolean not null default true,
   created_at   timestamptz not null default now()
 );
 create index if not exists offices_center_idx on offices(center_id);
 
--- Collected when the office signs up. An office gives its address; the
--- area is inherited from its center rather than typed again, and the
--- short code is generated on approval rather than chosen.
+-- An office is its name, its address and the person who runs it. The
+-- short code and the area are both gone: nobody typed them, nobody read
+-- them, and the name already says which office it is.
 alter table offices add column if not exists phone text not null default '';
 alter table offices drop column if exists start_size;
+alter table offices drop column if exists code;
+alter table offices drop column if exists area;
+
+-- Two offices in the same center may not share a name, since the name is
+-- now the only thing telling them apart.
+drop index if exists offices_name_uniq;
+create unique index if not exists offices_name_uniq on offices (center_id, lower(name));
 
 -- ---------------------------------------------------------------------
 -- Profiles — one row per auth user
@@ -589,24 +596,8 @@ begin
   where id = auth.uid();
 end $$;
 
--- Offices no longer choose a short code, so one is made for them: the
--- first three letters of the name, numbered until it is free.
-create or replace function next_office_code(p_name text)
-returns text language plpgsql stable security definer set search_path = public as $$
-declare
-  v_base text;
-  v_try  text;
-  v_n    integer := 1;
-begin
-  v_base := upper(left(regexp_replace(coalesce(p_name, ''), '[^A-Za-z]', '', 'g'), 3));
-  if length(v_base) < 2 then v_base := 'OFC'; end if;
-  loop
-    v_try := v_base || '-' || lpad(v_n::text, 2, '0');
-    exit when not exists (select 1 from offices where upper(code) = v_try);
-    v_n := v_n + 1;
-  end loop;
-  return v_try;
-end $$;
+-- Short codes are gone entirely; an office is known by its name.
+drop function if exists next_office_code(text);
 
 -- Super Admin only. Creates the office if that is what was asked for, then
 -- moves the account onto its real role and clears the request.
@@ -633,13 +624,10 @@ begin
       raise exception 'That request does not say which center.';
     end if;
 
-    -- The area comes from the center, the code is generated, and
     -- manager_name holds the office's team leader.
-    insert into offices (center_id, name, code, manager_name, email, phone,
-                         area, address)
-    select r.req_center_id, r.req_office_name, next_office_code(r.req_office_name),
-           r.full_name, r.email, r.phone,
-           coalesce(c.area, ''), coalesce(r.req_address, '')
+    insert into offices (center_id, name, manager_name, email, phone, address)
+    select r.req_center_id, r.req_office_name, r.full_name, r.email, r.phone,
+           coalesce(r.req_address, '')
       from centers c where c.id = r.req_center_id
     returning id into v_office;
 
@@ -743,7 +731,7 @@ begin
 
   select * into v_center from centers where id = v_event.center_id;
 
-  select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'code', o.code)
+  select coalesce(jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name)
                             order by o.name), '[]'::jsonb)
     into v_offs
     from offices o where o.center_id = v_event.center_id and o.active;
@@ -768,7 +756,7 @@ begin
       'id', v_event.id, 'name', v_event.name, 'code', v_event.code,
       'status', v_event.status, 'elig', v_event.elig,
       'date', v_event.event_date, 'time', v_event.event_time),
-    'center', jsonb_build_object('id', v_center.id, 'name', v_center.name, 'area', v_center.area),
+    'center', jsonb_build_object('id', v_center.id, 'name', v_center.name),
     'offices', v_offs,
     'distributors', v_dists
   );
@@ -887,7 +875,7 @@ begin
 
   return jsonb_build_object(
     'ok', true,
-    'center', jsonb_build_object('id', v_center.id, 'name', v_center.name, 'area', v_center.area),
+    'center', jsonb_build_object('id', v_center.id, 'name', v_center.name),
     'events', v_evs
   );
 end $$;
@@ -925,7 +913,6 @@ revoke all on function record_scan(text, uuid, text, text) from public;
 revoke all on function center_lookup(uuid)             from public;
 revoke all on function ensure_week_events_for(uuid, date) from public;
 revoke all on function submit_access_request(text, text, text, uuid, text, text) from public;
-revoke all on function next_office_code(text)          from public;
 revoke all on function approve_access_request(uuid)    from public;
 revoke all on function decline_access_request(uuid, text) from public;
 grant execute on function scan_lookup(text)             to anon, authenticated;

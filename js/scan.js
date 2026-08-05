@@ -69,7 +69,7 @@
       const c = S.center.center, evs = S.center.events;
       root.innerHTML = shell(
         '<div class="card-h"><div><div class="card-t">' + esc(c.name) + '</div>'
-        + '<div class="card-s">' + esc(c.area) + ' · pick the session happening now.</div></div></div>'
+        + '<div class="card-s">Pick the session happening now.</div></div></div>'
         + '<div class="auto" style="max-height:320px">'
         + (evs.length ? evs.map(e => '<button data-code="' + esc(e.code) + '">'
           + '<span style="flex:1"><span style="display:block;font-weight:500">' + esc(e.name) + '</span>'
@@ -90,7 +90,6 @@
         + (S.data.offices.length
           ? S.data.offices.map(o => '<button data-office="' + o.id + '">'
             + '<span style="flex:1">' + esc(o.name) + '</span>'
-            + '<span class="sub mono">' + esc(o.code) + '</span>'
             + ico('right', 15) + '</button>').join('')
           : '<div class="empty-d">No offices in this center yet.</div>')
         + '</div></div>');

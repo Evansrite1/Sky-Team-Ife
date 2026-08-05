@@ -216,8 +216,27 @@
   async function refresh() { await route(); }
 
   /* =============================== AUTH ============================= */
+  /* The mark, alive. The two blocks fly in and settle, the star turns
+     slowly in the gap between them, and the whole thing breathes. The
+     star is a hole punched through a mask, so it stays transparent and
+     the panel behind it shows through. */
+  const markAnim = '<div class="scene">'
+    + '<svg class="mark" viewBox="0 0 120 120" aria-hidden="true">'
+    + '<defs><mask id="mkStar" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
+    + '<rect width="120" height="120" fill="#fff"/>'
+    + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
+    + '</mask>'
+    + '<linearGradient id="mkFill" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#2f6bff"/>'
+    + '</linearGradient></defs>'
+    + '<g mask="url(#mkStar)" fill="url(#mkFill)">'
+    + '<path class="mk-top" d="M110 12H34a24 24 0 0 0 0 48h76Z"/>'
+    + '<path class="mk-bot" d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
+    + '</g></svg>'
+    + '<span class="mk-glow"></span></div>';
+
   const art = (h, p, steps) => '<div class="auth-r"><div class="blob blob-1"></div><div class="blob blob-2"></div>'
-    + '<div class="scene"><div class="cube"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>'
+    + markAnim
     + '<div class="auth-art auth-art-inner"><h2>' + h + '</h2><p>' + p + '</p>'
     + '<div class="auth-steps">' + steps.map((s, i) => '<div class="auth-step"><i>' + (i + 1) + '</i><div>' + s + '</div></div>').join('')
     + '</div></div></div>';
@@ -227,11 +246,14 @@
     + inner + '</div></div>' + right + '</div>';
 
   const RIGHT = art(
-    'Every office, every week, <span class="hl">on one line</span>.',
-    'One place for the week\'s numbers, who turned up, and how each office is doing.',
-    ['Say whether you are an office or a leader.',
-      'Create your account and fill in your details.',
-      'You are approved, and you are in.']);
+    'A community is built on <span class="hl">what it writes down</span>.',
+    'Sky Team Ife is people before it is numbers. But the orders you wrote, the trainings '
+    + 'you sat through and the people who showed up are the record of the work, and a record '
+    + 'is the only thing you can look back on, learn from and grow against. This is where '
+    + 'that record lives.',
+    ['<b>Write the week down.</b> Orders, products, the people who sold, and what got in the way.',
+      '<b>Keep the room honest.</b> Everyone signs in at the door, so attendance is a fact.',
+      '<b>Watch it compound.</b> Week on week, office by office, the picture builds itself.']);
 
   /* Which of the two they picked on #/join. Kept for the hop through
      account creation so the details form knows what to ask for. */
@@ -269,7 +291,7 @@
         '<h1 class="auth-h">Create your account</h1>'
         + '<p class="auth-s">Joining as ' + KIND_LABEL[k] + '. '
         + '<a href="#/join" style="text-decoration:underline">Not right?</a><br>'
-        + 'An email and a password to start — your details come next.</p>'
+        + 'An email and a password to start. Your details come next.</p>'
         + (k === 'office'
           ? U.note('info', 'info', 'Use your <b>office email address</b> if you have one. This account belongs '
             + 'to the office rather than to you, so it should stay with the office if the team leader changes.')
@@ -344,6 +366,7 @@
       + (centers.length
         ? centers.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
           + esc(c.name) + '</option>').join('')
+
         : '<option value="">No centers exist yet</option>') + '</select></div>'
       + '<div class="field"><label for="ob-name">Office name</label>'
       + '<input class="input" id="ob-name" required placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
@@ -383,7 +406,7 @@
       '<h1 class="auth-h">You are on the list</h1>'
       + '<p class="auth-s">You asked to join as ' + what + '. Your leader will approve it, '
       + 'and the moment they do, this page opens onto your dashboard.</p>'
-      + U.note('ok', 'check', 'Nothing else to do. You can close this and come back later — '
+      + U.note('ok', 'check', 'Nothing else to do. You can close this and come back later. Just '
         + 'sign in with <b>' + esc(me.email) + '</b>.')
       + '<div class="row" style="margin-top:18px">'
       + '<button class="btn btn-a btn-block" data-act="check-approval">' + ico('refresh', 15) + 'Check again</button></div>'
@@ -399,7 +422,7 @@
       + U.note('gold', 'key', 'Open <span class="mono">config.js</span> and paste your Supabase <b>Project URL</b> and '
         + '<b>anon public key</b> from Project Settings → API. Then run <span class="mono">supabase/schema.sql</span> '
         + 'in the Supabase SQL editor.')
-      + '<p class="card-s" style="margin-top:14px">Neither value is a secret — the anon key is meant to be public, and row level '
+      + '<p class="card-s" style="margin-top:14px">Neither value is a secret. The anon key is meant to be public, and row level '
       + 'security is what protects the data. Never paste the service_role key here.</p></div>'
       + '<div class="scan-foot">' + esc(brand()) + '</div></div>';
   }
@@ -520,7 +543,7 @@
       await route();
     } else {
       busy(el, false);
-      toast('Not yet — your leader has not approved it.');
+      toast('Not yet. Your leader has not approved it.');
     }
   };
 
@@ -547,7 +570,7 @@
   ACT['copy'] = (el) => {
     navigator.clipboard.writeText(el.dataset.v)
       .then(() => toast('Link copied.'))
-      .catch(() => toast('Could not copy — select the link instead.', 'no'));
+      .catch(() => toast('Could not copy. Select the link instead.', 'no'));
   };
   ACT['qr-download'] = (el) => {
     const d = el.dataset;
@@ -567,10 +590,8 @@
   /* --- centers ----------------------------------------------------- */
   const centerForm = (c) => '<div class="field"><label for="c-name">Center name</label>'
     + '<input class="input" id="c-name" value="' + esc(c.name || '') + '" placeholder="Lagere Center"></div>'
-    + '<div class="two"><div class="field"><label for="c-area">Area</label>'
-    + '<input class="input" id="c-area" value="' + esc(c.area || '') + '" placeholder="Lagere"></div>'
     + '<div class="field"><label for="c-address">Address</label>'
-    + '<input class="input" id="c-address" value="' + esc(c.address || '') + '" placeholder="14 Ondo Road, Ile-Ife"></div></div>'
+    + '<input class="input" id="c-address" value="' + esc(c.address || '') + '" placeholder="14 Ondo Road, Ile-Ife"></div>'
     + '<div class="two"><div class="field"><label for="c-leader">Leader</label>'
     + '<input class="input" id="c-leader" value="' + esc(c.leader_name || '') + '"></div>'
     + '<div class="field"><label for="c-assistant">Assistant</label>'
@@ -590,10 +611,10 @@
 
   ACT['center-save'] = async (el) => {
     const row = {
-      name: val('#c-name'), area: val('#c-area'), address: val('#c-address'),
+      name: val('#c-name'), address: val('#c-address'),
       leader_name: val('#c-leader'), assistant_name: val('#c-assistant')
     };
-    if (!row.name || !row.area) return toast('A center needs a name and an area.', 'no');
+    if (!row.name) return toast('A center needs a name.', 'no');
     busy(el, true, 'Saving…');
     try {
       if (el.dataset.id) await A.centers.update(el.dataset.id, row);
@@ -788,7 +809,7 @@
       '<p class="card-s" style="margin-bottom:14px">They stay signed up and can send a new request. '
       + 'Tell them what to change.</p>'
       + '<div class="field"><label for="dq-why">Reason</label>'
-      + '<input class="input" id="dq-why" placeholder="That office already exists — pick another code."></div>',
+      + '<input class="input" id="dq-why" placeholder="That name is already taken in this center."></div>',
       '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
       + '<button class="btn btn-d" data-act="decline-req-yes">Turn it down</button>');
   };
@@ -818,8 +839,8 @@
     busy(el, true, 'Saving…');
     try {
       await A.offices.update(A.store.me.office_id, {
-        name: val('#o-name'), manager_name: val('#o-manager'), phone: val('#o-phone'),
-        area: val('#o-area'), address: val('#o-address')
+        name: val('#o-name'), manager_name: val('#o-manager'),
+        phone: val('#o-phone'), address: val('#o-address')
       });
       busy(el, false); toast('Office saved.'); route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }

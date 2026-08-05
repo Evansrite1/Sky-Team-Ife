@@ -589,21 +589,42 @@ html.standalone .inst { display: none; }
 .blob-2 { animation-duration: 12s; animation-delay: -4s; }
 @keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(18px, 14px) scale(1.06); } }
 
-/* ============================ 3D PIECES ============================== */
-/* A wireframe cube spinning slowly behind the auth art, pure CSS 3D. */
-.scene { position: absolute; right: 54px; bottom: 46px; width: 110px; height: 110px; perspective: 640px; z-index: 1; opacity: .8; }
-.cube { position: absolute; inset: 0; transform-style: preserve-3d; animation: cube 16s linear infinite; }
-.cube i {
-  position: absolute; inset: 0; border: 1.5px solid var(--blue-soft); border-radius: 10px;
-  background: rgba(47,107,255,.10);
+/* ======================= THE MARK, ANIMATED ========================== */
+/* The Sky Team logo assembles itself: the two blocks fly in from the
+   sides and settle, the star turns in the gap they leave, and the whole
+   mark breathes. The star is a hole in a mask, so the panel shows
+   through it rather than it being painted white. */
+.scene {
+  position: absolute; right: 46px; bottom: 40px; width: 168px; height: 168px;
+  z-index: 1; display: grid; place-items: center;
 }
-.cube i:nth-child(1) { transform: translateZ(55px); }
-.cube i:nth-child(2) { transform: rotateY(180deg) translateZ(55px); }
-.cube i:nth-child(3) { transform: rotateY(90deg) translateZ(55px); }
-.cube i:nth-child(4) { transform: rotateY(-90deg) translateZ(55px); }
-.cube i:nth-child(5) { transform: rotateX(90deg) translateZ(55px); }
-.cube i:nth-child(6) { transform: rotateX(-90deg) translateZ(55px); }
-@keyframes cube { from { transform: rotateX(-18deg) rotateY(0); } to { transform: rotateX(-18deg) rotateY(360deg); } }
+.mark { width: 100%; height: 100%; overflow: visible; animation: mk-breathe 7s ease-in-out infinite; }
+
+.mk-top { animation: mk-in-r 1.1s cubic-bezier(.2,.85,.25,1) both .15s, mk-sway 7s ease-in-out infinite 1.3s; }
+.mk-bot { animation: mk-in-l 1.1s cubic-bezier(.2,.85,.25,1) both .3s,  mk-sway 7s ease-in-out infinite 1.3s reverse; }
+
+/* The star is the only thing that never stops moving. */
+.mk-star {
+  transform-box: fill-box; transform-origin: center;
+  animation: mk-turn 14s linear infinite, mk-twinkle 3.4s ease-in-out infinite;
+}
+
+/* A soft light behind the mark, pulsing with the star. */
+.mk-glow {
+  position: absolute; width: 132px; height: 132px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(91,140,255,.42) 0%, rgba(47,107,255,0) 68%);
+  animation: mk-pulse 3.4s ease-in-out infinite; pointer-events: none;
+}
+
+@keyframes mk-in-r  { from { opacity: 0; transform: translateX(46px); } to { opacity: 1; transform: none; } }
+@keyframes mk-in-l  { from { opacity: 0; transform: translateX(-46px); } to { opacity: 1; transform: none; } }
+@keyframes mk-sway  { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+@keyframes mk-turn  { from { rotate: 0deg; } to { rotate: 360deg; } }
+@keyframes mk-twinkle { 0%, 100% { scale: 1; } 50% { scale: 1.16; } }
+@keyframes mk-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes mk-pulse { 0%, 100% { opacity: .55; transform: scale(.94); } 50% { opacity: .95; transform: scale(1.08); } }
+
+@media (max-width: 1240px) { .scene { width: 132px; height: 132px; right: 34px; bottom: 32px; } }
 
 /* Tickets and QR cards tilt gently in 3D when hovered */
 .tilt { transform-style: preserve-3d; }

@@ -89,7 +89,7 @@
       crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · open until Tuesday'),
       html:
         (!A.store.centers.length ? note('gold', 'info',
-          '<b>No centers yet.</b> Create your first center under <a href="' + link('admin') + '" style="text-decoration:underline">Centers &amp; admins</a>, then hand the office access code to your offices.') + '<div style="height:18px"></div>' : '')
+          '<b>No centers yet.</b> Create your first center under <a href="' + link('admin') + '" style="text-decoration:underline">Centers &amp; admins</a>, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
         + '<div class="grid g4">'
         + kpi('Orders this week', t.orders.toLocaleString(), U.change(t.orders, p.orders), 'trend')
         + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-blue')
@@ -121,7 +121,7 @@
           + '<div class="card-s">' + evalLine(ws) + '</div></div></div>'
           + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Team leader' }, { label: '' }],
             missing.map(r => '<tr class="click" data-href="' + link('offices', r.office.id) + '">'
-              + '<td><div class="nm">' + esc(r.office.name) + '</div><div class="sub">' + esc(r.office.code) + '</div></td>'
+              + '<td class="nm">' + esc(r.office.name) + '</td>'
               + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
               + '<td>' + esc(r.office.manager_name || '—') + '</td>'
               + '<td class="num">' + tag('Not filed', 't-warn') + '</td></tr>'))
@@ -238,14 +238,14 @@
             const pr = prevReps.find(x => x.office_id === r.office_id);
             if (!rep) {
               return '<tr><td><span class="rk">—</span></td>'
-                + '<td><div class="nm">' + esc(r.office.name) + '</div><div class="sub">' + esc(r.office.code) + '</div></td>'
+                + '<td class="nm">' + esc(r.office.name) + '</td>'
                 + '<td class="num">' + (pr ? usdFull(pr.amount) : '—') + '</td>'
                 + '<td class="num" colspan="6">' + tag('No report filed', 't-warn') + '</td></tr>';
             }
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
               + '<td><div class="nm">' + esc(r.office.name) + '</div>'
-              + '<div class="sub">' + esc(r.office.manager_name || r.office.code) + '</div></td>'
+              + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
               + '<td class="num">' + (pr ? usdFull(pr.amount) : '—') + '</td>'
               + '<td class="num nm">' + usdFull(rep.amount) + '<div class="sub">' + rep.orders + ' orders</div></td>'
               + '<td class="num">' + (pr ? U.change(rep.amount, pr.amount) : '<span class="sub">first week</span>') + '</td>'
@@ -253,7 +253,7 @@
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
               + '<td style="max-width:280px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
           }),
-          { empty: empty('clipboard', 'No offices in this center', 'Offices appear here once they sign up with the access code.') })
+          { empty: empty('clipboard', 'No offices in this center', 'Offices appear here once they sign up and you approve them.') })
         + '</div>'
     };
   }
@@ -331,7 +331,7 @@
       const rs = reps.filter(r => r.center_id === c.id);
       const t = totals(rs);
       return '<tr class="click" data-href="' + link('centers', c.id) + '">'
-        + '<td><div class="nm">' + esc(c.name) + '</div><div class="sub">' + esc(c.area) + '</div></td>'
+        + '<td class="nm">' + esc(c.name) + '</td>'
         + '<td>' + esc(c.address || '—') + '</td>'
         + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
         + '<td class="num">' + os.length + '</td>'
@@ -346,7 +346,7 @@
           + ico('plus', 15) + 'New center</button></div>' : '') + '</div>'
         + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Leader' }, { label: 'Offices', num: true },
         { label: 'Filed', num: true }, { label: 'Amount', num: true }], rowsHtml,
-          { empty: empty('layers', 'No centers yet', 'A center is an area of Ile-Ife with its own offices and its own Wednesday evaluation.',
+          { empty: empty('layers', 'No centers yet', 'A center holds its own offices and runs its own Wednesday evaluation.',
             A.isSuper() ? '<button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'Create the first center</button>' : '') })
         + '</div>'
     };
@@ -368,7 +368,7 @@
 
     const centerUrl = window.CONFIG.appUrl + '/scan.html?center=' + encodeURIComponent(c.id);
     return {
-      title: c.name, crumbs: '<a href="' + link('centers') + '">Centers</a> · ' + esc(c.area), picker: 'week',
+      title: c.name, crumbs: '<a href="' + link('centers') + '">Centers</a>', picker: 'week',
       html: '<div class="grid g4">'
         + kpi('Offices', offs.length, '', 'building')
         + kpi('Distributors', dists.length, dists.filter(d => SM_PLUS.includes(d.status)).length + ' SM and above', 'users')
@@ -378,16 +378,16 @@
 
         + '<div style="margin-top:18px;max-width:660px">'
         + '<div class="ticket tilt"><div class="ticket-h">'
-        + '<div class="t-n">Center QR — one code for every session</div>'
-        + '<div class="t-m">' + esc(c.name) + ' · ' + esc(c.area) + '</div></div>'
+        + '<div class="t-n">Center QR, one code for every session</div>'
+        + '<div class="t-m">' + esc(c.name) + '</div></div>'
         + '<div class="ticket-b"><div class="qr-box">' + U.qrSvg(centerUrl) + '</div>'
         + '<div><div class="card-s" style="margin:0 0 10px">Print this once and keep it at the door. '
-        + 'A distributor scans it, picks today\'s session, and is signed in — the QR never changes.</div>'
+        + 'A distributor scans it, picks today\'s session, and is signed in. The QR never changes.</div>'
         + '<div class="row">'
         + '<button class="btn btn-a btn-pop btn-sm" data-act="qr-download"'
         + ' data-url="' + esc(centerUrl) + '"'
         + ' data-title="' + esc(c.name) + '"'
-        + ' data-sub="' + esc('Training sign-in · ' + c.area) + '"'
+        + ' data-sub="' + esc('Training sign-in') + '"'
         + ' data-lines="' + esc((c.address || '') + '|' + (c.leader_name ? 'Leader: ' + c.leader_name : '')) + '"'
         + ' data-file="' + esc('qr-' + c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '">'
         + ico('qr', 14) + 'Download poster</button>'
@@ -403,11 +403,11 @@
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Team leader' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
-            + '<td><div class="nm">' + esc(r.office.name) + '</div><div class="sub">' + esc(r.office.code) + '</div></td>'
+            + '<td class="nm">' + esc(r.office.name) + '</td>'
             + '<td>' + esc(r.office.manager_name || '—') + '</td>'
             + '<td class="num">' + (r.missing ? tag('Not filed', 't-warn') : r.orders) + '</td>'
             + '<td class="num nm">' + (r.missing ? '—' : usdFull(r.amount)) + '</td></tr>'),
-          { empty: empty('building', 'No offices yet', 'Offices join this center with the office code.') })
+          { empty: empty('building', 'No offices yet', 'Offices pick this center when they sign up, and appear once approved.') })
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Sessions this week</div>'
@@ -444,14 +444,14 @@
           list.map(o => {
             const r = reps.find(x => x.office_id === o.id);
             return '<tr class="click" data-href="' + link('offices', o.id) + '">'
-              + '<td><div class="nm">' + esc(o.name) + '</div><div class="sub">' + esc(o.code) + '</div></td>'
+              + '<td class="nm">' + esc(o.name) + '</td>'
               + '<td>' + esc((A.centerById(o.center_id) || {}).name || '—') + '</td>'
               + '<td>' + esc(o.manager_name || '—') + '<div class="sub">' + esc(o.email || '') + '</div></td>'
               + '<td class="num">' + dists.filter(d => d.office_id === o.id).length + '</td>'
               + '<td class="num">' + (r ? r.orders : tag('Not filed', 't-warn')) + '</td>'
               + '<td class="num nm">' + (r ? usdFull(r.amount) : '—') + '</td></tr>';
           }),
-          { empty: empty('building', 'No offices yet', 'An office signs up on this site with the in-house office code and picks its center.') })
+          { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its center, and appears once you approve it.') })
         + '</div>'
     };
   }
@@ -551,7 +551,7 @@
           reps.map(r => {
             const o = A.officeById(r.office_id) || {};
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
-              + '<td><div class="nm">' + esc(o.name || '—') + '</div><div class="sub">' + esc(o.code || '') + '</div></td>'
+              + '<td class="nm">' + esc(o.name || '—') + '</td>'
               + '<td>' + esc((A.centerById(r.center_id) || {}).name || '—') + '</td>'
               + '<td class="num">' + r.orders + '</td>'
               + '<td class="num nm">' + usdFull(r.amount) + '</td>'
@@ -690,7 +690,7 @@
               kind === 'training' ? 'No trainings for this week' : 'No events this week',
               kind === 'training'
                 ? 'Trainings appear once at least one center exists. Create a center first.'
-                : 'A center event is anything outside the two weekly trainings — a rally, a launch, a leaders\' meeting.',
+                : 'A center event is anything outside the two weekly trainings: a rally, a launch, a leaders\' meeting.',
               kind === 'event' ? '<button class="btn btn-a btn-pop" data-act="event-new">' + ico('plus', 15) + 'Create an event</button>' : '')
           })
         + '</div>'
@@ -864,7 +864,7 @@
         + table([{ label: 'Office' }, { label: 'Status' }, { label: 'Trial ends' }, { label: 'Next charge' }, { label: 'Amount', num: true }],
           subs.filter(s => !own || s.office_id === A.store.me.office_id).map(s => {
             const o = A.officeById(s.office_id) || {};
-            return '<tr><td class="nm">' + esc(o.name || '—') + '<div class="sub">' + esc(o.code || '') + '</div></td>'
+            return '<tr><td class="nm">' + esc(o.name || '—') + '</td>'
               + '<td>' + billTag(s.status) + '</td>'
               + '<td>' + (s.trial_ends ? esc(U.fullDate(s.trial_ends)) : '—') + '</td>'
               + '<td>' + (s.next_charge ? esc(U.fullDate(s.next_charge)) : '—') + '</td>'
@@ -904,11 +904,11 @@
     return {
       title: 'Centers & admins',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
-        + '<div class="card-s">A center is an area of Ile-Ife with its own offices and its own Wednesday evaluation.</div></div>'
+        + '<div class="card-s">A center holds its own offices and runs its own Wednesday evaluation.</div></div>'
         + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New center</button></div></div>'
-        + table([{ label: 'Center' }, { label: 'Area' }, { label: 'Address' }, { label: 'Leader' }, { label: 'Offices', num: true }, { label: '' }],
+        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Leader' }, { label: 'Offices', num: true }, { label: '' }],
           A.store.centers.map(c => '<tr><td class="nm">' + esc(c.name) + '</td>'
-            + '<td>' + esc(c.area) + '</td><td>' + esc(c.address || '—') + '</td>'
+            + '<td>' + esc(c.address || '—') + '</td>'
             + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
             + '<td class="num">' + A.officesOf(c.id).length + '</td>'
             + '<td class="num"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
@@ -984,12 +984,10 @@
           + '<div class="field"><label for="o-manager">Team leader</label>'
           + '<input class="input" id="o-manager" value="' + esc(me.office.manager_name || '') + '"></div></div>'
           + '<div class="two">'
-          + '<div class="field"><label for="o-area">Area</label>'
-          + '<input class="input" id="o-area" value="' + esc(me.office.area || '') + '"></div>'
           + '<div class="field"><label for="o-phone">Office phone</label>'
-          + '<input class="input" id="o-phone" type="tel" value="' + esc(me.office.phone || '') + '"></div></div>'
+          + '<input class="input" id="o-phone" type="tel" value="' + esc(me.office.phone || '') + '"></div>'
           + '<div class="field"><label for="o-address">Address</label>'
-          + '<input class="input" id="o-address" value="' + esc(me.office.address || '') + '"></div>'
+          + '<input class="input" id="o-address" value="' + esc(me.office.address || '') + '"></div></div>'
           + '<div class="row" style="justify-content:flex-end">'
           + '<button class="btn btn-p" data-act="office-save">' + ico('check', 15) + 'Save office</button></div></div>' : '')
 

@@ -309,7 +309,7 @@
     },
     /* The sign-up screen needs the centers before the user has a role. */
     async publicCenters() {
-      return rows(await sb.from('centers').select('id,name,area').order('name'));
+      return rows(await sb.from('centers').select('id,name').order('name'));
     }
   };
 

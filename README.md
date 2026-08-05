@@ -67,9 +67,9 @@ Sign-up is open, and approval is the gate.
    | Office address | yes | – |
 
    An office is asked to sign up with its **office email address**, since the account
-   belongs to the office rather than to whoever runs it today. It does not pick a short
-   code — one is generated from the name on approval (`Lagere Office` → `LAG-01`) — and it
-   does not give an area, which it inherits from its center.
+   belongs to the office rather than to whoever runs it today. There is no short code and
+   no area. An office is its name, its address and the person who runs it, and two offices
+   in the same center may not share a name.
 
 4. **The Super Admin approves.** It shows under *Centers & leaders* with a count in the
    sidebar. Approving an office is what creates it; nothing exists before that.
@@ -77,7 +77,7 @@ Sign-up is open, and approval is the gate.
    and ask again.
 
 Until approval the account is `pending`. It has no navigation, no dashboard, and the row
-level security policies return nothing to it — not a report, not a distributor, not even
+level security policies return nothing to it: not a report, not a distributor, not even
 the list of offices. A pending account can read the names of your centers, because the
 sign-up form has to offer them, and nothing else.
 
