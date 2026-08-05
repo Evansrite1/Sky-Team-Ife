@@ -175,8 +175,11 @@
       if (store.me && store.me.office_id === id) store.me.office = d;
       return d;
     },
+    /* Goes through the function so the account that signed up is put back
+       to waiting rather than left holding a role with no office. */
     async remove(id) {
-      guard(await sb.from('offices').delete().eq('id', id));
+      const { error } = await sb.rpc('delete_office', { p_office: id });
+      if (error) throw new Error(error.message);
       store.offices = store.offices.filter(o => o.id !== id);
     },
     /* Moves the office and everything stamped with its zone. */

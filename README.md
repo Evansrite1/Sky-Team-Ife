@@ -102,16 +102,22 @@ security policies in the schema refuse it even if you type the URL by hand.
 
 ## The week
 
-A week runs **Wednesday → Tuesday**. Everything is stamped with `week_start`, the Wednesday
-that opens it, so no week table has to be maintained.
+A week runs **Thursday → Wednesday**: 30 Jul – 5 Aug is one week, 6 – 12 Aug the next.
+Everything is stamped with `week_start`, the Thursday that opens it, so no week table has
+to be maintained.
 
-- **Senior Manager Training** — every Wednesday, 2:45pm, Senior Managers and above
-- **Distributor Training** — every Friday, 2:45pm, everyone
-- **Evaluation** — the Wednesday after the week closes, 2:45pm
+It ends on the Wednesday the evaluation is held, which is the point of the shape — an
+evaluation always reads the seven days ending that day, never a week still running.
 
-Both trainings create themselves for every center, once per week, the first time anyone
-opens the Trainings page. Anything else — a rally, a launch, a leaders' meeting — is a
-center event you create by hand.
+| | When | Where in the week |
+|---|---|---|
+| **Distributor Training** | Friday, 2:45pm, everyone | day 2 |
+| **Senior Manager Training** | Wednesday, 2:45pm, Senior Managers and above | day 7 |
+| **Evaluation** | Wednesday, 2:45pm | the day it closes |
+
+Both trainings create themselves for every zone, once per week, the first time anyone
+opens the Trainings page. Anything else — a rally, a launch, a directors' meeting — is a
+zone event you create by hand.
 
 ---
 

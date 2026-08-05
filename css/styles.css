@@ -44,9 +44,68 @@
   --r-pill: 999px;
   --pop: 0 14px 34px rgba(0,0,0,.34);
   --pop-sm: 0 8px 20px rgba(0,0,0,.26);
-  --blur: blur(22px) saturate(1.4);
+  --blur: none;
   --sb-w: 268px;
+  --panel: rgba(10,16,36,.96);   /* top bar and tab bar */
   --font: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Tells the browser to draw native widgets — select popups, scrollbars,
+     date pickers — in dark. Without it the option list comes back as
+     black on black. */
+  color-scheme: dark;
+}
+
+/* ============================== LIGHT ================================
+   Same shapes, same spacing, only the palette moves. The sidebar stays
+   dark on purpose: it is chrome rather than content, and keeping it put
+   means every rule written against it still holds. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --blue: #2f6bff;
+  --blue-deep: #1e50d8;
+  --blue-soft: #2f6bff;
+  --blue-tint: rgba(47,107,255,.10);
+
+  --void: #eef1f7;
+  --dark: #0a1024;
+  --dark-2: #111a35;
+  --dark-3: rgba(255,255,255,.10);
+
+  --grey: #f4f6fb;
+  --grey-2: #e9edf5;
+  --surface: #ffffff;
+  --surface-2: #f6f8fc;
+  --line: #dde3ee;
+  --hair: #e8ecf4;
+
+  --ink: #0f1729;
+  --muted: #59627a;
+  --faint: #8791a8;
+
+  --ok: #17864b;
+  --ok-bg: #e4f6ec;
+  --warn: #9a6100;
+  --warn-bg: #fdf1d8;
+  --err: #b3261e;
+  --err-bg: #fdeceb;
+
+  --pop: 0 10px 28px rgba(16,28,60,.10);
+  --pop-sm: 0 5px 16px rgba(16,28,60,.08);
+  --panel: rgba(255,255,255,.96);
+}
+
+/* Native dropdowns. The popup is drawn by the OS, so the only reliable
+   levers are color-scheme above and an explicit colour on the options —
+   without both, one theme or the other ends up unreadable. */
+select option, select optgroup {
+  background-color: var(--dark);
+  color: #eef1fa;
+}
+:root[data-theme="light"] select option,
+:root[data-theme="light"] select optgroup {
+  background-color: #fff;
+  color: #0f1729;
 }
 
 * { box-sizing: border-box; }
@@ -167,6 +226,14 @@ svg { display: block; flex: none; }
 .sb-sub .sb-a:first-child { margin-top: 2px; }
 
 .sb-btm { padding: 14px; border-top: 1px solid var(--dark-3); }
+.sb-row { display: flex; gap: 8px; align-items: stretch; }
+.sb-row .sb-out { flex: 1; }
+.sb-theme {
+  flex: none; width: 42px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--dark-3); border-radius: 10px;
+  background: transparent; color: #d3d4dc; transition: background .14s, color .14s;
+}
+.sb-theme:hover { background: var(--dark-3); color: #fff; }
 .sb-user { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .av {
   width: 36px; height: 36px; border-radius: 10px; background: var(--blue); color: #fff;
@@ -445,134 +512,28 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   display: flex; flex-direction: column; align-items: center; gap: 22px;
 }
 
-/* ====================== THE 3D FIELD (shared) ======================== */
-/* A real perspective scene, not a flat parallax fake. Every mark sits at
-   its own translateZ, so the browser scales, blurs and moves it by its
-   actual distance. The stage tilts toward the pointer (or the phone's
-   gyroscope), and because near marks swing further than far ones the
-   depth reads as volume the moment anything moves.
-
-   --px and --py are set on <html> by the pointer, eased in JS so the
-   tilt lags the cursor slightly instead of snapping to it. */
+/* ======================= THE BACKDROP ================================
+   Was a perspective scene: eleven marks at their own translateZ, a
+   requestAnimationFrame loop easing the whole stage toward the pointer,
+   and a blur on every panel above it. It looked good and it cost a
+   frame budget the app could not spare, so it is a gradient now.
+   Nothing animates. Nothing composites. It paints once. */
 .bg3d {
   position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-  perspective: 760px; perspective-origin: 50% 48%;
-}
-/* Mostly a camera slide, barely a camera turn. Sliding is what gives
-   true parallax — after perspective, a near mark travels roughly two and
-   a half times as far across the screen as a distant one. Rotating does
-   the opposite, sweeping the far ones most, so it is kept to a couple of
-   degrees purely for the sense of tilt. */
-.bg3d-stage {
-  position: absolute; inset: 0; transform-style: preserve-3d;
-  transform:
-    rotateX(calc(var(--py, 0) * -1deg))
-    rotateY(calc(var(--px, 0) * 1.3deg))
-    translate3d(calc(var(--px, 0) * -78px), calc(var(--py, 0) * -56px), 0);
-}
-
-/* Two colour washes, themselves at depth, so the light moves too. */
-.wash { position: absolute; border-radius: 50%; filter: blur(80px); transform-style: preserve-3d; }
-.wash-1 {
-  width: 58vmax; height: 58vmax; left: -16vmax; top: -20vmax;
-  background: radial-gradient(circle, rgba(47,107,255,.52), rgba(47,107,255,0) 70%);
-  transform: translateZ(-620px);
-  animation: wash-a 24s ease-in-out infinite alternate;
-}
-.wash-2 {
-  width: 50vmax; height: 50vmax; right: -14vmax; bottom: -18vmax;
-  background: radial-gradient(circle, rgba(122,84,255,.44), rgba(47,107,255,0) 70%);
-  transform: translateZ(-820px);
-  animation: wash-b 31s ease-in-out infinite alternate;
-}
-@keyframes wash-a { from { transform: translateZ(-620px) translate(0,0) scale(1); } to { transform: translateZ(-620px) translate(8vmax,6vmax) scale(1.18); } }
-@keyframes wash-b { from { transform: translateZ(-820px) translate(0,0) scale(1.1); } to { transform: translateZ(-820px) translate(-7vmax,-5vmax) scale(1); } }
-
-/* Each mark: the outer span holds the depth, the inner one holds the
-   drift, so the two transforms never fight each other. */
-.d { position: absolute; transform-style: preserve-3d; will-change: transform; }
-.d-i { display: block; width: 100%; height: 100%; transform-style: preserve-3d; }
-.d .mark { width: 100%; height: 100%; }
-.d .mk-star { transform-box: fill-box; transform-origin: center; animation: mk-turn 34s linear infinite; }
-
-/* Far back: big, soft, barely there. */
-.d-1 { left: -6%;  top: -12%; width: 46vmax; height: 46vmax; color: #2f6bff; opacity: .30; filter: blur(3px);
-       transform: translateZ(-1150px); }
-.d-1 .d-i { animation: orbit-a 46s ease-in-out infinite alternate; }
-.d-2 { right: -10%; top: 2%;  width: 40vmax; height: 40vmax; color: #7a54ff; opacity: .34; filter: blur(2px);
-       transform: translateZ(-980px) rotate(18deg); }
-.d-2 .d-i { animation: orbit-b 38s ease-in-out infinite alternate; }
-.d-2 .mk-star { animation-duration: 52s; animation-direction: reverse; }
-
-/* Mid ground: the ones you actually read as the logo. */
-.d-3 { left: 4%; bottom: -14%; width: 26vmax; height: 26vmax; color: #5b8cff; opacity: .32;
-       transform: translateZ(-560px) rotate(-8deg); }
-.d-3 .d-i { animation: orbit-c 29s ease-in-out infinite alternate; }
-.d-3 .mk-star { animation-duration: 23s; }
-.d-4 { right: 6%; bottom: -6%; width: 20vmax; height: 20vmax; color: #4f83ff; opacity: .26;
-       transform: translateZ(-420px) rotate(24deg); }
-.d-4 .d-i { animation: orbit-a 33s ease-in-out infinite alternate-reverse; }
-
-/* Near: small, sharp, and they swing the furthest when you move. */
-.d-5 { right: 20%; top: 30%; width: 9vmax; height: 9vmax; color: #b9cdff; opacity: .38;
-       transform: translateZ(-130px) rotate(-14deg); }
-.d-5 .d-i { animation: orbit-b 21s ease-in-out infinite alternate; }
-.d-5 .mk-star { animation-duration: 15s; animation-direction: reverse; }
-.d-6 { left: 14%; top: 16%; width: 6vmax; height: 6vmax; color: #d6e2ff; opacity: .30;
-       transform: translateZ(-40px) rotate(9deg); }
-.d-6 .d-i { animation: orbit-c 18s ease-in-out infinite alternate-reverse; }
-.d-6 .mk-star { animation-duration: 11s; }
-
-/* Dust. Tiny points at scattered depths — the cheapest, strongest depth
-   cue there is, because near ones sweep past the card while far ones
-   barely shift. The span carries the depth and the ::before carries the
-   drift, so the animation cannot overwrite the translateZ. */
-.dust { position: absolute; width: 3px; height: 3px; transform-style: preserve-3d; }
-.dust::before {
-  content: ""; position: absolute; inset: 0; border-radius: 50%; background: #cfe0ff;
-  box-shadow: 0 0 6px rgba(207,224,255,.7);
-}
-.dust-1 { left: 18%; top: 62%; opacity: .60; transform: translateZ(-60px); }
-.dust-2 { left: 72%; top: 22%; opacity: .44; transform: translateZ(-260px); }
-.dust-3 { left: 44%; top: 84%; opacity: .52; transform: translateZ(-140px); }
-.dust-4 { left: 86%; top: 68%; opacity: .30; transform: translateZ(-640px); }
-.dust-5 { left: 30%; top: 10%; opacity: .38; transform: translateZ(-390px); }
-.dust-1::before { animation: orbit-c 24s ease-in-out infinite alternate; }
-.dust-2::before { animation: orbit-a 31s ease-in-out infinite alternate-reverse; }
-.dust-3::before { animation: orbit-b 27s ease-in-out infinite alternate; }
-.dust-4::before { animation: orbit-c 36s ease-in-out infinite alternate; }
-.dust-5::before { animation: orbit-a 29s ease-in-out infinite alternate; }
-
-@keyframes orbit-a {
-  from { transform: translate3d(0,0,0) rotate(-10deg); }
-  to   { transform: translate3d(4vw, 3vh, 60px) rotate(7deg); }
-}
-@keyframes orbit-b {
-  from { transform: translate3d(0,0,0) rotate(13deg); }
-  to   { transform: translate3d(-4vw, -3vh, 90px) rotate(-5deg); }
-}
-@keyframes orbit-c {
-  from { transform: translate3d(0,0,0) rotate(3deg) scale(1); }
-  to   { transform: translate3d(3vw, -4vh, 40px) rotate(-15deg) scale(1.12); }
-}
-
-/* Darkens the edges so whatever sits on top always has contrast. */
-.auth-veil {
-  position: absolute; inset: 0; z-index: 2;
   background:
-    radial-gradient(ellipse at 50% 45%, rgba(5,9,26,0) 0%, rgba(5,9,26,.52) 58%, rgba(5,9,26,.88) 100%),
-    linear-gradient(180deg, rgba(5,9,26,.45), rgba(5,9,26,0) 30%, rgba(5,9,26,.58));
+    radial-gradient(70% 55% at 18% 8%,  rgba(79,131,255,.20), transparent 62%),
+    radial-gradient(60% 50% at 88% 12%, rgba(122,84,255,.16), transparent 60%),
+    radial-gradient(75% 60% at 50% 108%, rgba(47,107,255,.14), transparent 66%),
+    var(--void);
 }
-
-/* Behind the signed-in app the same field runs, dimmed right down so it
-   never competes with a table of numbers. */
+:root[data-theme="light"] .bg3d {
+  background:
+    radial-gradient(70% 55% at 18% 8%,  rgba(79,131,255,.14), transparent 62%),
+    radial-gradient(60% 50% at 88% 12%, rgba(122,84,255,.10), transparent 60%),
+    radial-gradient(75% 60% at 50% 108%, rgba(47,107,255,.10), transparent 66%),
+    var(--void);
+}
 .shell > .bg3d { position: fixed; }
-.shell > .bg3d .d, .shell > .bg3d .dust { opacity: .13; }
-.shell > .bg3d .wash { opacity: .5; }
-.shell > .bg3d .auth-veil {
-  background:
-    radial-gradient(ellipse at 50% 40%, rgba(5,9,26,.35) 0%, rgba(5,9,26,.75) 60%, rgba(5,9,26,.94) 100%);
-}
 
 /* ---- the glass card ---- */
 .auth-card {
@@ -580,8 +541,8 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   background: rgba(255,255,255,.055);
   border: 1px solid rgba(255,255,255,.15);
   border-radius: 30px; padding: 36px 30px 30px; color: #fff;
-  backdrop-filter: blur(30px) saturate(1.5);
-  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  /* Nothing behind it to blur now the field is flat, so the filter
+     would be pure cost for no picture. */
   box-shadow: 0 34px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.20);
   animation: card-in .7s cubic-bezier(.2,.85,.25,1) both;
 }

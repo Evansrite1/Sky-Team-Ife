@@ -510,7 +510,10 @@
           + (c.id === o.center_id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
         + '</select>'
         + '<button class="btn btn-p" data-act="office-move" data-id="' + o.id + '">'
-        + ico('layers', 15) + 'Move office</button></div></div>'
+        + ico('layers', 15) + 'Move office</button>'
+        + '<button class="btn btn-d" style="margin-left:auto" data-act="office-del"'
+        + ' data-id="' + o.id + '" data-name="' + esc(o.name) + '">'
+        + ico('trash', 15) + 'Delete office</button></div></div>'
         : '')
         + '<div class="grid g4">'
         + kpi('Reports filed', reps.length, 'all time', 'file')
@@ -1165,7 +1168,7 @@
         + '</div></div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">The week</div>'
-        + '<div class="card-s">Everything is stamped to the Wednesday that opens it.</div></div></div>'
+        + '<div class="card-s">Everything is stamped to the Thursday that opens it.</div></div></div>'
         + '<div class="steps">'
         + '<div class="step"><div class="step-n">' + ico('calendar', 18) + '<i>W</i></div>'
         + '<div><div class="step-t">Wednesday to Tuesday</div>'

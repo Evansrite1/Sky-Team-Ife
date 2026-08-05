@@ -13,6 +13,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
+<script>
+/* Same guard as the app: set the theme before the first paint. */
+(function () {
+  try {
+    var t = localStorage.getItem('sti-theme');
+    if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+})();
+</script>
 </head>
 <body>
 <div id="root"><div class="loading"><div class="spinner"></div></div></div>

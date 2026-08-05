@@ -27,8 +27,8 @@
     .map(w => w[0]).join('').toUpperCase() || '?';
 
   /* -------------------------------------------------------------- weeks */
-  /* A week runs Wednesday -> Tuesday. Everything is stamped with the
-     Wednesday that opens it, as a plain YYYY-MM-DD string. */
+  /* A week runs Thursday -> Wednesday. Everything is stamped with the
+     Thursday that opens it, as a plain YYYY-MM-DD string. */
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const MON_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
@@ -40,10 +40,14 @@
   };
   const addDays = (d, n) => { const t = toDate(d); t.setDate(t.getDate() + n); return t; };
 
+  /* A week runs Thursday -> Wednesday, so 30 Jul – 5 Aug is one week and
+     6 – 12 Aug is the next. The Wednesday that closes it is the day the
+     evaluation is held, which is why the week ends on one. */
+  const WEEK_ANCHOR = 4;   // 0 = Sunday, so 4 = Thursday
   const weekStart = (d) => {
     const t = d ? toDate(d) : new Date();
     t.setHours(0, 0, 0, 0);
-    t.setDate(t.getDate() - ((t.getDay() - 3 + 7) % 7));
+    t.setDate(t.getDate() - ((t.getDay() - WEEK_ANCHOR + 7) % 7));
     return iso(t);
   };
   const isoWeekNo = ws => {
@@ -58,7 +62,9 @@
   const weekName = ws => 'Week ' + isoWeekNo(ws);
   const weekLabel = ws => weekName(ws) + ' · ' + weekRange(ws);
   const weekClosed = ws => iso(addDays(ws, 6)) < iso(new Date());
-  const evalDate = ws => addDays(ws, 7);
+  /* The evaluation sits on the Wednesday that closes the week it reads,
+     so it always looks back over the seven days ending that day. */
+  const evalDate = ws => addDays(ws, 6);
   const monthKey = ws => { const t = toDate(ws); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0'); };
   const monthLabel = key => {
     const [y, m] = String(key).split('-');
@@ -120,6 +126,8 @@
     trash: 'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6',
     scan: 'M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10',
     menu: 'M3 12h18M3 6h18M3 18h18',
+    sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
     star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
     cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 10v4M18 10v4',
     card: 'M2 5h20a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM1 10h22M5 15h4',
@@ -395,63 +403,39 @@
     '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
     + '<button class="btn ' + (danger ? 'btn-d' : 'btn-p') + '" data-act="' + act + '">' + esc(confirmLabel) + '</button>');
 
-  /* --------------------------------------------------- the 3D field */
-  /* Six marks and five dust motes at different depths inside one
-     perspective. Shared by the auth screens and the app shell. */
-  let markSeq = 0;
-  function depthMark(cls) {
-    const id = 'dm' + (++markSeq);
-    return '<span class="' + cls + '"><span class="d-i">'
-      + '<svg class="mark" viewBox="0 0 120 120" aria-hidden="true">'
-      + '<defs><mask id="' + id + '" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
-      + '<rect width="120" height="120" fill="#fff"/>'
-      + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
-      + '</mask></defs>'
-      + '<g mask="url(#' + id + ')" fill="currentColor">'
-      + '<path d="M110 12H34a24 24 0 0 0 0 48h76Z"/><path d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
-      + '</g></svg></span></span>';
-  }
+  /* ----------------------------------------------------- the backdrop */
+  /* One element, one paint. What used to live here — six masked marks
+     and five motes at their own translateZ inside a perspective, tilted
+     by a requestAnimationFrame loop — is a gradient in CSS now. It cost
+     more than it was worth on anything but a fast desktop. */
+  const backdrop3d = () => '<div class="bg3d" aria-hidden="true"></div>';
 
-  const backdrop3d = () => '<div class="bg3d" aria-hidden="true"><div class="bg3d-stage">'
-    + '<span class="wash wash-1"></span><span class="wash wash-2"></span>'
-    + [1, 2, 3, 4, 5, 6].map(n => depthMark('d d-' + n)).join('')
-    + [1, 2, 3, 4, 5].map(n => '<span class="dust dust-' + n + '"></span>').join('')
-    + '</div><span class="auth-veil"></span></div>';
-
-  /* The tilt. Eased toward the pointer rather than pinned to it, so the
-     scene lags a beat behind the hand and reads as weight. Phones have
-     no pointer, so the gyroscope drives it there instead. */
-  (function parallax() {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    /* Phones do not get this. A rAF loop rewriting a custom property that
-       drives a preserve-3d transform makes the whole scene recomposite on
-       every frame, and on a mid-range handset that is the difference
-       between the app feeling light and feeling like treacle. The
-       backdrop is still there, just still. */
-    if (window.matchMedia('(max-width: 860px), (hover: none)').matches) return;
-    const root = document.documentElement;
-    let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
-    const clamp = v => Math.max(-1, Math.min(1, v));
-    const step = () => {
-      cx += (tx - cx) * 0.055;
-      cy += (ty - cy) * 0.055;
-      root.style.setProperty('--px', cx.toFixed(4));
-      root.style.setProperty('--py', cy.toFixed(4));
-      raf = (Math.abs(tx - cx) > 0.0008 || Math.abs(ty - cy) > 0.0008) ? requestAnimationFrame(step) : null;
-    };
-    const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
-    window.addEventListener('pointermove', (e) => {
-      tx = clamp((e.clientX / window.innerWidth) * 2 - 1);
-      ty = clamp((e.clientY / window.innerHeight) * 2 - 1);
-      kick();
-    }, { passive: true });
-    window.addEventListener('deviceorientation', (e) => {
-      if (e.gamma == null || e.beta == null) return;
-      tx = clamp(e.gamma / 32);
-      ty = clamp((e.beta - 42) / 32);
-      kick();
-    }, { passive: true });
-  })();
+  /* ---------------------------------------------------------- theme */
+  /* Light or dark, remembered, and following the system until the user
+     says otherwise. Set on <html> before first paint by index.html so
+     the page never flashes the wrong one. */
+  const THEME_KEY = 'sti-theme';
+  const systemTheme = () =>
+    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  const readTheme = () => {
+    try { return localStorage.getItem(THEME_KEY) || systemTheme(); }
+    catch (e) { return systemTheme(); }
+  };
+  const applyTheme = (t) => {
+    document.documentElement.setAttribute('data-theme', t);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t === 'light' ? '#eef1f7' : '#05091a');
+  };
+  const setTheme = (t) => {
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
+    applyTheme(t);
+  };
+  const toggleTheme = () => {
+    const next = readTheme() === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    return next;
+  };
+  applyTheme(readTheme());
 
   /* ------------------------------------------------- installability */
   /* Declared before the block below runs, which calls them. */
@@ -493,6 +477,7 @@
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS,
+    readTheme, setTheme, toggleTheme,
     kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster,
     toast, modal, closeModal, busy, confirmDialog

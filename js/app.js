@@ -10,9 +10,9 @@
   const state = {
     page: 'dashboard',
     week: U.weekStart(),
-    /* The evaluation held today reads the week that just closed — the
-       seven days ending now — not the week currently open. */
-    evalWeek: U.iso(U.addDays(U.weekStart(), -7)),
+    /* The week ends on the Wednesday the evaluation is held, so the
+       evaluation reads the week it is standing in. */
+    evalWeek: U.weekStart(),
     month: U.monthKey(U.weekStart()),
     center: null,
     chartType: 'bar',
@@ -95,6 +95,13 @@
   const brand = () => (A.store.settings.organisation || window.CONFIG.organisation || 'Sky Team Ife');
 
   /* ============================== CHROME ============================= */
+  const themeBtn = () => {
+    const light = U.readTheme() === 'light';
+    return '<button class="sb-theme" data-act="theme" title="'
+      + (light ? 'Switch to dark' : 'Switch to light') + '" aria-label="Switch theme">'
+      + ico(light ? 'moon' : 'sun', 16) + '</button>';
+  };
+
   const navLink = (n, active) => {
     const cnt = n.c ? n.c() : '';
     const alert = n.alertC ? n.alertC() : '';
@@ -121,7 +128,10 @@
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
+      + '<div class="sb-row">'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
+      + themeBtn()
+      + '</div>'
       + '<div class="sb-credit">Site developed by <b>Large Technologies</b></div></div></aside>';
   }
 
@@ -578,6 +588,15 @@
 
   /* --- chrome ------------------------------------------------------ */
   ACT['nav'] = () => document.body.classList.toggle('nav-open');
+
+  /* Repaint only the button, not the page: switching theme is a variable
+     swap, so everything else is already correct by the time this runs. */
+  ACT['theme'] = (el) => {
+    U.toggleTheme();
+    const holder = el.parentElement;
+    el.outerHTML = themeBtn();
+    if (holder) void holder.offsetHeight;
+  };
   ACT['more'] = (el) => {
     state.moreOpen = !state.moreOpen;
     el.classList.toggle('on', state.moreOpen);
@@ -896,6 +915,25 @@
       await A.loadLookups();
       toast('Moved to ' + ((A.centerById(to) || {}).name || 'the new zone') + '.');
       route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  ACT['office-del'] = (el) => {
+    state.pendingOffice = el.dataset.id;
+    U.confirmDialog('Delete ' + el.dataset.name + '?',
+      'Its reports, its distributors and every scan they ever made go with it. '
+      + 'The person who signed up keeps their account but is put back to waiting, '
+      + 'so they can ask to join again. This cannot be undone.',
+      'Delete the office', 'office-del-yes', true);
+  };
+
+  ACT['office-del-yes'] = async (el) => {
+    busy(el, true, 'Deleting…');
+    try {
+      await A.offices.remove(state.pendingOffice);
+      await A.loadLookups();
+      closeModal(); toast('Office deleted.');
+      go('#/offices'); await route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 

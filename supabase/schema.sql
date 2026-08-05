@@ -6,7 +6,7 @@
 --
 -- Roles
 --   super_admin     creates centers, approves accounts, sees everything
---   platform_admin  a Leader — sees every center, runs the Wednesday evaluation
+--   platform_admin  a Director — sees every zone, runs the Wednesday evaluation
 --   office          files one weekly report, manages its own distributors
 --   pending         signed up, waiting on the Super Admin
 --
@@ -14,9 +14,10 @@
 -- office or a leader, and that lands as a request. Until the Super Admin
 -- approves it the account is 'pending' and can see nothing at all.
 --
--- A week runs Wednesday -> Tuesday. The evaluation sits on the Wednesday
--- after the week closes, at 2:45pm. Every report and event is stamped with
--- week_start, the Wednesday that opens its week.
+-- A week runs Thursday -> Wednesday: 30 Jul – 5 Aug is one week, 6 – 12
+-- Aug the next. It ends on the Wednesday the evaluation is held, so an
+-- evaluation always reads the seven days ending that day. Every report
+-- and event is stamped with week_start, the Thursday that opens its week.
 -- =====================================================================
 
 create extension if not exists "pgcrypto";
@@ -277,8 +278,34 @@ create trigger distributors_center_sync
 -- ---------------------------------------------------------------------
 create or replace function week_start(p_day date default current_date)
 returns date language sql immutable as $$
-  select p_day - ((extract(dow from p_day)::int - 3 + 7) % 7);
+  select p_day - ((extract(dow from p_day)::int - 4 + 7) % 7);
 $$;
+
+-- ---------------------------------------------------------------------
+-- Moving from Wednesday-anchored weeks to Thursday-anchored ones.
+-- Everything already filed carries a Wednesday stamp, which is six days
+-- later than the Thursday that now opens the same seven days: a report
+-- filed against Wed 5 Aug belongs to the week of Thu 30 Jul – Wed 5 Aug.
+-- Only rows that are not already on a Thursday move, so running this a
+-- second time does nothing.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.reports') is not null then
+    update reports set week_start = week_start - 6
+     where extract(dow from week_start)::int <> 4;
+  end if;
+
+  if to_regclass('public.events') is not null then
+    update events set week_start = week_start - 6
+     where extract(dow from week_start)::int <> 4;
+    -- The two trainings sit at fixed places in the week: the Distributor
+    -- Training on the Friday that opens it, the Senior Manager Training
+    -- on the Wednesday that closes it.
+    update events set event_date = week_start + 1 where type = 'DT';
+    update events set event_date = week_start + 6 where type = 'SM';
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- Niches — the products orders are written on. Any office may add one.
@@ -751,11 +778,11 @@ begin
   end if;
 
   for c in select id, name from centers loop
-    -- Senior Manager Training, the Wednesday that opens the week
+    -- Senior Manager Training, the Wednesday that closes the week
     if not exists (select 1 from events
                     where center_id = c.id and week_start = v_week and type = 'SM') then
       insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
-      values (c.id, 'training', 'SM', 'Senior Manager Training', 'sm', v_week, v_week,
+      values (c.id, 'training', 'SM', 'Senior Manager Training', 'sm', v_week, v_week + 6,
               coalesce(setting('training_time'), '2:45pm'),
               'SM-' || upper(left(replace(c.id::text, '-', ''), 6)) || '-' || to_char(v_week, 'IYYYIW'),
               case when v_week > current_date then 'scheduled' else 'closed' end);
@@ -766,10 +793,10 @@ begin
     if not exists (select 1 from events
                     where center_id = c.id and week_start = v_week and type = 'DT') then
       insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
-      values (c.id, 'training', 'DT', 'Distributor Training', 'all', v_week, v_week + 2,
+      values (c.id, 'training', 'DT', 'Distributor Training', 'all', v_week, v_week + 1,
               coalesce(setting('training_time'), '2:45pm'),
               'DT-' || upper(left(replace(c.id::text, '-', ''), 6)) || '-' || to_char(v_week, 'IYYYIW'),
-              case when v_week + 2 > current_date then 'scheduled' else 'closed' end);
+              case when v_week + 1 > current_date then 'scheduled' else 'closed' end);
       v_made := v_made + 1;
     end if;
   end loop;
@@ -960,7 +987,7 @@ begin
 
   if not exists (select 1 from events where center_id = p_center and week_start = p_week and type = 'SM') then
     insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
-    values (p_center, 'training', 'SM', 'Senior Manager Training', 'sm', p_week, p_week,
+    values (p_center, 'training', 'SM', 'Senior Manager Training', 'sm', p_week, p_week + 6,
             coalesce(setting('training_time'), '2:45pm'),
             'SM-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
             case when p_week > current_date then 'scheduled' else 'closed' end);
@@ -968,10 +995,10 @@ begin
 
   if not exists (select 1 from events where center_id = p_center and week_start = p_week and type = 'DT') then
     insert into events (center_id, kind, type, name, elig, week_start, event_date, event_time, code, status)
-    values (p_center, 'training', 'DT', 'Distributor Training', 'all', p_week, p_week + 2,
+    values (p_center, 'training', 'DT', 'Distributor Training', 'all', p_week, p_week + 1,
             coalesce(setting('training_time'), '2:45pm'),
             'DT-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
-            case when p_week + 2 > current_date then 'scheduled' else 'closed' end);
+            case when p_week + 1 > current_date then 'scheduled' else 'closed' end);
   end if;
 end $$;
 
@@ -1019,6 +1046,36 @@ end $$;
 
 revoke all on function move_office(uuid, uuid)         from public;
 grant execute on function move_office(uuid, uuid)       to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Deleting an office. Reports, distributors and scans cascade on their
+-- own. The account that signed up does not: office_id would be nulled
+-- and it would be left holding the office role with no office, which
+-- reaches a dashboard that cannot load. It goes back to waiting instead,
+-- so the same person can ask to join again.
+-- ---------------------------------------------------------------------
+create or replace function delete_office(p_office uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if my_role() <> 'super_admin' then
+    raise exception 'Only the Super Admin can delete an office.';
+  end if;
+  if not exists (select 1 from offices where id = p_office) then
+    raise exception 'No such office.';
+  end if;
+
+  update profiles
+     set role = 'pending', office_id = null, center_id = null,
+         req_status = 'none', req_kind = null, req_center_id = null,
+         req_office_name = null, req_address = null, req_note = ''
+   where office_id = p_office;
+
+  delete from offices where id = p_office;
+end $$;
+
+revoke all on function delete_office(uuid)             from public;
+grant execute on function delete_office(uuid)           to authenticated;
 
 revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text, text) from public;
