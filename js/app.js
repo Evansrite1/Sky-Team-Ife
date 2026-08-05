@@ -216,6 +216,15 @@
     const id = parts[1];
     const allowed = ALLOWED[me.role];
     if (!V[page] || (allowed && allowed.indexOf(page) === -1)) { go('#/dashboard'); return; }
+
+    /* An office whose trial ran out with nothing paid can reach its
+       subscription, its account and the guide. Nothing else, until it
+       pays. The database refuses the writes regardless; this is so they
+       are told why rather than hitting a wall. */
+    if (me.role === 'office' && A.store.locked
+      && ['subscriptions', 'account', 'guide'].indexOf(page) === -1) {
+      go('#/subscriptions'); return;
+    }
     state.page = page;
 
     if (routing) return;
@@ -839,6 +848,17 @@
     busy(el, true, 'Removing…');
     try { await A.people.setRole(el.dataset.id, 'pending'); toast('Director access removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  /* --- billing ----------------------------------------------------- */
+  /* The Edge Function decides the amount and returns a Paystack URL.
+     Nothing about the price is settled in the browser. */
+  ACT['pay-now'] = async (el) => {
+    busy(el, true, 'Opening Paystack…');
+    try {
+      const url = await A.billing.startCheckout();
+      window.location.href = url;
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
   /* --- account ----------------------------------------------------- */

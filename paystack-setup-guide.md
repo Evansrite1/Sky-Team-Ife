@@ -1,274 +1,147 @@
-# Paystack setup — Sky Team Ife office subscription
+# Turning on payments
 
-**What you are charging:** ₦6,500 per office, every 30 days, after a 30-day free trial.
+Offices pay **₦6,500 every 30 days**, after a **16-day free trial**. Nobody else pays:
+directors and the Super Admin have no subscription at all.
 
-Read the section "The 30-day problem" first. It changes which of the two paths you take, and everything else follows from that choice.
-
----
-
-## The 30-day problem (read this before you build anything)
-
-Paystack plans support these intervals only: `daily`, `weekly`, `monthly`, `quarterly`, `biannually`, `annually`. There is no "every 30 days."
-
-And `monthly` is not 30 days — it is the same date each month. Paystack's own documentation spells it out: a subscription created on or before the 28th is billed on that same day every month, and one created between the 29th and 31st is billed on the 28th of every following month. Over a year that is 12 charges instead of the 12.17 you would get from a strict 30-day cycle, and February is 28 days while July is 31.
-
-So you have two paths:
-
-**Path A — use `monthly` and stop worrying.** Simplest by far. Paystack handles renewals, retries and dunning for you. You write far less code. The cost is that "every 30 days" becomes "same day each month." For a ₦6,500 subscription that difference is worth roughly ₦100/office/year. **This is what I would do.**
-
-**Path B — charge every 30 days exactly.** You do not use Paystack subscriptions at all. You take the first payment, store the returned `authorization_code`, and run your own daily cron that charges any office whose `next_charge_date` is today. You gain exact 30-day cycles and full control of retries and trials. You take on the work of writing the retry logic, the dunning emails, and the failure handling that Paystack would otherwise do.
-
-Both are written out below. Path B is longer but not hard.
+Everything below is done once. Budget about half an hour.
 
 ---
 
-## Step 1 — Account setup (both paths)
+## Why there are two functions
 
-1. Create a business account at paystack.com and complete verification. You will need CAC documents, a valid ID and your settlement bank account. Verification usually takes a day or two — start it now, before you write code.
-2. Once in the dashboard, go to **Settings → API Keys & Webhooks**. You get four values: a test public key, a test secret key, and the same pair for live.
-3. Put them in environment variables. Never in the frontend, never in git:
+This site is static files on Vercel. There is no server, and a browser cannot be trusted to
+say "I paid" — anyone could type that. So two small functions run inside your Supabase
+project:
 
-```
-PAYSTACK_SECRET_KEY=sk_test_xxxxxxxx
-PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxx
-```
+| | What it does | Who calls it |
+|---|---|---|
+| `paystack-init` | Works out who the office is and what it owes, asks Paystack to start a checkout, hands back the URL | The app, when an office presses **Pay** |
+| `paystack-webhook` | Receives Paystack's "this actually got paid" message, checks the signature, marks the office active | Paystack, on its own |
 
-The **public** key is the only one that goes anywhere near the browser. The **secret** key is server-only. If a secret key ever lands in frontend code or a public repo, rotate it from the dashboard immediately.
-
-4. Build and test everything on the test keys. Swap to live keys only at the end.
+The amount is decided inside `paystack-init` by reading `app_settings`. The request body is
+ignored, so even a hand-crafted request cannot change the price.
 
 ---
 
-## Step 2 — What to store in your own database
+## 1. Create the plan in Paystack
 
-Regardless of path, your `offices` table needs these columns. This is the part people skip and regret.
+Paystack → **Plans** → **New Plan**
 
-| Column | Why |
+| Field | Value |
 |---|---|
-| `paystack_customer_code` | `CUS_xxx` — identifies the office at Paystack |
-| `authorization_code` | `AUTH_xxx` — lets you charge the saved card again |
-| `card_last4`, `card_brand`, `card_exp` | To show "Visa •••• 4081" without storing the card |
-| `subscription_code` | `SUB_xxx` — Path A only |
-| `email_token` | Path A only, needed to cancel a subscription |
-| `billing_status` | `trial` / `active` / `past_due` / `cancelled` |
-| `trial_ends_at` | Set to signup date + 30 days |
-| `next_charge_date` | What your cron reads (Path B) or what you display (Path A) |
+| Name | `Office plan` |
+| Amount | `6500` |
+| Interval | `Monthly` |
+| Currency | NGN |
 
-You never store the card number, CVV, or expiry-with-PAN. Paystack holds those. You hold a token.
+Copy the **plan code**. It looks like `PLN_xxxxxxxxxxxx`.
 
----
+> **One thing to know:** Paystack's *Monthly* bills on the same date each month, not every
+> 30 days exactly. An office that pays on the 3rd is charged on the 3rd, and February is
+> shorter than the 30 days you asked for. If exact 30-day cycles matter more than
+> predictable dates, say so and I will drive the charges from the app instead of using a
+> Paystack plan.
 
-## Step 3 — The free trial
+## 2. Get your secret key
 
-Do **not** ask for a card at signup. The office signs up, you set:
+Paystack → **Settings** → **API Keys & Webhooks** → copy the **Secret Key** (`sk_live_…`).
 
-```
-billing_status = 'trial'
-trial_ends_at  = signup_date + 30 days
-```
+Never put this key in `config.js`, in the repo, or anywhere the browser can reach. It goes
+only into Supabase, in step 4.
 
-and let them work. A daily cron checks for trials expiring in 7, 3 and 1 days and emails the office manager. On the day the trial ends, if there is no `authorization_code`, flip them to `past_due` and show the banner.
+## 3. Deploy the two functions
 
-If they add a card during the trial, charge ₦50 and immediately refund it to capture the authorization (this is the standard way to tokenise a card without taking money), or simply wait and take the first ₦6,500 on the day the trial ends. The second is cleaner and is what the prototype does.
+Supabase dashboard → **Edge Functions** → **Deploy a new function** → **Via Editor**.
 
----
+**a. `paystack-init`** — paste the whole of
+[`supabase/functions/paystack-init/index.ts`](supabase/functions/paystack-init/index.ts).
+Leave *Enforce JWT verification* **on**: only a signed-in office should be able to start a
+payment.
 
-## Path A — Paystack subscriptions (`monthly`)
+**b. `paystack-webhook`** — paste
+[`supabase/functions/paystack-webhook/index.ts`](supabase/functions/paystack-webhook/index.ts).
+Turn *Enforce JWT verification* **off**. Paystack has no Supabase login; the signature check
+inside the function is what proves the request is genuine. Leave JWT on and every webhook is
+rejected, so nobody is ever marked as paid.
 
-### A1. Create the plan (once)
+## 4. Add the secrets
 
-```bash
-curl https://api.paystack.co/plan \
-  -H "Authorization: Bearer $PAYSTACK_SECRET_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Sky Team Ife — Office plan",
-    "interval": "monthly",
-    "amount": 650000,
-    "currency": "NGN"
-  }' \
-  -X POST
-```
+Edge Functions → **Manage secrets** → add three:
 
-**`amount` is in kobo.** ₦6,500 = `650000`. Getting this wrong by a factor of 100 is the single most common Paystack mistake. Save the returned `plan_code` (`PLN_xxx`) in your config.
-
-### A2. Start the subscription when the trial ends
-
-Initialize a transaction with the plan attached. Paystack takes the first payment and sets up the recurring schedule itself.
-
-```js
-// server-side
-const res = await fetch('https://api.paystack.co/transaction/initialize', {
-  method: 'POST',
-  headers: {
-    Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    email: office.email,
-    amount: 650000,
-    plan: process.env.PAYSTACK_PLAN_CODE,
-    callback_url: 'https://app.skyteamife.com/billing/callback',
-    metadata: { office_id: office.id, office_name: office.name }
-  })
-});
-const { data } = await res.json();
-// send the office to data.authorization_url
-```
-
-Put your `office_id` in `metadata` every single time. When the webhook arrives months later, that is how you know which office it belongs to.
-
-### A3. Confirm the payment
-
-The callback URL is not proof of payment — a user can close the tab, or the redirect can fail. Always verify server-side:
-
-```js
-const r = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-  headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
-});
-const { data } = await r.json();
-if (data.status === 'success') {
-  // mark active, store data.authorization.authorization_code,
-  // data.customer.customer_code, data.authorization.last4 / card_type / exp_month
-}
-```
-
-Renewals after the first one arrive only as webhooks. There is no redirect to catch. Which brings us to the part that actually matters.
-
----
-
-## Path B — your own 30-day cron
-
-### B1. Take the first payment and keep the authorization
-
-Same `transaction/initialize` call as A2, but **omit the `plan` field**. Verify it the same way, and store `authorization.authorization_code`, plus the card display fields.
-
-Then set `next_charge_date = today + 30 days`.
-
-### B2. Charge on schedule
-
-A cron that runs once a day:
-
-```js
-const due = await db.offices.where('next_charge_date <= today')
-                           .where('billing_status IN (active, past_due)');
-
-for (const office of due) {
-  const r = await fetch('https://api.paystack.co/transaction/charge_authorization', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      email: office.email,
-      amount: 650000,
-      authorization_code: office.authorization_code,
-      metadata: { office_id: office.id }
-    })
-  });
-  const { data } = await r.json();
-
-  if (data.status === 'success') {
-    await markPaid(office, data.reference);
-    await setNextCharge(office, addDays(office.next_charge_date, 30));
-  } else {
-    await markPastDue(office, data.gateway_response);
-    await scheduleRetry(office);   // e.g. +3 days, then +3, then suspend
-  }
-}
-```
-
-Two things to get right here. **Idempotency:** if the cron runs twice, or crashes halfway and is restarted, you must not charge twice — pass your own unique `reference` per billing period and check whether one already exists before charging. **Advance `next_charge_date` from the previous due date, not from today**, or every failed retry quietly shifts the office's billing date forward.
-
-### B3. Retry and suspend policy
-
-Write it down and make it the same for everyone. A reasonable one:
-
-- Charge fails → status `past_due`, email the office, retry in 3 days.
-- Second failure → retry in 3 more days.
-- Third failure → office goes read-only. They can still read everything; they cannot file reports or open QR codes.
-- They pay → back to `active` immediately, `next_charge_date` = today + 30.
-
-Never delete data on non-payment. The prototype's cancel copy says exactly this, and it is worth honouring: reports, attendance and rankings survive a lapsed subscription.
-
----
-
-## Step 4 — Webhooks (both paths, non-negotiable)
-
-Paystack's own guidance is "don't call us, we will call you." Card renewals, delayed successes and failures all arrive here and nowhere else.
-
-Set the URL in **Settings → API Keys & Webhooks**. It must be publicly reachable — localhost will not receive events, so use ngrok while developing.
-
-### Verify every request
-
-Paystack signs each event with an `x-paystack-signature` header, which is an HMAC SHA512 of the payload body signed using your secret key, and verification must happen before you process the event.
-
-```js
-const crypto = require('crypto');
-
-app.post('/webhooks/paystack', express.json(), (req, res) => {
-  const hash = crypto
-    .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-
-  if (hash !== req.headers['x-paystack-signature']) return res.sendStatus(401);
-
-  res.sendStatus(200);        // acknowledge FIRST
-  handleEvent(req.body);      // then process, asynchronously
-});
-```
-
-Respond 200 quickly and do the work afterwards. If you process first and it takes too long, Paystack treats it as a failed delivery and resends — which is also why your handler must be idempotent, keyed on the event reference.
-
-Paystack sends webhooks only from a fixed set of IP addresses, published in their dashboard and docs, and anything from elsewhere should be treated as counterfeit. Whitelist them once you know your production setup.
-
-### Events to handle
-
-| Event | What to do |
+| Name | Value |
 |---|---|
-| `charge.success` | Mark the period paid, store the reference, advance the next charge date. This is the one that carries renewals. |
-| `invoice.payment_failed` | Mark `past_due`, email the office, start your retry clock. (Path A) |
-| `invoice.create` | A renewal invoice was raised — useful for "your card will be charged in 3 days" emails. (Path A) |
-| `subscription.disable` | Subscription ended or was cancelled. Set `cancelled`. (Path A) |
-| `subscription.expiring_cards` | Sent at the start of each month, listing subscriptions whose cards expire that month. Email those offices to update their card before the charge fails. |
+| `PAYSTACK_SECRET_KEY` | your `sk_live_…` |
+| `PAYSTACK_PLAN_CODE` | your `PLN_…` |
+| `SITE_URL` | `https://sky-team-ife.vercel.app` |
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are already there.
+
+## 5. Point Paystack at the webhook
+
+Paystack → **Settings** → **API Keys & Webhooks** → **Webhook URL**:
+
+```
+https://xuxukwrvyduilmxyswik.functions.supabase.co/paystack-webhook
+```
+
+## 6. Switch billing on
+
+Two switches, and **both** must be flipped:
+
+- In [`config.js`](config.js), set `billingEnabled: true`, then commit and push.
+- In Supabase, run:
+
+```sql
+update app_settings set value = 'true' where key = 'billing_enabled';
+```
+
+The first shows the pay button. The second is what enforces the lock, in the database, where
+it cannot be bypassed. Until the second is `true` nothing is ever locked, however long a
+trial has been over.
 
 ---
 
-## Step 5 — Testing
+## What an office sees
 
-Use the test keys and Paystack's published test cards — get them from the current docs page rather than copying numbers from a blog, since the set changes. They give you a card that succeeds, one that fails, and one that triggers the OTP/3DS flow. Test all three.
-
-Before going live, walk through this list:
-
-- [ ] Amounts are in kobo everywhere (`650000`, not `6500`)
-- [ ] A successful payment updates the office, and the same webhook arriving twice does **not** double-charge
-- [ ] A failed card lands the office in `past_due` with the banner showing
-- [ ] Trial expiry with no card behaves the way you want
-- [ ] `metadata.office_id` is present on every transaction
-- [ ] Secret key is not in the frontend bundle
-- [ ] Webhook verifies the signature and returns 200 before processing
-- [ ] You have a record row for every charge, successful or not — this is your audit trail
+- **Days 1–11 of the trial** — a quiet line saying how long is left.
+- **Last 5 days** — the panel turns dark and the pay button moves up beside it.
+- **Trial over, unpaid** — every page redirects to Subscription. They can still sign in, read
+  their own history, and reach the Guide and their Account. They cannot file a report or open
+  scanning. The database refuses those writes too, so the lock holds even if someone bypasses
+  the app.
+- **Paid** — everything comes straight back. Nothing was deleted.
 
 ---
 
-## Step 6 — Going live
+## Testing before you go live
 
-1. Complete business verification if you have not.
-2. Swap the environment variables to `sk_live_` / `pk_live_`.
-3. Set the live webhook URL — it is configured separately from test.
-4. Re-create the plan on live. **Plan codes do not carry over from test to live.** Same for customer and authorization codes: every test token is worthless in live mode.
-5. Take one real ₦6,500 payment on your own card and confirm it settles.
+Use your Paystack **test** keys (`sk_test_…`) and a test plan code first. Paystack sends test
+events to the same webhook URL.
+
+Test card: `4084 0840 8408 4081`, any future expiry, any CVV, OTP `123456`.
+
+To check the lock without waiting 16 days, expire a trial by hand:
+
+```sql
+update subscriptions set trial_ends = current_date - 1
+ where office_id = (select id from offices where name = 'Your Test Office');
+```
+
+Sign in as that office. Every page should bounce to Subscription. Pay with the test card, and
+within a second or two the webhook should flip it to `active` with a fresh `next_charge`.
+
+If it does not, look at **Edge Functions → paystack-webhook → Logs**. A `401 bad signature`
+means the secret key in Supabase does not match the one Paystack signed with — usually test
+keys against a live webhook, or the reverse.
 
 ---
 
-## Fees, briefly
+## What is stored
 
-Paystack charges a percentage per local transaction, capped at a fixed amount for larger ones, and the exact numbers change — check their live pricing page. On ₦6,500 the fee is small but not nothing across a dozen offices. Decide whether you absorb it or price it in; ₦6,500 with the fee absorbed is the friendlier choice, and at this scale the difference is a few thousand naira a month.
+`subscriptions` holds one row per office: status (`trial` / `active` / `past_due` /
+`cancelled`), the trial end, the next charge date, the card brand and last four digits, and
+Paystack's own customer and subscription codes so a renewal a year from now can still be
+traced back to the office that made it.
 
----
-
-## What the prototype already shows you
-
-The Subscription page (Office) and Subscriptions page (Super Admin / Platform Admin) are built against exactly this model: trial with a countdown, active with a next-charge date, failed payment with a retry date, payment history with references, and a card-entry modal standing in for the Paystack checkout. The states and the copy are what you will wire up — only the network calls are missing.
+`payments` holds one row per attempt, successful or failed, keyed on Paystack's reference so
+a retried webhook can never double-count.

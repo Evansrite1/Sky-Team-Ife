@@ -34,8 +34,10 @@
     offices: [],
     niches: [],
     settings: {},
+    sub: null,         // this office's subscription row
+    locked: false,     // trial is over and nothing has been paid
     waiting: 0,        // accounts asking to be approved (super admin only)
-    leaders: 0         // super admins + leaders, for the sidebar count
+    leaders: 0         // super admins + directors, for the sidebar count
   };
 
   /* ------------------------------------------------------------- auth */
@@ -106,6 +108,15 @@
     store.niches = rows(n).map(r => r.name);
     store.settings = {};
     rows(s).forEach(r => { store.settings[r.key] = r.value; });
+
+    /* Is this office locked out? Worked out once per boot so the router
+       does not have to ask on every page change. */
+    store.sub = null;
+    store.locked = false;
+    if (isOffice()) {
+      store.sub = await billing.mine().catch(() => null);
+      store.locked = billing.locked(store.sub);
+    }
 
     /* Counts the sidebar carries, so an admin can see the totals and the
        approval queue without opening anything. */
@@ -293,6 +304,38 @@
   /* ---------------------------------------------------------- billing */
   const billing = {
     async subscriptions() { return rows(await sb.from('subscriptions').select('*')); },
+    async mine() {
+      if (!store.me || !store.me.office_id) return null;
+      return guard(await sb.from('subscriptions').select('*')
+        .eq('office_id', store.me.office_id).maybeSingle());
+    },
+    /* Days left before the office is locked out. Negative once it is. */
+    daysLeft(sub) {
+      if (!sub) return null;
+      const end = sub.status === 'trial' ? sub.trial_ends : sub.next_charge;
+      if (!end) return null;
+      return Math.ceil((new Date(end + 'T00:00:00') - new Date().setHours(0, 0, 0, 0)) / 86400000);
+    },
+    locked(sub) {
+      if (!CFG.billingEnabled) return false;
+      const d = billing.daysLeft(sub);
+      return d === null || d < 0 || ['past_due', 'cancelled'].indexOf(sub.status) > -1 && d < 0;
+    },
+    /* Asks the Edge Function to start a Paystack checkout. The amount is
+       decided server side; nothing here can influence what is charged. */
+    async startCheckout() {
+      const { data: s } = await sb.auth.getSession();
+      const token = s && s.session ? s.session.access_token : null;
+      if (!token) throw new Error('Sign in again, then try once more.');
+      const res = await fetch(CFG.supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/paystack-init', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+        body: '{}'
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out.url) throw new Error(out.error || 'Could not reach Paystack.');
+      return out.url;
+    },
     async payments(officeId) {
       let q = sb.from('payments').select('*').order('paid_at', { ascending: false });
       if (officeId) q = q.eq('office_id', officeId);

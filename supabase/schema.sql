@@ -63,7 +63,8 @@ insert into app_settings (key, value) values
   ('training_time',     '2:45pm'),
   ('trial_days',        '16'),
   ('plan_amount_ngn',   '6500'),
-  ('plan_days',         '30')
+  ('plan_days',         '30'),
+  ('billing_enabled',   'false')
 on conflict (key) do nothing;
 
 -- The trial was 30 days while billing was switched off; it is 16 now.
@@ -414,6 +415,33 @@ create trigger offices_start_trial
   after insert on offices
   for each row execute function start_trial();
 
+-- ---------------------------------------------------------------------
+-- The lock. An office whose trial has run out and who has not paid can
+-- still sign in and read its own history, but cannot file a report or
+-- open scanning until it does. Enforced here rather than in the browser,
+-- so it holds even against a hand-typed request.
+--
+-- While billing_enabled is false nothing is ever locked.
+-- ---------------------------------------------------------------------
+create or replace function office_locked(p_office uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when p_office is null then false
+    when coalesce(setting('billing_enabled'), 'false') <> 'true' then false
+    else not exists (
+      select 1 from subscriptions s
+       where s.office_id = p_office
+         and ((s.status = 'trial'  and s.trial_ends  >= current_date)
+           or (s.status = 'active' and s.next_charge >= current_date))
+    )
+  end;
+$$;
+
+create or replace function my_office_locked()
+returns boolean language sql stable security definer set search_path = public as $$
+  select office_locked(my_office());
+$$;
+
 -- =====================================================================
 -- Row level security
 -- =====================================================================
@@ -506,11 +534,12 @@ create policy reports_read on reports
   for select to authenticated
   using (is_admin() or office_id = my_office() or center_id = my_center());
 
+-- Filing needs a live subscription; reading your own history never does.
 drop policy if exists reports_office_write on reports;
 create policy reports_office_write on reports
   for all to authenticated
   using (is_admin() or office_id = my_office())
-  with check (is_admin() or office_id = my_office());
+  with check (is_admin() or (office_id = my_office() and not my_office_locked()));
 
 -- events --------------------------------------------------------------
 drop policy if exists events_read on events;
@@ -522,7 +551,7 @@ drop policy if exists events_write on events;
 create policy events_write on events
   for all to authenticated
   using (is_admin() or center_id = my_center())
-  with check (is_admin() or center_id = my_center());
+  with check (is_admin() or (center_id = my_center() and not my_office_locked()));
 
 -- scans ---------------------------------------------------------------
 drop policy if exists scans_read on scans;
@@ -953,6 +982,8 @@ grant execute on function ensure_week_events(date)      to authenticated;
 grant execute on function week_start(date)              to anon, authenticated;
 revoke all on function touch_last_seen()               from public;
 grant execute on function touch_last_seen()             to authenticated;
+grant execute on function office_locked(uuid)           to authenticated;
+grant execute on function my_office_locked()            to authenticated;
 grant execute on function submit_access_request(text, text, text, uuid, text, text) to authenticated;
 grant execute on function approve_access_request(uuid)  to authenticated;
 grant execute on function decline_access_request(uuid, text) to authenticated;

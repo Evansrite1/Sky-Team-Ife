@@ -841,6 +841,44 @@
   /* ===================================================================
      SUBSCRIPTIONS
      =================================================================== */
+  /* What the office itself sees at the top: how long is left, or that
+     the time has run out, and the one button that fixes it. */
+  function ownPanel(sub, plan) {
+    const left = A.billing.daysLeft(sub);
+    const locked = A.store.locked;
+    const on = window.CONFIG.billingEnabled;
+    const pay = on
+      ? '<button class="btn btn-a btn-pop btn-lg" data-act="pay-now">' + ico('card', 16)
+      + (sub && sub.status === 'active' ? 'Update your card' : 'Pay ' + U.ngn(plan.amountNgn) + ' now') + '</button>'
+      : '';
+
+    if (locked) {
+      return '<div class="card card-dark"><div class="card-h"><div>'
+        + '<div class="card-t" style="font-size:20px">Your free trial has ended</div>'
+        + '<div class="card-s">Filing reports and opening scanning are paused until the office pays. '
+        + 'Nothing has been deleted, and everything comes straight back.</div></div></div>'
+        + '<div class="row" style="margin-top:16px">' + pay + '</div></div>'
+        + '<div style="height:18px"></div>';
+    }
+    if (!sub) return '';
+
+    const warn = left !== null && left <= 5;
+    return '<div class="card' + (warn ? ' card-dark' : '') + '"><div class="card-h"><div>'
+      + '<div class="card-t" style="font-size:20px">'
+      + (sub.status === 'trial'
+        ? (left === 0 ? 'Your trial ends today' : left + ' day' + (left === 1 ? '' : 's') + ' left on your trial')
+        : 'Your subscription is live') + '</div>'
+      + '<div class="card-s">'
+      + (sub.status === 'trial'
+        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days.'
+        : 'Next charge ' + (sub.next_charge ? U.fullDate(sub.next_charge) : 'not set')
+        + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div>'
+      + (warn || sub.status !== 'trial' ? '<div class="card-a">' + pay + '</div>' : '') + '</div>'
+      + (!warn && sub.status === 'trial' && on
+        ? '<div class="row" style="margin-top:14px">' + pay + '</div>' : '')
+      + '</div><div style="height:18px"></div>';
+  }
+
   async function subscriptions() {
     const own = A.isOffice();
     const [subs, pays] = await Promise.all([
@@ -853,11 +891,12 @@
 
     return {
       title: own ? 'Subscription' : 'Subscriptions',
-      html: (!window.CONFIG.billingEnabled ? note('info', 'card',
-        '<b>Card payments are not switched on yet.</b> Every office is on the free trial and nothing is charged. '
-        + 'The plan is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days after a ' + plan.trialDays
-        + '-day trial. Turn on <span class="mono">billingEnabled</span> in config.js once Paystack is connected.')
-        + '<div style="height:18px"></div>' : '')
+      html: (own ? ownPanel(A.store.sub, plan) : '')
+        + (!window.CONFIG.billingEnabled ? note('info', 'card',
+          '<b>Card payments are not switched on yet.</b> Every office is on the free trial and nothing is charged. '
+          + 'The plan is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days after a ' + plan.trialDays
+          + '-day trial. Turn on <span class="mono">billingEnabled</span> in config.js once Paystack is connected.')
+          + '<div style="height:18px"></div>' : '')
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
         + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' per office every ' + plan.days + ' days.</div></div></div>'
