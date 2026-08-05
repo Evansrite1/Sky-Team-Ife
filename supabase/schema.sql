@@ -60,8 +60,14 @@ create table if not exists app_settings (
 insert into app_settings (key, value) values
   ('organisation',      'Sky Team Ife'),
   ('bootstrap_admin',   'ademiluaolufemi@gmail.com'),
-  ('training_time',     '2:45pm')
+  ('training_time',     '2:45pm'),
+  ('trial_days',        '16'),
+  ('plan_amount_ngn',   '6500'),
+  ('plan_days',         '30')
 on conflict (key) do nothing;
+
+-- The trial was 30 days while billing was switched off; it is 16 now.
+update app_settings set value = '16' where key = 'trial_days' and value = '30';
 
 -- Sign-up used to be locked behind two access codes. It is approval-based
 -- now, so the codes mean nothing and are cleared out.
@@ -130,6 +136,22 @@ create table if not exists profiles (
 create index if not exists profiles_office_idx on profiles(office_id);
 
 alter table profiles add column if not exists phone text not null default '';
+
+-- Who is actually using this. Written by the app on every boot with a
+-- live session, so the Super Admin can see who has gone quiet.
+alter table profiles add column if not exists last_seen  timestamptz;
+alter table profiles add column if not exists login_count integer not null default 0;
+
+create or replace function touch_last_seen()
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then return; end if;
+  update profiles
+     set last_seen   = now(),
+         login_count = login_count + 1
+   where id = auth.uid()
+     and (last_seen is null or last_seen < now() - interval '5 minutes');
+end $$;
 
 -- The access request that sits on a profile until it is approved. These
 -- columns are only ever meaningful while role = 'pending'; approving
@@ -356,6 +378,11 @@ create table if not exists subscriptions (
   updated_at   timestamptz not null default now()
 );
 
+-- Paystack's own identifiers, so a webhook can find the office again.
+alter table subscriptions add column if not exists paystack_customer     text;
+alter table subscriptions add column if not exists paystack_subscription text;
+alter table subscriptions add column if not exists paystack_email_token  text;
+
 create table if not exists payments (
   id         uuid primary key default gen_random_uuid(),
   office_id  uuid not null references offices(id) on delete cascade,
@@ -368,12 +395,16 @@ create table if not exists payments (
 );
 create index if not exists payments_office_idx on payments(office_id);
 
--- Every new office starts on a 30-day trial.
+-- Every new office gets a free trial. Only offices are ever billed;
+-- directors and the super admin have no subscription row at all.
 create or replace function start_trial()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare v_days integer := coalesce(nullif(setting('trial_days'), '')::integer, 16);
 begin
-  insert into subscriptions (office_id, status, trial_ends, next_charge)
-  values (new.id, 'trial', current_date + 30, current_date + 30)
+  insert into subscriptions (office_id, status, amount_ngn, trial_ends, next_charge)
+  values (new.id, 'trial',
+          coalesce(nullif(setting('plan_amount_ngn'), '')::integer, 6500),
+          current_date + v_days, current_date + v_days)
   on conflict (office_id) do nothing;
   return new;
 end $$;
@@ -920,6 +951,8 @@ grant execute on function record_scan(text, uuid, text, text) to anon, authentic
 grant execute on function center_lookup(uuid)           to anon, authenticated;
 grant execute on function ensure_week_events(date)      to authenticated;
 grant execute on function week_start(date)              to anon, authenticated;
+revoke all on function touch_last_seen()               from public;
+grant execute on function touch_last_seen()             to authenticated;
 grant execute on function submit_access_request(text, text, text, uuid, text, text) to authenticated;
 grant execute on function approve_access_request(uuid)  to authenticated;
 grant execute on function decline_access_request(uuid, text) to authenticated;

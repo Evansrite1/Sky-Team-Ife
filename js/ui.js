@@ -395,7 +395,66 @@
     '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
     + '<button class="btn ' + (danger ? 'btn-d' : 'btn-p') + '" data-act="' + act + '">' + esc(confirmLabel) + '</button>');
 
+  /* --------------------------------------------------- the 3D field */
+  /* Six marks and five dust motes at different depths inside one
+     perspective. Shared by the auth screens and the app shell. */
+  let markSeq = 0;
+  function depthMark(cls) {
+    const id = 'dm' + (++markSeq);
+    return '<span class="' + cls + '"><span class="d-i">'
+      + '<svg class="mark" viewBox="0 0 120 120" aria-hidden="true">'
+      + '<defs><mask id="' + id + '" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
+      + '<rect width="120" height="120" fill="#fff"/>'
+      + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
+      + '</mask></defs>'
+      + '<g mask="url(#' + id + ')" fill="currentColor">'
+      + '<path d="M110 12H34a24 24 0 0 0 0 48h76Z"/><path d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
+      + '</g></svg></span></span>';
+  }
+
+  const backdrop3d = () => '<div class="bg3d" aria-hidden="true"><div class="bg3d-stage">'
+    + '<span class="wash wash-1"></span><span class="wash wash-2"></span>'
+    + [1, 2, 3, 4, 5, 6].map(n => depthMark('d d-' + n)).join('')
+    + [1, 2, 3, 4, 5].map(n => '<span class="dust dust-' + n + '"></span>').join('')
+    + '</div><span class="auth-veil"></span></div>';
+
+  /* The tilt. Eased toward the pointer rather than pinned to it, so the
+     scene lags a beat behind the hand and reads as weight. Phones have
+     no pointer, so the gyroscope drives it there instead. */
+  (function parallax() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = document.documentElement;
+    let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+    const clamp = v => Math.max(-1, Math.min(1, v));
+    const step = () => {
+      cx += (tx - cx) * 0.055;
+      cy += (ty - cy) * 0.055;
+      root.style.setProperty('--px', cx.toFixed(4));
+      root.style.setProperty('--py', cy.toFixed(4));
+      raf = (Math.abs(tx - cx) > 0.0008 || Math.abs(ty - cy) > 0.0008) ? requestAnimationFrame(step) : null;
+    };
+    const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
+    window.addEventListener('pointermove', (e) => {
+      tx = clamp((e.clientX / window.innerWidth) * 2 - 1);
+      ty = clamp((e.clientY / window.innerHeight) * 2 - 1);
+      kick();
+    }, { passive: true });
+    window.addEventListener('deviceorientation', (e) => {
+      if (e.gamma == null || e.beta == null) return;
+      tx = clamp(e.gamma / 32);
+      ty = clamp((e.beta - 42) / 32);
+      kick();
+    }, { passive: true });
+  })();
+
   /* ------------------------------------------------- installability */
+  /* Declared before the block below runs, which calls them. */
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+  const isIOS = () =>
+    /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   /* Both pages load this file, so both get the service worker and both
      know when the browser is willing to install the app. */
   (function pwa() {
@@ -418,9 +477,7 @@
       try { localStorage.setItem('sti-installed', '1'); } catch (err) { /* ignore */ }
     });
     /* Running from the home screen rather than a browser tab. */
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-      document.documentElement.classList.add('standalone');
-    }
+    if (isStandalone()) document.documentElement.classList.add('standalone');
   })();
 
   /* ------------------------------------------------------------ export */
@@ -429,7 +486,8 @@
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed,
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
-    ico, IC, logo, drawLogo, LOGO_PATH, kpi, tag, note, empty, bar, change, table,
+    ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS,
+    kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster,
     toast, modal, closeModal, busy, confirmDialog
   };

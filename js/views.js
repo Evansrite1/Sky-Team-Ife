@@ -344,7 +344,7 @@
         + '<div class="card-s">Numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">'
           + ico('plus', 15) + 'New center</button></div>' : '') + '</div>'
-        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Leader' }, { label: 'Offices', num: true },
+        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true },
         { label: 'Filed', num: true }, { label: 'Amount', num: true }], rowsHtml,
           { empty: empty('layers', 'No centers yet', 'A center holds its own offices and runs its own Wednesday evaluation.',
             A.isSuper() ? '<button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'Create the first center</button>' : '') })
@@ -373,7 +373,7 @@
         + kpi('Offices', offs.length, '', 'building')
         + kpi('Distributors', dists.length, dists.filter(d => SM_PLUS.includes(d.status)).length + ' SM and above', 'users')
         + kpi('Amount this week', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-blue')
-        + kpi('Leader', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
+        + kpi('Director', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
         + '</div>'
 
         + '<div style="margin-top:18px;max-width:660px">'
@@ -388,7 +388,7 @@
         + ' data-url="' + esc(centerUrl) + '"'
         + ' data-title="' + esc(c.name) + '"'
         + ' data-sub="' + esc('Training sign-in') + '"'
-        + ' data-lines="' + esc((c.address || '') + '|' + (c.leader_name ? 'Leader: ' + c.leader_name : '')) + '"'
+        + ' data-lines="' + esc((c.address || '') + '|' + (c.leader_name ? 'Director: ' + c.leader_name : '')) + '"'
         + ' data-file="' + esc('qr-' + c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '">'
         + ico('qr', 14) + 'Download poster</button>'
         + '<button class="btn btn-sm" data-act="copy" data-v="' + esc(centerUrl) + '">' + ico('copy', 14) + 'Copy link</button>'
@@ -892,21 +892,23 @@
      CENTERS & ADMINS  (super admin)
      =================================================================== */
   async function adminPanel() {
-    const [admins, pending] = await Promise.all([A.people.admins(), A.people.pending()]);
+    const [admins, pending, all] = await Promise.all([
+      A.people.admins(), A.people.pending(), A.people.everyone()
+    ]);
     const asked = pending.filter(p => p.req_status === 'pending');
     const quiet = pending.filter(p => p.req_status !== 'pending');
     const wants = p => p.req_kind === 'leader'
-      ? tag('Leader / Director', 't-gold')
+      ? tag('Director', 't-gold')
       : tag('An office', 't-ok')
       + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
       + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>'
       + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
     return {
-      title: 'Centers & admins',
+      title: 'Centers & directors',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
         + '<div class="card-s">A center holds its own offices and runs its own Wednesday evaluation.</div></div>'
         + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New center</button></div></div>'
-        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Leader' }, { label: 'Offices', num: true }, { label: '' }],
+        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true }, { label: '' }],
           A.store.centers.map(c => '<tr><td class="nm">' + esc(c.name) + '</td>'
             + '<td>' + esc(c.address || '—') + '</td>'
             + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
@@ -944,14 +946,33 @@
           + '</div>' : '')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
-        + '<div class="card-s">Leaders see every center and run the Wednesday evaluation. They cannot create centers.</div></div></div>'
+        + '<div class="card-s">Directors see every center and run the Wednesday evaluation. They cannot create centers.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
           admins.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
             + '<td>' + esc(p.email) + '</td>'
-            + '<td>' + (p.role === 'super_admin' ? tag('Super Admin', 't-gold') : tag('Leader', 't-ok')) + '</td>'
+            + '<td>' + (p.role === 'super_admin' ? tag('Super Admin', 't-gold') : tag('Director', 't-ok')) + '</td>'
             + '<td class="sub">' + esc(U.fullDate(p.created_at)) + '</td>'
             + '<td class="num">' + (p.role === 'platform_admin' && p.id !== A.store.me.id
               ? '<button class="btn btn-sm btn-d" data-act="drop-admin" data-id="' + p.id + '">Remove</button>' : '') + '</td></tr>'))
+        + '</div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Who has signed in</div>'
+        + '<div class="card-s">Every account with a role, most recent first. Stamped each time '
+        + 'the app is opened with a live session.</div></div></div>'
+        + table([{ label: 'Name' }, { label: 'Role' }, { label: 'Last seen' }, { label: 'Sign-ins', num: true }],
+          all.map(p => {
+            const days = p.last_seen
+              ? Math.floor((Date.now() - new Date(p.last_seen).getTime()) / 86400000) : null;
+            const state = days === null ? tag('Never', 't-warn')
+              : days >= 14 ? tag(U.timeAgo(p.last_seen), 't-warn')
+                : tag(U.timeAgo(p.last_seen), 't-ok');
+            return '<tr><td class="nm">' + esc(p.full_name || '—')
+              + '<div class="sub">' + esc(p.email) + '</div></td>'
+              + '<td>' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[p.role] || p.role) + '</td>'
+              + '<td>' + state + '</td>'
+              + '<td class="num">' + (p.login_count || 0) + '</td></tr>';
+          }),
+          { empty: empty('users', 'Nobody yet', 'Sign-ins show up here.') })
         + '</div>'
     };
   }
@@ -961,7 +982,7 @@
      =================================================================== */
   async function account() {
     const me = A.store.me;
-    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office', pending: 'Waiting for approval' };
+    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', pending: 'Waiting for approval' };
     return {
       title: 'Account',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">You</div></div></div>'
@@ -1003,7 +1024,81 @@
     };
   }
 
+  /* ===================================================================
+     GUIDE  —  what the platform is for, and what this role does with it
+     =================================================================== */
+  const DOES = [
+    'Manage documentation digitally.',
+    'Track attendance for trainings and meetings.',
+    'Conduct evaluations.',
+    'Monitor productivity and performance across every office.',
+    'Generate reports that help us make better decisions and measure our growth over time.'
+  ];
+
+  const STEPS = {
+    office: [
+      ['clipboard', 'File one report a week', 'Open <b>Weekly report</b> before Tuesday closes and put in the number of orders you got, what they came to, the products they came from, and anything that slowed you down. That single form is what every ranking and every summary is built from.'],
+      ['users', 'Keep your distributor list true', 'Add everyone under <b>Distributors</b>, with a phone number for each. The number matters: it is what a distributor completes at the door to prove the scan is really them.'],
+      ['qr', 'Open scanning when a session starts', 'On <b>Trainings</b>, press open when the room fills. Everyone scans the center QR, finds their name, completes their number, and they are in. Close it when the session ends.'],
+      ['card', 'Keep your subscription live', 'Your office has its own subscription. Check <b>Subscription</b> for when the next payment falls due.']
+    ],
+    platform_admin: [
+      ['grid', 'Read the week at a glance', 'The <b>Dashboard</b> shows every center for the week you pick: what came in, who filed and who has not.'],
+      ['clipboard', 'Run the Wednesday evaluation', '<b>Evaluation list</b> is the sheet for the 2:45pm meeting. It arrives already filled in from the reports that were filed.'],
+      ['crown', 'Watch the rankings', '<b>Office rankings</b> orders every office by the week, so the conversation starts from the numbers rather than from memory.'],
+      ['qr', 'Keep attendance honest', 'Open and close scanning for your centers, and check <b>Trainings</b> afterwards for who actually came.']
+    ],
+    super_admin: [
+      ['shield', 'Approve who gets in', 'Nobody sees anything until you approve them. <b>Centers & directors</b> carries a blue count whenever somebody is waiting. Approving an office is what creates that office.'],
+      ['layers', 'Create the centers first', 'Everything hangs off a center. Offices pick one when they sign up, and each center runs its own Wednesday evaluation and has its own permanent QR poster.'],
+      ['building', 'Watch every office', '<b>Offices</b>, <b>Office rankings</b> and <b>Weekly reports</b> give you the whole picture, week by week.'],
+      ['card', 'Keep an eye on billing', '<b>Subscriptions</b> shows which offices are on trial, which are paying, and which have lapsed.']
+    ]
+  };
+
+  async function guide() {
+    const me = A.store.me;
+    const steps = STEPS[me.role] || STEPS.office;
+    const roleName = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'an Office' }[me.role] || '';
+    return {
+      title: 'Guide',
+      html: '<div class="card card-dark"><div class="card-h"><div>'
+        + '<div class="card-t" style="font-size:22px">What this platform is for</div>'
+        + '<div class="card-s">Sky Team Ife runs on what it writes down. This is the whole of it.</div>'
+        + '</div></div>'
+        + '<ul class="ticks">' + DOES.map(d => '<li>' + ico('check', 15) + '<span>' + esc(d) + '</span></li>').join('') + '</ul>'
+        + '</div>'
+
+        + '<div class="card"><div class="card-h"><div>'
+        + '<div class="card-t">You are signed in as ' + esc(roleName) + '</div>'
+        + '<div class="card-s">Here is what that means week to week.</div></div></div>'
+        + '<div class="steps">' + steps.map((s, i) => '<div class="step">'
+          + '<div class="step-n">' + ico(s[0], 18) + '<i>' + (i + 1) + '</i></div>'
+          + '<div><div class="step-t">' + esc(s[1]) + '</div>'
+          + '<div class="step-d">' + s[2] + '</div></div></div>').join('')
+        + '</div></div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">The week</div>'
+        + '<div class="card-s">Everything is stamped to the Wednesday that opens it.</div></div></div>'
+        + '<div class="steps">'
+        + '<div class="step"><div class="step-n">' + ico('calendar', 18) + '<i>W</i></div>'
+        + '<div><div class="step-t">Wednesday to Tuesday</div>'
+        + '<div class="step-d">A week opens on Wednesday and closes the following Tuesday. Reports belong to the week they cover, not the day they are filed.</div></div></div>'
+        + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>1</i></div>'
+        + '<div><div class="step-t">Senior Manager Training, Wednesday 2:45pm</div>'
+        + '<div class="step-d">Senior Managers and above. Creates itself for every center.</div></div></div>'
+        + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>2</i></div>'
+        + '<div><div class="step-t">Distributor Training, Friday 2:45pm</div>'
+        + '<div class="step-d">Everyone. Also creates itself.</div></div></div>'
+        + '<div class="step"><div class="step-n">' + ico('clipboard', 18) + '<i>3</i></div>'
+        + '<div><div class="step-t">Evaluation, the Wednesday after the week closes</div>'
+        + '<div class="step-d">Read against the reports that were filed for that week.</div></div></div>'
+        + '</div></div>'
+    };
+  }
+
   window.VIEWS = {
+    guide,
     dashboard: () => A.isOffice() ? officeDash() : adminDash(),
     evaluation, monthly, centers, offices, rankings,
     reports: reportsView,

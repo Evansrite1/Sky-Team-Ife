@@ -38,9 +38,10 @@
       { grp: 'People & admin' },
       { p: 'distributors', l: 'Distributors', i: 'users' },
       { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-      { p: 'admin', l: 'Centers & leaders', i: 'shield',
+      { p: 'admin', l: 'Centers & directors', i: 'shield',
         c: () => A.store.leaders || '', alertC: () => A.store.waiting || '' },
-      { p: 'account', l: 'Account', i: 'lock' }
+      { p: 'account', l: 'Account', i: 'lock' },
+      { p: 'guide', l: 'Guide', i: 'info' }
     ],
     platform_admin: [
       { grp: 'Overview' },
@@ -57,7 +58,8 @@
       { p: 'events', l: 'Center events', i: 'star' },
       { grp: 'People' },
       { p: 'distributors', l: 'Distributors', i: 'users' },
-      { p: 'account', l: 'Account', i: 'lock' }
+      { p: 'account', l: 'Account', i: 'lock' },
+      { p: 'guide', l: 'Guide', i: 'info' }
     ],
     office: [
       { grp: 'This week' },
@@ -71,13 +73,14 @@
       { p: 'center', l: 'Center performance', i: 'layers' },
       { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
       { p: 'subscriptions', l: 'Subscription', i: 'card' },
-      { p: 'account', l: 'Account', i: 'lock' }
+      { p: 'account', l: 'Account', i: 'lock' },
+      { p: 'guide', l: 'Guide', i: 'info' }
     ]
   };
   const ALLOWED = {
     super_admin: null,   // everything
-    platform_admin: ['dashboard', 'evaluation', 'monthly', 'centers', 'offices', 'rankings', 'reports', 'trainings', 'events', 'distributors', 'account'],
-    office: ['dashboard', 'reports', 'trainings', 'events', 'distributors', 'center', 'monthly', 'subscriptions', 'account']
+    platform_admin: ['dashboard', 'evaluation', 'monthly', 'centers', 'offices', 'rankings', 'reports', 'trainings', 'events', 'distributors', 'account', 'guide'],
+    office: ['dashboard', 'reports', 'trainings', 'events', 'distributors', 'center', 'monthly', 'subscriptions', 'account', 'guide']
   };
 
   function go(hash) { location.hash = hash; }
@@ -100,7 +103,7 @@
       }).join('') + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
-      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office' }[me.role] || '') + '</div></div></div>'
+      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
       + '<div class="sb-credit">Site developed by <b>Large Technologies</b></div></div></aside>';
   }
@@ -141,16 +144,28 @@
       + '<span class="tab-l">More</span></button></nav>';
   }
 
-  /* Shown once, on a phone, when the browser says the app can be
-     installed — and never again after it is dismissed. */
+  /* The nudge to install. It keeps coming back: dismissing it snoozes
+     for a day rather than silencing it, because an app on the home
+     screen is the whole point on a phone. Once actually installed the
+     page runs in standalone mode and this never renders again. */
+  const SNOOZE = 24 * 60 * 60 * 1000;
   function installBar() {
-    let hidden = false;
-    try { hidden = !!localStorage.getItem('sti-install-off'); } catch (e) { /* ignore */ }
-    if (hidden || !window.__installPrompt) return '';
-    return '<div class="inst"><span class="inst-ic">' + U.logo(20) + '</span>'
-      + '<div class="inst-t"><b>Add to your home screen</b>'
-      + '<span>Opens full screen, like an app.</span></div>'
-      + '<button class="btn btn-sm btn-a" data-act="install">Install</button>'
+    if (U.isStandalone()) return '';
+    let until = 0;
+    try { until = Number(localStorage.getItem('sti-install-snooze') || 0); } catch (e) { /* ignore */ }
+    if (Date.now() < until) return '';
+
+    /* Safari never fires beforeinstallprompt, so iOS gets told how to do
+       it by hand instead of being offered a button that cannot work. */
+    const ios = U.isIOS();
+    if (!window.__installPrompt && !ios) return '';
+
+    return '<div class="inst"><span class="inst-ic">' + U.logo(22) + '</span>'
+      + '<div class="inst-t"><b>Add ' + esc(brand()) + ' to your home screen</b>'
+      + '<span>' + (ios
+        ? 'Tap Share, then “Add to Home Screen”.'
+        : 'Opens full screen, and works with a weak signal.') + '</span></div>'
+      + (ios ? '' : '<button class="btn btn-sm btn-a" data-act="install">Install</button>')
       + '<button class="inst-x" data-act="install-no" aria-label="Not now">' + ico('x', 16) + '</button></div>';
   }
 
@@ -186,6 +201,17 @@
         ? renderWaiting() : renderOnboard();
     }
 
+    /* First time in, the guide opens itself. After that it lives in the
+       nav and only shows when asked for. */
+    if (!parts.length) {
+      let seen = false;
+      try { seen = localStorage.getItem('sti-guide-' + me.id) === '1'; } catch (e) { /* ignore */ }
+      if (!seen) {
+        try { localStorage.setItem('sti-guide-' + me.id, '1'); } catch (e) { /* ignore */ }
+        go('#/guide'); return;
+      }
+    }
+
     let page = parts[0] || 'dashboard';
     const id = parts[1];
     const allowed = ALLOWED[me.role];
@@ -194,18 +220,18 @@
 
     if (routing) return;
     routing = true;
-    $('#root').innerHTML = '<div class="shell">' + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
+    $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
       + '<main class="main"><div class="loading"><div class="spinner"></div>'
       + '<div class="card-s">Loading…</div></div></main></div>';
     try {
       const v = await V[page](id);
-      $('#root').innerHTML = '<div class="shell">' + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
+      $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
         + '<main class="main">' + topbar(v) + '<div class="page enter">' + v.html + '</div></main>'
         + installBar() + tabbar(page) + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
       console.error(e);
-      $('#root').innerHTML = '<div class="shell">' + sidebar(page) + '<main class="main">'
+      $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<main class="main">'
         + topbar({ title: 'Something went wrong' }) + '<div class="page">'
         + U.note('err', 'alert', '<b>' + esc(e.message || 'The database refused that request.') + '</b>'
           + '<div style="margin-top:8px">If this is the first run, check that supabase/schema.sql has been run in your Supabase project.</div>')
@@ -217,39 +243,29 @@
   async function refresh() { await route(); }
 
   /* =============================== AUTH ============================= */
-  /* The mark, alive. The two blocks fly in and settle, the star turns in
-     the gap between them, and the whole thing breathes. The star is a
-     hole punched through a mask, so it stays transparent and whatever is
-     behind it shows through. Each one needs its own mask id. */
-  let markSeq = 0;
-  function animMark(cls) {
-    const id = 'mk' + (++markSeq);
-    return '<svg class="mark ' + (cls || '') + '" viewBox="0 0 120 120" aria-hidden="true">'
-      + '<defs><mask id="' + id + '" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">'
-      + '<rect width="120" height="120" fill="#fff"/>'
-      + '<path class="mk-star" d="M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z" fill="#000"/>'
-      + '</mask></defs>'
-      + '<g mask="url(#' + id + ')" fill="currentColor">'
-      + '<path class="mk-top" d="M110 12H34a24 24 0 0 0 0 48h76Z"/>'
-      + '<path class="mk-bot" d="M10 60h76a24 24 0 0 1 0 48H10Z"/>'
-      + '</g></svg>';
-  }
-
-  /* The field the card floats on: six marks at wildly different sizes,
-     drifting and turning past each other, over two slow colour washes.
-     All decoration, so none of it is reachable or readable. */
-  const authBackdrop = () => '<div class="auth-bg" aria-hidden="true">'
-    + '<span class="wash wash-1"></span><span class="wash wash-2"></span>'
-    + ['bm-1', 'bm-2', 'bm-3', 'bm-4', 'bm-5', 'bm-6']
-      .map(c => '<span class="bm ' + c + '">' + animMark('bm-mark') + '</span>').join('')
-    + '<span class="auth-veil"></span></div>';
-
   const CREDIT = '<div class="credit">Site developed by <b>Large Technologies</b></div>';
 
-  const authShell = (inner) => '<div class="auth">' + authBackdrop()
+  /* What the platform is for, in the applicant's own words. Shown on the
+     sign-in screen and again inside the guide. */
+  const DOES = [
+    'Manage documentation digitally.',
+    'Track attendance for trainings and meetings.',
+    'Conduct evaluations.',
+    'Monitor productivity and performance across every office.',
+    'Generate reports that help us make better decisions and measure our growth over time.'
+  ];
+  const tickList = (cls) => '<ul class="ticks ' + (cls || '') + '">'
+    + DOES.map(d => '<li>' + ico('check', 15) + '<span>' + esc(d) + '</span></li>').join('')
+    + '</ul>';
+  const WHAT_IT_DOES = '<div class="does"><div class="does-h">The platform lets us</div>'
+    + tickList() + '</div>';
+
+  /* The mark on the card is deliberately still. Everything that moves is
+     behind the glass, so the brand itself stays steady to read against. */
+  const authShell = (inner) => '<div class="auth">' + U.backdrop3d()
     + '<div class="auth-mid">'
     + '<div class="auth-card">'
-    + '<div class="auth-brand">' + animMark('brand-anim') + '<span>' + esc(brand()) + '</span></div>'
+    + '<div class="auth-brand">' + U.logo(46) + '<span>' + esc(brand()) + '</span></div>'
     + inner + '</div>'
     + CREDIT + '</div></div>';
 
@@ -260,12 +276,12 @@
     save(k) { try { sessionStorage.setItem('sti-join', k); } catch (e) { /* ignore */ } },
     clear() { try { sessionStorage.removeItem('sti-join'); } catch (e) { /* ignore */ } }
   };
-  const KIND_LABEL = { office: 'an office', leader: 'a leader' };
+  const KIND_LABEL = { office: 'an office', leader: 'a director' };
 
   function renderAuth(which) {
     const r = $('#root');
     /* The fork. Nothing is asked for here but the choice itself — what
-       an office has to fill in and what a leader does barely overlap. */
+       an office has to fill in and what a director does barely overlap. */
     if (which === 'join') {
       const k = pick.read();
       r.innerHTML = authShell(
@@ -276,7 +292,7 @@
         + '<span class="pick-ic">' + ico('building', 19) + '</span><span class="pick-t">An office</span>'
         + '<span class="pick-d">You run an office. You file the weekly report and manage your own distributors.</span></button>'
         + '<button type="button" class="pick-o ' + (k === 'leader' ? 'on' : '') + '" data-act="pick" data-v="leader">'
-        + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A leader or director</span>'
+        + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A director</span>'
         + '<span class="pick-d">You oversee centers. You see every office and run the Wednesday evaluation.</span></button>'
         + '</div>'
         + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>');
@@ -328,8 +344,8 @@
     }
     r.innerHTML = authShell(
       '<h1 class="auth-h">Welcome back</h1>'
-      + '<p class="auth-s">A community is built on what it writes down. '
-      + 'Sign in and pick up where the week left off.</p>'
+      + '<p class="auth-s">Sign in and pick up where the week left off.</p>'
+      + WHAT_IT_DOES
       + '<form id="login-form">'
       + '<div class="field"><label for="li-email">Email address</label>'
       + '<input class="input" id="li-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -377,7 +393,7 @@
       + '<p class="auth-s">' + (turned
         ? 'Your last request came back. Fix what is below and send it again.'
         : 'Joining as ' + KIND_LABEL[kind] + '. <a href="#" data-act="ob-switch" style="text-decoration:underline">Not right?</a>'
-        + ' Your leader approves this, and then your dashboard opens up.') + '</p>'
+        + ' A director approves this, and then your dashboard opens up.') + '</p>'
       + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
 
       + '<form id="ob-form" data-kind="' + kind + '">'
@@ -394,7 +410,7 @@
      turn. Nothing else in the app is reachable from here. */
   async function renderWaiting() {
     const me = A.store.me;
-    let what = 'a leader';
+    let what = 'a director';
     if (me.req_kind !== 'leader') {
       /* A pending account has no lookups loaded, so name the center here. */
       const c = (await A.join.publicCenters()).find(x => x.id === me.req_center_id);
@@ -402,7 +418,7 @@
     }
     $('#root').innerHTML = authShell(
       '<h1 class="auth-h">You are on the list</h1>'
-      + '<p class="auth-s">You asked to join as ' + what + '. Your leader will approve it, '
+      + '<p class="auth-s">You asked to join as ' + what + '. A director will approve it, '
       + 'and the moment they do, this page opens onto your dashboard.</p>'
       + U.note('ok', 'check', 'Nothing else to do. You can close this and come back later. Just '
         + 'sign in with <b>' + esc(me.email) + '</b>.')
@@ -497,7 +513,7 @@
       + '<span class="pick-ic">' + ico('building', 19) + '</span><span class="pick-t">An office</span>'
       + '<span class="pick-d">Files the weekly report, runs its own distributors.</span></button>'
       + '<button type="button" class="pick-o" data-act="ob-switch-to" data-v="leader">'
-      + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A leader or director</span>'
+      + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A director</span>'
       + '<span class="pick-d">Sees every office, runs the Wednesday evaluation.</span></button>'
       + '</div>',
       '<button class="btn btn-g" data-act="modal-close">Cancel</button>');
@@ -510,7 +526,7 @@
     const kind = $('#ob-form').dataset.kind || 'office';
     const btn = $('[data-act="do-request"]');
     if (kind === 'office' && !val('#ob-center')) {
-      return toast('There are no centers yet. Your leader has to create one first.', 'no');
+      return toast('There are no centers yet. A director has to create one first.', 'no');
     }
     busy(btn, true, 'Sending…');
     try {
@@ -525,7 +541,7 @@
       state.editRequest = false;
       await boot(true);
       await route();
-      toast('Sent. Your leader takes it from here.');
+      toast('Sent. A director takes it from here.');
     } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
@@ -541,7 +557,7 @@
       await route();
     } else {
       busy(el, false);
-      toast('Not yet. Your leader has not approved it.');
+      toast('Not yet. It has not been approved.');
     }
   };
 
@@ -557,8 +573,9 @@
     if (out && out.outcome === 'accepted') toast('Installing…');
     const bar = $('.inst'); if (bar) bar.remove();
   };
+  /* Snoozed for a day, not silenced. It will ask again tomorrow. */
   ACT['install-no'] = () => {
-    try { localStorage.setItem('sti-install-off', '1'); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('sti-install-snooze', String(Date.now() + SNOOZE)); } catch (e) { /* ignore */ }
     const bar = $('.inst'); if (bar) bar.remove();
   };
   ACT['modal-close'] = () => closeModal();
@@ -590,7 +607,7 @@
     + '<input class="input" id="c-name" value="' + esc(c.name || '') + '" placeholder="Lagere Center"></div>'
     + '<div class="field"><label for="c-address">Address</label>'
     + '<input class="input" id="c-address" value="' + esc(c.address || '') + '" placeholder="14 Ondo Road, Ile-Ife"></div>'
-    + '<div class="two"><div class="field"><label for="c-leader">Leader</label>'
+    + '<div class="two"><div class="field"><label for="c-leader">Director</label>'
     + '<input class="input" id="c-leader" value="' + esc(c.leader_name || '') + '"></div>'
     + '<div class="field"><label for="c-assistant">Assistant</label>'
     + '<input class="input" id="c-assistant" value="' + esc(c.assistant_name || '') + '"></div></div>';
@@ -820,7 +837,7 @@
 
   ACT['drop-admin'] = async (el) => {
     busy(el, true, 'Removing…');
-    try { await A.people.setRole(el.dataset.id, 'pending'); toast('Leader access removed.'); route(); }
+    try { await A.people.setRole(el.dataset.id, 'pending'); toast('Director access removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 

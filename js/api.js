@@ -77,6 +77,9 @@
     const p = guard(await sb.from('profiles').select('*').eq('id', s.user.id).maybeSingle());
     if (!p) { store.me = null; return null; }
     store.me = p;
+    /* Stamps last_seen, at most once every five minutes. Fire and
+       forget: a failure here must never block signing in. */
+    sb.rpc('touch_last_seen').then(() => {}, () => {});
     if (p.office_id) {
       store.me.office = guard(await sb.from('offices').select('*').eq('id', p.office_id).maybeSingle());
     }
@@ -259,6 +262,12 @@
        filled in what they are joining as or not. */
     async pending() {
       return rows(await sb.from('profiles').select('*').eq('role', 'pending').order('req_at'));
+    },
+    /* Everyone with a role, newest sign-in first. Super admin only in
+       practice, since the profiles policy hides other rows otherwise. */
+    async everyone() {
+      return rows(await sb.from('profiles').select('*')
+        .neq('role', 'pending').order('last_seen', { ascending: false, nullsFirst: false }));
     },
     async approve(id) {
       const { error } = await sb.rpc('approve_access_request', { p_user: id });

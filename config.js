@@ -23,7 +23,7 @@ window.CONFIG = {
 
   /* Phase 2. Until Paystack is wired up the subscription page says so. */
   billingEnabled: false,
-  plan: { amountNgn: 6500, days: 30, trialDays: 30, name: 'Office plan' }
+  plan: { amountNgn: 6500, days: 30, trialDays: 16, name: 'Office plan' }
 };
 
 /* The app checks this before it tries to talk to the database, so a site
