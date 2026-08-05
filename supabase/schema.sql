@@ -102,10 +102,11 @@ create table if not exists offices (
 );
 create index if not exists offices_center_idx on offices(center_id);
 
--- Collected when the office signs up. start_size is the headcount it
--- opened with; the weekly report tracks office_size from then on.
-alter table offices add column if not exists phone      text not null default '';
-alter table offices add column if not exists start_size integer not null default 0;
+-- Collected when the office signs up. An office gives its address; the
+-- area is inherited from its center rather than typed again, and the
+-- short code is generated on approval rather than chosen.
+alter table offices add column if not exists phone text not null default '';
+alter table offices drop column if exists start_size;
 
 -- ---------------------------------------------------------------------
 -- Profiles — one row per auth user
@@ -129,17 +130,19 @@ alter table profiles add column if not exists phone text not null default '';
 --   req_status  none | pending | declined
 --   req_kind    office | leader
 -- A leader fills in nothing beyond their name and phone, which live on
--- the profile itself. Everything below is what an office has to give.
+-- the profile itself. An office adds its center, its name and its
+-- address — that is the whole form.
 alter table profiles add column if not exists req_status      text not null default 'none';
 alter table profiles add column if not exists req_kind        text;
 alter table profiles add column if not exists req_center_id   uuid references centers(id) on delete set null;
 alter table profiles add column if not exists req_office_name text;
-alter table profiles add column if not exists req_office_code text;
-alter table profiles add column if not exists req_area        text;
 alter table profiles add column if not exists req_address     text;
-alter table profiles add column if not exists req_size        integer;
 alter table profiles add column if not exists req_note        text not null default '';
 alter table profiles add column if not exists req_at          timestamptz;
+-- The area and the chosen short code were both dropped from the form.
+alter table profiles drop column if exists req_area;
+alter table profiles drop column if exists req_size;
+alter table profiles drop column if exists req_office_code;
 create index if not exists profiles_req_idx on profiles(req_status) where req_status <> 'none';
 
 -- The bootstrap address becomes super admin the moment it signs up.
@@ -525,19 +528,17 @@ drop function if exists claim_office(text, text, text, uuid, text, text, text);
 drop function if exists claim_admin(text, text);
 drop function if exists check_join_code(text, text);
 drop function if exists submit_access_request(text, text, uuid, text, text);
+drop function if exists submit_access_request(text, text, text, uuid, text, text, text, text, integer);
 
--- Called by the applicant, on their own account. An office has to give
--- everything the office record needs; a leader gives a name and a phone.
+-- Called by the applicant, on their own account. An office gives its
+-- center, its name and its address. A leader gives a name and a phone.
 create or replace function submit_access_request(
   p_kind        text,
   p_full_name   text,
   p_phone       text,
   p_center_id   uuid,
   p_office_name text,
-  p_office_code text,
-  p_area        text,
-  p_address     text,
-  p_size        integer
+  p_address     text
 ) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_role user_role;
@@ -561,30 +562,17 @@ begin
 
   if p_kind = 'office' then
     if p_center_id is null then
-      raise exception 'Pick the center your office belongs to.';
+      raise exception 'Pick the center your office reports to.';
     end if;
     if coalesce(trim(p_office_name), '') = '' then
       raise exception 'Your office needs a name.';
     end if;
-    if coalesce(trim(p_office_code), '') = '' then
-      raise exception 'Your office needs a short code.';
-    end if;
-    if coalesce(trim(p_area), '') = '' then
-      raise exception 'Say which area your office is in.';
-    end if;
     if coalesce(trim(p_address), '') = '' then
       raise exception 'Give the address of your office.';
     end if;
-    if coalesce(p_size, 0) < 0 then
-      raise exception 'Office size cannot be negative.';
-    end if;
-    if exists (select 1 from offices where lower(code) = lower(trim(p_office_code))) then
-      raise exception 'An office is already using the code %.', upper(trim(p_office_code));
-    end if;
-    if exists (select 1 from profiles
-                where id <> auth.uid() and req_status = 'pending'
-                  and lower(coalesce(req_office_code, '')) = lower(trim(p_office_code))) then
-      raise exception 'Someone else is already waiting on the code %.', upper(trim(p_office_code));
+    if exists (select 1 from offices
+                where lower(name) = lower(trim(p_office_name)) and center_id = p_center_id) then
+      raise exception 'That center already has an office called %.', trim(p_office_name);
     end if;
   end if;
 
@@ -594,14 +582,30 @@ begin
     req_kind        = p_kind,
     req_center_id   = case when p_kind = 'office' then p_center_id end,
     req_office_name = case when p_kind = 'office' then trim(p_office_name) end,
-    req_office_code = case when p_kind = 'office' then upper(trim(p_office_code)) end,
-    req_area        = case when p_kind = 'office' then trim(p_area) end,
     req_address     = case when p_kind = 'office' then trim(p_address) end,
-    req_size        = case when p_kind = 'office' then greatest(coalesce(p_size, 0), 0) end,
     req_status      = 'pending',
     req_note        = '',
     req_at          = now()
   where id = auth.uid();
+end $$;
+
+-- Offices no longer choose a short code, so one is made for them: the
+-- first three letters of the name, numbered until it is free.
+create or replace function next_office_code(p_name text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_base text;
+  v_try  text;
+  v_n    integer := 1;
+begin
+  v_base := upper(left(regexp_replace(coalesce(p_name, ''), '[^A-Za-z]', '', 'g'), 3));
+  if length(v_base) < 2 then v_base := 'OFC'; end if;
+  loop
+    v_try := v_base || '-' || lpad(v_n::text, 2, '0');
+    exit when not exists (select 1 from offices where upper(code) = v_try);
+    v_n := v_n + 1;
+  end loop;
+  return v_try;
 end $$;
 
 -- Super Admin only. Creates the office if that is what was asked for, then
@@ -628,16 +632,14 @@ begin
     if r.req_center_id is null then
       raise exception 'That request does not say which center.';
     end if;
-    if exists (select 1 from offices where lower(code) = lower(r.req_office_code)) then
-      raise exception 'An office is already using the code %.', r.req_office_code;
-    end if;
 
+    -- The area comes from the center, the code is generated, and
+    -- manager_name holds the office's team leader.
     insert into offices (center_id, name, code, manager_name, email, phone,
-                         area, address, start_size)
-    select r.req_center_id, r.req_office_name, upper(r.req_office_code),
+                         area, address)
+    select r.req_center_id, r.req_office_name, next_office_code(r.req_office_name),
            r.full_name, r.email, r.phone,
-           coalesce(nullif(r.req_area, ''), c.area, ''),
-           coalesce(r.req_address, ''), coalesce(r.req_size, 0)
+           coalesce(c.area, ''), coalesce(r.req_address, '')
       from centers c where c.id = r.req_center_id
     returning id into v_office;
 
@@ -746,8 +748,13 @@ begin
     into v_offs
     from offices o where o.center_id = v_event.center_id and o.active;
 
+  -- The full phone number never leaves the database. All the browser is
+  -- told is the network prefix, so the page can show 0803 ••• •••• and
+  -- ask for the last four digits; the check itself happens in record_scan.
   select coalesce(jsonb_agg(jsonb_build_object(
-           'id', d.id, 'name', d.full_name, 'status', d.status, 'office_id', d.office_id)
+           'id', d.id, 'name', d.full_name, 'status', d.status, 'office_id', d.office_id,
+           'has_phone', length(regexp_replace(coalesce(d.phone, ''), '\D', '', 'g')) >= 10,
+           'hint', left(regexp_replace(coalesce(d.phone, ''), '\D', '', 'g'), 4))
            order by d.full_name), '[]'::jsonb)
     into v_dists
     from distributors d
@@ -767,12 +774,18 @@ begin
   );
 end $$;
 
-create or replace function record_scan(p_code text, p_distributor uuid, p_device text)
+-- The old three-argument version, before the phone check existed.
+drop function if exists record_scan(text, uuid, text);
+
+create or replace function record_scan(p_code text, p_distributor uuid, p_device text, p_phone text)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
   v_event record;
   v_dist  record;
+  v_typed text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  v_have  text;
+  v_bad   integer;
 begin
   select * into v_event from events where upper(code) = upper(trim(p_code));
   if v_event is null then
@@ -809,6 +822,36 @@ begin
             'Device already used for this session');
     return jsonb_build_object('ok', false,
       'error', 'This phone has already scanned someone in for this session.');
+  end if;
+
+  -- The phone check. Four digits is a small space, so a handset gets a
+  -- few tries per session and then it is done — every miss is written
+  -- down, so the office can see it happened.
+  v_bad := (select count(*) from scans
+             where event_id = v_event.id and device_id = p_device
+               and status = 'rejected' and reason = 'Wrong phone number');
+  if p_device <> '' and v_bad >= 5 then
+    return jsonb_build_object('ok', false,
+      'error', 'Too many wrong numbers from this phone. Ask your office to scan you in.');
+  end if;
+
+  v_have := regexp_replace(coalesce(v_dist.phone, ''), '\D', '', 'g');
+
+  if length(v_have) >= 10 then
+    -- The last four digits, or the whole number if they typed it all.
+    if v_typed <> right(v_have, 4) and v_typed <> v_have then
+      insert into scans (event_id, distributor_id, office_id, device_id, status, reason)
+      values (v_event.id, p_distributor, v_dist.office_id, p_device, 'rejected', 'Wrong phone number');
+      return jsonb_build_object('ok', false, 'retry', true, 'left', greatest(4 - v_bad, 0), 'error',
+        'That is not the number we have for you. Try again, or ask your office to check it.');
+    end if;
+  else
+    -- Nothing on file. Take a full number and keep it for next time.
+    if length(v_typed) < 10 then
+      return jsonb_build_object('ok', false, 'needs_phone', true,
+        'error', 'Please type your full phone number.');
+    end if;
+    update distributors set phone = trim(p_phone) where id = p_distributor;
   end if;
 
   insert into scans (event_id, distributor_id, office_id, device_id, status)
@@ -878,18 +921,19 @@ begin
 end $$;
 
 revoke all on function scan_lookup(text)               from public;
-revoke all on function record_scan(text, uuid, text)   from public;
+revoke all on function record_scan(text, uuid, text, text) from public;
 revoke all on function center_lookup(uuid)             from public;
 revoke all on function ensure_week_events_for(uuid, date) from public;
-revoke all on function submit_access_request(text, text, text, uuid, text, text, text, text, integer) from public;
+revoke all on function submit_access_request(text, text, text, uuid, text, text) from public;
+revoke all on function next_office_code(text)          from public;
 revoke all on function approve_access_request(uuid)    from public;
 revoke all on function decline_access_request(uuid, text) from public;
 grant execute on function scan_lookup(text)             to anon, authenticated;
-grant execute on function record_scan(text, uuid, text) to anon, authenticated;
+grant execute on function record_scan(text, uuid, text, text) to anon, authenticated;
 grant execute on function center_lookup(uuid)           to anon, authenticated;
 grant execute on function ensure_week_events(date)      to authenticated;
 grant execute on function week_start(date)              to anon, authenticated;
-grant execute on function submit_access_request(text, text, text, uuid, text, text, text, text, integer) to authenticated;
+grant execute on function submit_access_request(text, text, text, uuid, text, text) to authenticated;
 grant execute on function approve_access_request(uuid)  to authenticated;
 grant execute on function decline_access_request(uuid, text) to authenticated;
 

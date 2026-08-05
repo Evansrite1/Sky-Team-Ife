@@ -119,7 +119,7 @@
         + (missing.length ? '<div class="card" style="margin-top:18px">'
           + '<div class="card-h"><div><div class="card-t">Still to file · ' + missing.length + '</div>'
           + '<div class="card-s">' + evalLine(ws) + '</div></div></div>'
-          + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Manager' }, { label: '' }],
+          + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Team leader' }, { label: '' }],
             missing.map(r => '<tr class="click" data-href="' + link('offices', r.office.id) + '">'
               + '<td><div class="nm">' + esc(r.office.name) + '</div><div class="sub">' + esc(r.office.code) + '</div></td>'
               + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
@@ -400,7 +400,7 @@
         + '<div class="card-t">Offices ranked</div><div class="card-s">' + esc(U.weekLabel(ws)) + '</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
           + ico('edit', 14) + 'Edit center</button></div>' : '') + '</div>'
-        + table([{ label: '#' }, { label: 'Office' }, { label: 'Manager' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
+        + table([{ label: '#' }, { label: 'Office' }, { label: 'Team leader' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
             + '<td><div class="nm">' + esc(r.office.name) + '</div><div class="sub">' + esc(r.office.code) + '</div></td>'
@@ -439,7 +439,7 @@
       title: 'Offices', picker: 'week',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Every office</div>'
         + '<div class="card-s">' + list.length + ' offices · numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div></div>'
-        + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Manager' }, { label: 'Distributors', num: true },
+        + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Team leader' }, { label: 'Distributors', num: true },
         { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           list.map(o => {
             const r = reps.find(x => x.office_id === o.id);
@@ -586,7 +586,7 @@
 
         + '<form id="report-form">'
         + '<div class="two">'
-        + '<div class="field"><label for="f-orders">Orders written</label>'
+        + '<div class="field"><label for="f-orders">Number of orders gotten</label>'
         + '<input class="input" id="f-orders" type="number" min="0" step="1" required value="' + (mine ? mine.orders : '') + '" placeholder="0"></div>'
         + '<div class="field"><label for="f-amount">Amount in USD</label>'
         + '<input class="input" id="f-amount" type="number" min="0" step="0.01" required value="' + (mine ? mine.amount : '') + '" placeholder="0"></div>'
@@ -600,9 +600,10 @@
 
         + '<div class="field"><label>Which niches did the orders come from?</label>'
         + '<div class="chips" id="niche-chips">' + nicheChips(niches) + '</div>'
-        + '<div class="combo" style="margin-top:9px"><input class="input" id="niche-input" placeholder="Type a product and pick it, or add a new one" autocomplete="off">'
+        + '<div class="combo" style="margin-top:9px"><input class="input" id="niche-input" placeholder="Type a product and press Enter to add it" autocomplete="off">'
         + '<div id="niche-menu"></div></div>'
-        + '<div class="hint">Anything you add that is not on the list joins the catalogue for every office.</div></div>'
+        + '<div class="hint">Press Enter to add what you typed. Anything that is not already on the list '
+        + 'joins the catalogue for every office.</div></div>'
 
         + '<div class="field"><label>Anything brand new this week?</label>'
         + '<div class="chips" id="new-chips">' + (newNiches.length ? newNiches.map(n =>
@@ -898,10 +899,8 @@
       ? tag('Leader / Director', 't-gold')
       : tag('An office', 't-ok')
       + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
-      + ' · <span class="mono">' + esc(p.req_office_code || '') + '</span>'
       + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>'
-      + '<div class="sub">' + esc(p.req_area || '—') + ' · ' + esc(p.req_address || 'no address')
-      + (p.req_size ? ' · ' + p.req_size + ' to start' : '') + '</div>';
+      + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
     return {
       title: 'Centers & admins',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
@@ -982,7 +981,7 @@
           + '<div class="two">'
           + '<div class="field"><label for="o-name">Office name</label>'
           + '<input class="input" id="o-name" value="' + esc(me.office.name) + '"></div>'
-          + '<div class="field"><label for="o-manager">Manager</label>'
+          + '<div class="field"><label for="o-manager">Team leader</label>'
           + '<input class="input" id="o-manager" value="' + esc(me.office.manager_name || '') + '"></div></div>'
           + '<div class="two">'
           + '<div class="field"><label for="o-area">Area</label>'

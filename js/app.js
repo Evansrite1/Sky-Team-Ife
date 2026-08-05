@@ -38,7 +38,8 @@
       { grp: 'People & admin' },
       { p: 'distributors', l: 'Distributors', i: 'users' },
       { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-      { p: 'admin', l: 'Centers & leaders', i: 'shield', alert: true, c: () => A.store.waiting || '' },
+      { p: 'admin', l: 'Centers & leaders', i: 'shield',
+        c: () => A.store.leaders || '', alertC: () => A.store.waiting || '' },
       { p: 'account', l: 'Account', i: 'lock' }
     ],
     platform_admin: [
@@ -87,18 +88,69 @@
     const me = A.store.me;
     const nav = NAV[me.role] || [];
     return '<aside class="sb"><div class="sb-top"><div class="brand">'
-      + '<span class="brand-mk">' + esc(brand()[0]) + '</span>' + esc(brand()) + '</div></div>'
+      + '<span class="brand-mk">' + U.logo(22) + '</span>' + esc(brand()) + '</div></div>'
       + '<nav class="sb-nav">' + nav.map(n => {
         if (n.grp) return '<div class="sb-grp">' + esc(n.grp) + '</div>';
         const cnt = n.c ? n.c() : '';
+        const alert = n.alertC ? n.alertC() : '';
         return '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
           + '<span>' + esc(n.l) + '</span>'
-          + (cnt ? '<span class="cnt' + (n.alert ? ' cnt-a' : '') + '">' + cnt + '</span>' : '') + '</a>';
+          + (cnt ? '<span class="cnt">' + cnt + '</span>' : '')
+          + (alert ? '<span class="cnt cnt-a">' + alert + '</span>' : '') + '</a>';
       }).join('') + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office' }[me.role] || '') + '</div></div></div>'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button></div></aside>';
+  }
+
+  /* On a phone the sidebar is the wrong shape entirely. These are the
+     four places each role actually goes, plus More for the rest. */
+  const TABS = {
+    super_admin: [
+      { p: 'dashboard', l: 'Home', i: 'grid' },
+      { p: 'offices', l: 'Offices', i: 'building' },
+      { p: 'rankings', l: 'Ranks', i: 'crown' },
+      { p: 'admin', l: 'Approve', i: 'shield', badge: () => A.store.waiting }
+    ],
+    platform_admin: [
+      { p: 'dashboard', l: 'Home', i: 'grid' },
+      { p: 'offices', l: 'Offices', i: 'building' },
+      { p: 'rankings', l: 'Ranks', i: 'crown' },
+      { p: 'trainings', l: 'Sessions', i: 'qr' }
+    ],
+    office: [
+      { p: 'dashboard', l: 'Home', i: 'grid' },
+      { p: 'reports', l: 'Report', i: 'clipboard' },
+      { p: 'trainings', l: 'Sessions', i: 'qr' },
+      { p: 'distributors', l: 'Team', i: 'users' }
+    ]
+  };
+
+  function tabbar(active) {
+    const tabs = TABS[A.store.me.role] || [];
+    return '<nav class="tabs">'
+      + tabs.map(n => {
+        const b = n.badge ? n.badge() : 0;
+        return '<a class="tab' + (active === n.p ? ' on' : '') + '" href="#/' + n.p + '">'
+          + '<span class="tab-i">' + ico(n.i, 21) + (b ? '<i class="tab-b">' + b + '</i>' : '') + '</span>'
+          + '<span class="tab-l">' + esc(n.l) + '</span></a>';
+      }).join('')
+      + '<button class="tab" data-act="nav"><span class="tab-i">' + ico('menu', 21) + '</span>'
+      + '<span class="tab-l">More</span></button></nav>';
+  }
+
+  /* Shown once, on a phone, when the browser says the app can be
+     installed — and never again after it is dismissed. */
+  function installBar() {
+    let hidden = false;
+    try { hidden = !!localStorage.getItem('sti-install-off'); } catch (e) { /* ignore */ }
+    if (hidden || !window.__installPrompt) return '';
+    return '<div class="inst"><span class="inst-ic">' + U.logo(20) + '</span>'
+      + '<div class="inst-t"><b>Add to your home screen</b>'
+      + '<span>Opens full screen, like an app.</span></div>'
+      + '<button class="btn btn-sm btn-a" data-act="install">Install</button>'
+      + '<button class="inst-x" data-act="install-no" aria-label="Not now">' + ico('x', 16) + '</button></div>';
   }
 
   function topbar(v) {
@@ -147,7 +199,8 @@
     try {
       const v = await V[page](id);
       $('#root').innerHTML = '<div class="shell">' + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
-        + '<main class="main">' + topbar(v) + '<div class="page enter">' + v.html + '</div></main></div>';
+        + '<main class="main">' + topbar(v) + '<div class="page enter">' + v.html + '</div></main>'
+        + installBar() + tabbar(page) + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
       console.error(e);
@@ -170,7 +223,7 @@
     + '</div></div></div>';
 
   const authShell = (inner, right) => '<div class="auth"><div class="auth-l"><div class="auth-card">'
-    + '<div class="auth-brand"><span class="brand-mk">' + esc(brand()[0]) + '</span>' + esc(brand()) + '</div>'
+    + '<div class="auth-brand"><span class="brand-mk">' + U.logo(26) + '</span>' + esc(brand()) + '</div>'
     + inner + '</div></div>' + right + '</div>';
 
   const RIGHT = art(
@@ -217,6 +270,10 @@
         + '<p class="auth-s">Joining as ' + KIND_LABEL[k] + '. '
         + '<a href="#/join" style="text-decoration:underline">Not right?</a><br>'
         + 'An email and a password to start — your details come next.</p>'
+        + (k === 'office'
+          ? U.note('info', 'info', 'Use your <b>office email address</b> if you have one. This account belongs '
+            + 'to the office rather than to you, so it should stay with the office if the team leader changes.')
+          + '<div style="height:18px"></div>' : '')
         + '<form id="signup-form">'
         + '<div class="field"><label for="su-email">Email</label>'
         + '<input class="input" id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -286,17 +343,10 @@
       + '<select class="select" id="ob-center" required>'
       + (centers.length
         ? centers.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
-          + esc(c.name) + ' · ' + esc(c.area) + '</option>').join('')
+          + esc(c.name) + '</option>').join('')
         : '<option value="">No centers exist yet</option>') + '</select></div>'
-      + '<div class="two"><div class="field"><label for="ob-name">Office name</label>'
+      + '<div class="field"><label for="ob-name">Office name</label>'
       + '<input class="input" id="ob-name" required placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
-      + '<div class="field"><label for="ob-ocode">Short code</label>'
-      + '<input class="input mono" id="ob-ocode" required placeholder="LG-01" value="' + esc(me.req_office_code || '') + '"></div></div>'
-      + '<div class="two"><div class="field"><label for="ob-area">Area</label>'
-      + '<input class="input" id="ob-area" required placeholder="Lagere" value="' + esc(me.req_area || '') + '"></div>'
-      + '<div class="field"><label for="ob-size">Distributors to start</label>'
-      + '<input class="input" id="ob-size" type="number" min="0" placeholder="0" value="'
-      + esc(me.req_size == null ? '' : String(me.req_size)) + '"></div></div>'
       + '<div class="field"><label for="ob-address">Office address</label>'
       + '<input class="input" id="ob-address" required placeholder="12 Ede Road, opposite the filling station" value="'
       + esc(me.req_address || '') + '"></div>';
@@ -448,10 +498,7 @@
         phone: val('#ob-phone'),
         centerId: val('#ob-center'),
         officeName: val('#ob-name'),
-        officeCode: val('#ob-ocode'),
-        area: val('#ob-area'),
-        address: val('#ob-address'),
-        size: val('#ob-size')
+        address: val('#ob-address')
       });
       pick.clear();
       state.editRequest = false;
@@ -479,6 +526,20 @@
 
   /* --- chrome ------------------------------------------------------ */
   ACT['nav'] = () => document.body.classList.toggle('nav-open');
+
+  ACT['install'] = async () => {
+    const p = window.__installPrompt;
+    if (!p) return toast('Use your browser menu and pick “Add to Home screen”.');
+    window.__installPrompt = null;
+    p.prompt();
+    const out = await p.userChoice.catch(() => null);
+    if (out && out.outcome === 'accepted') toast('Installing…');
+    const bar = $('.inst'); if (bar) bar.remove();
+  };
+  ACT['install-no'] = () => {
+    try { localStorage.setItem('sti-install-off', '1'); } catch (e) { /* ignore */ }
+    const bar = $('.inst'); if (bar) bar.remove();
+  };
   ACT['modal-close'] = () => closeModal();
   ACT['modal-bg'] = (el, e) => { if (e.target === el) closeModal(); };
   ACT['reload'] = () => route();
@@ -622,14 +683,15 @@
     $('#niche-chips').innerHTML = V.helpers.nicheChips(state.form.niches);
     paintNew();
   };
-  ACT['niche-pick'] = (el) => {
-    const v = el.dataset.v;
+  function addNiche(v) {
+    if (!v) return;
     state.form.niches = state.form.niches || [];
     if (!state.form.niches.includes(v)) state.form.niches.push(v);
-    $('#niche-input').value = '';
-    $('#niche-menu').innerHTML = '';
+    const inp = $('#niche-input'); if (inp) inp.value = '';
+    const menu = $('#niche-menu'); if (menu) menu.innerHTML = '';
     $('#niche-chips').innerHTML = V.helpers.nicheChips(state.form.niches);
-  };
+  }
+  ACT['niche-pick'] = (el) => addNiche(el.dataset.v);
 
   ACT['report-save'] = async (el, e) => {
     e.preventDefault();
@@ -830,7 +892,28 @@
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') { closeModal(); return; }
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    const t = e.target;
+
+    /* Enter adds the product you typed — the closest match if there is
+       one, otherwise the words themselves as a brand new niche. */
+    if (t.id === 'niche-input') {
+      e.preventDefault();
+      const v = t.value.trim();
+      if (!v) return;
+      const q = v.toLowerCase();
+      const picked = state.form.niches || [];
+      const hit = A.store.niches.find(n => n.toLowerCase() === q)
+        || A.store.niches.find(n => n.toLowerCase().includes(q) && !picked.includes(n));
+      addNiche(hit || v);
+      return;
+    }
+    if (t.id === 'new-niche-input') { e.preventDefault(); ACT['new-niche-add'](); return; }
+
+    /* The weekly report is long and easy to send by accident. Enter never
+       files it — the button is the only way. */
+    if (t.form && t.form.id === 'report-form' && t.tagName !== 'TEXTAREA') e.preventDefault();
   });
 
   window.addEventListener('hashchange', route);

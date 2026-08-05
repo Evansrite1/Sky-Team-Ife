@@ -149,6 +149,28 @@
     '<div class="kpi ' + (mod || '') + '"><div class="kpi-l">' + (icon ? ico(icon, 13) : '') + esc(label)
     + '</div><div class="kpi-v">' + value + '</div><div class="kpi-m">' + (meta || '') + '</div></div>';
 
+  /* The Sky Team mark. Two blocks — one capped left, one capped right —
+     with a four-pointed star cut out of the seam where they meet. It is
+     one path with three subpaths; the even-odd rule turns the star into
+     a hole rather than a white shape, so it works on any background. */
+  const LOGO_PATH = 'M110 12H34a24 24 0 0 0 0 48h76Z'
+    + 'M10 60h76a24 24 0 0 1 0 48H10Z'
+    + 'M60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z';
+
+  const logo = (size, cls) => '<svg class="logo' + (cls ? ' ' + cls : '') + '" width="' + size
+    + '" height="' + size + '" viewBox="0 0 120 120" role="img" aria-label="Sky Team">'
+    + '<path fill="currentColor" fill-rule="evenodd" d="' + LOGO_PATH + '"/></svg>';
+
+  /* The same mark for the canvas poster, drawn with Path2D. */
+  const drawLogo = (g, x, y, size, colour) => {
+    g.save();
+    g.translate(x, y);
+    g.scale(size / 120, size / 120);
+    g.fillStyle = colour;
+    g.fill(new Path2D(LOGO_PATH), 'evenodd');
+    g.restore();
+  };
+
   const tag = (text, kind) => '<span class="tag ' + (kind || '') + '">' + esc(text) + '</span>';
 
   const note = (kind, icon, html) =>
@@ -273,9 +295,9 @@
 
     // header band
     g.fillStyle = navy; rr(48, 48, W - 96, 240, 28); g.fill();
-    g.fillStyle = blue; rr(84, 92, 64, 64, 16); g.fill();
-    g.fillStyle = '#fff'; g.font = '700 ' + font(40); g.textBaseline = 'middle';
-    g.fillText((opts.brand || 'S')[0].toUpperCase(), 104, 128);
+    g.textBaseline = 'middle';
+    drawLogo(g, 84, 96, 64, '#fff');
+    g.fillStyle = '#fff';
     g.font = '600 ' + font(34); g.fillText(opts.brand || 'Sky Team Ife', 170, 124);
     g.font = '700 ' + font(52); g.fillStyle = '#fff';
     g.fillText(opts.title || '', 84, 214);
@@ -373,13 +395,41 @@
     '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
     + '<button class="btn ' + (danger ? 'btn-d' : 'btn-p') + '" data-act="' + act + '">' + esc(confirmLabel) + '</button>');
 
+  /* ------------------------------------------------- installability */
+  /* Both pages load this file, so both get the service worker and both
+     know when the browser is willing to install the app. */
+  (function pwa() {
+    const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || local)) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => { /* fine without it */ });
+      });
+    }
+    /* Chrome fires this the moment the app qualifies. Holding on to the
+       event is the only way to raise the real install dialog later. */
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.__installPrompt = e;
+      document.body.classList.add('can-install');
+    });
+    window.addEventListener('appinstalled', () => {
+      window.__installPrompt = null;
+      document.body.classList.remove('can-install');
+      try { localStorage.setItem('sti-installed', '1'); } catch (err) { /* ignore */ }
+    });
+    /* Running from the home screen rather than a browser tab. */
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      document.documentElement.classList.add('standalone');
+    }
+  })();
+
   /* ------------------------------------------------------------ export */
   window.UI = {
     $, $$, esc, val, usd, usdFull, ngn, pct, initials,
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed,
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
-    ico, IC, kpi, tag, note, empty, bar, change, table,
+    ico, IC, logo, drawLogo, LOGO_PATH, kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster,
     toast, modal, closeModal, busy, confirmDialog
   };

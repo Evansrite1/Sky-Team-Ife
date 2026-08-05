@@ -1,0 +1,30 @@
+{
+  "name": "Sky Team Ife",
+  "short_name": "Sky Team",
+  "description": "Attendance, weekly reports, office rankings and center analytics.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0d1b3d",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "File the weekly report",
+      "short_name": "Report",
+      "url": "./index.html#/reports"
+    },
+    {
+      "name": "Trainings",
+      "short_name": "Trainings",
+      "url": "./index.html#/trainings"
+    }
+  ]
+}

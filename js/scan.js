@@ -12,19 +12,32 @@
 
   const S = { step: 'load', code: '', data: null, office: null, dist: null, q: '', error: '', center: null };
 
-  /* One stable id per phone, so the same handset cannot sign in twice. */
+  /* One stable id per handset, so the same phone cannot sign two people
+     in. It is written to three places that heal each other: clearing any
+     one of them leaves the other two to put it back. Only wiping all the
+     site data resets it, and the database records the collision either
+     way, so a second attempt is still written down as a rejection. */
+  const DKEY = 'sti-device';
   function deviceId() {
-    let d = null;
-    try { d = localStorage.getItem('sti-device'); } catch (e) { /* private mode */ }
+    const fromCookie = () => {
+      const m = document.cookie.match(/(?:^|;\s*)sti-device=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    };
+    const get = (store) => { try { return store.getItem(DKEY); } catch (e) { return null; } };
+    let d = get(window.localStorage) || get(window.sessionStorage) || fromCookie();
     if (!d) {
       d = '';
-      for (let i = 0; i < 4; i++) d += '0123456789ABCDEF'[Math.floor(Math.random() * 16)];
-      try { localStorage.setItem('sti-device', d); } catch (e) { /* ignore */ }
+      for (let i = 0; i < 12; i++) d += '0123456789ABCDEF'[Math.floor(Math.random() * 16)];
     }
+    try { localStorage.setItem(DKEY, d); } catch (e) { /* private mode */ }
+    try { sessionStorage.setItem(DKEY, d); } catch (e) { /* private mode */ }
+    document.cookie = DKEY + '=' + encodeURIComponent(d) + ';path=/;max-age=31536000;samesite=lax';
     return d;
   }
 
-  const shell = (body, foot) => '<div class="scan-wrap"><div class="card scan-card">' + body + '</div>'
+  const shell = (body, foot) => '<div class="scan-wrap">'
+    + '<div class="scan-brand">' + U.logo(26) + '</div>'
+    + '<div class="card scan-card">' + body + '</div>'
     + '<div class="scan-foot">' + esc(foot || (window.CONFIG.organisation || 'Sky Team Ife')) + '</div></div>';
 
   function paint() {
@@ -73,10 +86,12 @@
       root.innerHTML = shell(
         header(e, c)
         + '<div class="field"><label>Which office are you from?</label>'
-        + '<div class="auto" style="max-height:280px">'
+        + '<div class="auto" style="max-height:340px">'
         + (S.data.offices.length
           ? S.data.offices.map(o => '<button data-office="' + o.id + '">'
-            + '<span style="flex:1">' + esc(o.name) + '</span><span class="sub mono">' + esc(o.code) + '</span></button>').join('')
+            + '<span style="flex:1">' + esc(o.name) + '</span>'
+            + '<span class="sub mono">' + esc(o.code) + '</span>'
+            + ico('right', 15) + '</button>').join('')
           : '<div class="empty-d">No offices in this center yet.</div>')
         + '</div></div>');
       return;
@@ -97,9 +112,37 @@
           + '<span style="flex:1">' + esc(d.name) + '</span>'
           + '<span class="tag t-mute">' + esc(d.status) + '</span></button>').join('')
           : '<div class="empty-d">' + (S.data.distributors.filter(d => d.office_id === S.office.id).length
-            ? 'Nobody matches that.' : 'Your office has not added anybody yet. Ask your manager.') + '</div>')
+            ? 'Nobody matches that.' : 'Your office has not added anybody yet. Ask your team leader.') + '</div>')
         + '</div>'
         + '<button class="btn btn-block" id="s-back" style="margin-top:14px">' + ico('left', 15) + 'Different office</button>');
+      return;
+    }
+
+    /* Picking your name off a list is not proof. Completing the number
+       the office already holds for you is. */
+    if (S.step === 'phone') {
+      const e = S.data.event, c = S.data.center, d = S.dist;
+      const known = !!d.has_phone;
+      root.innerHTML = shell(
+        header(e, c)
+        + '<div class="who"><div class="who-av">' + esc(U.initials(d.name)) + '</div>'
+        + '<div><div class="who-n">' + esc(d.name) + '</div>'
+        + '<div class="card-s">' + esc(S.office.name) + '</div></div></div>'
+        + (known
+          ? '<div class="ph-mask">' + esc(d.hint) + '<span>&bull;&bull;&bull; &bull;&bull;&bull;&bull;</span></div>'
+          + '<div class="field"><label for="s-ph">Last 4 digits of your number</label>'
+          + '<input class="input mono ph-in" id="s-ph" type="tel" inputmode="numeric" '
+          + 'maxlength="4" placeholder="0000" autocomplete="off"></div>'
+          : U.note('info', 'info', 'Your office has not saved a number for you. Type it once and we will keep it.')
+          + '<div style="height:14px"></div>'
+          + '<div class="field"><label for="s-ph">Your phone number</label>'
+          + '<input class="input mono" id="s-ph" type="tel" inputmode="numeric" '
+          + 'placeholder="0803 000 0000" autocomplete="tel"></div>')
+        + (S.error ? U.note('err', 'alert', esc(S.error)) + '<div style="height:14px"></div>' : '')
+        + '<button class="btn btn-a btn-pop btn-lg btn-block" id="s-send">Scan me in</button>'
+        + '<button class="btn btn-block" id="s-notme" style="margin-top:10px">' + ico('left', 15) + 'Not me</button>');
+      const f = document.getElementById('s-ph');
+      if (f) setTimeout(() => f.focus(), 80);
       return;
     }
 
@@ -177,15 +220,18 @@
     }
   }
 
-  async function send() {
+  async function send(phone) {
     S.step = 'sending'; paint();
     try {
       const { data, error } = await A.sb.rpc('record_scan', {
-        p_code: S.code, p_distributor: S.dist.id, p_device: deviceId()
+        p_code: S.code, p_distributor: S.dist.id, p_device: deviceId(), p_phone: phone || ''
       });
       if (error) throw new Error(error.message);
-      if (data && data.ok) { S.step = 'done'; }
-      else { S.step = 'fail'; S.error = (data && data.error) || 'We could not scan you in.'; }
+      if (data && data.ok) { S.step = 'done'; S.error = ''; return paint(); }
+      /* A wrong number or a missing one is worth another go; anything
+         else — closed session, already in, wrong center — is final. */
+      S.error = (data && data.error) || 'We could not scan you in.';
+      S.step = (data && (data.retry || data.needs_phone)) ? 'phone' : 'fail';
     } catch (err) { S.step = 'fail'; S.error = err.message; }
     paint();
   }
@@ -197,9 +243,22 @@
     const off = e.target.closest('[data-office]');
     if (off) { S.office = S.data.offices.find(o => o.id === off.dataset.office); S.q = ''; S.step = 'name'; return paint(); }
     const d = e.target.closest('[data-dist]');
-    if (d) { S.dist = S.data.distributors.find(x => x.id === d.dataset.dist); return send(); }
+    if (d) {
+      S.dist = S.data.distributors.find(x => x.id === d.dataset.dist);
+      S.step = 'phone'; S.error = '';
+      return paint();
+    }
+    if (e.target.closest('#s-send')) {
+      const f = document.getElementById('s-ph');
+      const v = (f && f.value || '').trim();
+      if (!v) return;
+      return send(v);
+    }
+    if (e.target.closest('#s-notme')) { S.step = 'name'; S.dist = null; S.error = ''; return paint(); }
     if (e.target.closest('#s-back')) { S.step = 'office'; S.office = null; return paint(); }
-    if (e.target.closest('#s-again')) { S.step = S.office ? 'name' : 'office'; S.error = ''; return paint(); }
+    if (e.target.closest('#s-again')) {
+      S.step = S.dist ? 'phone' : S.office ? 'name' : 'office'; S.error = ''; return paint();
+    }
     if (e.target.closest('#s-go')) {
       const v = (document.getElementById('s-code').value || '').trim();
       if (v) lookup(v);
@@ -225,6 +284,11 @@
       e.preventDefault();
       const v = (e.target.value || '').trim();
       if (v) lookup(v);
+    }
+    if (e.key === 'Enter' && e.target.id === 's-ph') {
+      e.preventDefault();
+      const v = (e.target.value || '').trim();
+      if (v) send(v);
     }
   });
 

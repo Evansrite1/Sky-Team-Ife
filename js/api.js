@@ -34,7 +34,8 @@
     offices: [],
     niches: [],
     settings: {},
-    waiting: 0         // accounts asking to be approved (super admin only)
+    waiting: 0,        // accounts asking to be approved (super admin only)
+    leaders: 0         // super admins + leaders, for the sidebar count
   };
 
   /* ------------------------------------------------------------- auth */
@@ -103,12 +104,20 @@
     store.settings = {};
     rows(s).forEach(r => { store.settings[r.key] = r.value; });
 
-    /* So the sidebar can badge accounts waiting to be approved. */
+    /* Counts the sidebar carries, so an admin can see the totals and the
+       approval queue without opening anything. */
     store.waiting = 0;
-    if (isSuper()) {
-      const { count } = await sb.from('profiles')
-        .select('id', { count: 'exact', head: true }).eq('req_status', 'pending');
-      store.waiting = count || 0;
+    store.leaders = 0;
+    if (isAdmin()) {
+      const [w, l] = await Promise.all([
+        isSuper()
+          ? sb.from('profiles').select('id', { count: 'exact', head: true }).eq('req_status', 'pending')
+          : Promise.resolve({ count: 0 }),
+        sb.from('profiles').select('id', { count: 'exact', head: true })
+          .in('role', ['super_admin', 'platform_admin'])
+      ]);
+      store.waiting = w.count || 0;
+      store.leaders = l.count || 0;
     }
     return store;
   }
@@ -294,10 +303,7 @@
         p_phone: payload.phone,
         p_center_id: office ? payload.centerId : null,
         p_office_name: office ? payload.officeName : null,
-        p_office_code: office ? payload.officeCode : null,
-        p_area: office ? payload.area : null,
-        p_address: office ? payload.address : null,
-        p_size: office ? (parseInt(payload.size, 10) || 0) : null
+        p_address: office ? payload.address : null
       });
       if (error) throw new Error(error.message);
     },

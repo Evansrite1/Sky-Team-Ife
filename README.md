@@ -62,10 +62,14 @@ Sign-up is open, and approval is the gate.
    | | An office | A leader / director |
    |---|---|---|
    | Full name, phone | yes | yes |
-   | Which center | yes | – |
-   | Office name, short code | yes | – |
-   | Area, street address | yes | – |
-   | Distributors to start with | optional | – |
+   | Which center it reports to | yes | – |
+   | Office name | yes | – |
+   | Office address | yes | – |
+
+   An office is asked to sign up with its **office email address**, since the account
+   belongs to the office rather than to whoever runs it today. It does not pick a short
+   code — one is generated from the name on approval (`Lagere Office` → `LAG-01`) — and it
+   does not give an area, which it inherits from its center.
 
 4. **The Super Admin approves.** It shows under *Centers & leaders* with a count in the
    sidebar. Approving an office is what creates it; nothing exists before that.
@@ -113,18 +117,34 @@ center event you create by hand.
 
 ## Attendance
 
-Each session carries a QR code and a short code, and every **center has one permanent QR**
-(`scan.html?center=<id>`) you can download as a printable poster from the center page —
-scan it and you pick the session happening now. A per-session QR points at
-`scan.html?c=<CODE>`. A distributor scans it with a phone camera, picks their office,
-finds their name, and they are in. No account needed.
+Every **center has one permanent QR** (`scan.html?center=<id>`) you can download as a
+printable poster from the center page. A per-session QR points at `scan.html?c=<CODE>`.
+No account is needed at any point. The walk through is:
 
-Three rules are enforced in the database, not the browser:
+1. **Scan** the poster with a phone camera.
+2. **Pick the session** happening now — the page lists this week's for that center.
+3. **Pick your office** from the ones in that center.
+4. **Find your name** in the list, typing to narrow it.
+5. **Complete your number.** The page shows the network prefix the office has on file —
+   `0803 ••• ••••` — and asks for the last four digits. Get it right and you are in.
+
+Five rules are enforced in the database, never in the browser:
 
 1. Scanning has to be **open** — the office opens it when the session starts.
 2. **One accepted scan per person** per session.
 3. **One phone, one person** per session. A second attempt from the same handset is
    written down as a rejection with the reason, so it can be audited afterwards.
+4. **The number has to match.** Picking a name off a list is not proof; completing the
+   number the office already holds is. Wrong guesses are recorded, and after five from
+   the same handset that session is closed to it.
+5. **The full number never reaches the browser.** `scan_lookup` returns only the first
+   four digits as a hint; the comparison happens inside `record_scan`.
+
+Where the office has no number on file, the page asks for the whole one and saves it for
+next time — so the check tightens itself as people use it.
+
+The device id is written to `localStorage`, `sessionStorage` and a cookie at once. Clearing
+any one of them leaves the other two to put it back.
 
 ---
 
@@ -134,8 +154,11 @@ Three rules are enforced in the database, not the browser:
 index.html            the staff app
 scan.html             the public attendance page
 config.js             your Supabase URL and anon key
+manifest.webmanifest  name, icons and display mode for installing
+sw.js                 service worker — caches the shell, never the data
+icons/                the app icons, 192 and 512, plus a maskable one
 css/styles.css        the whole design system
-js/ui.js              formatting, week maths, icons, charts, components
+js/ui.js              formatting, week maths, icons, charts, the logo, components
 js/api.js             every call to Supabase, in one place
 js/views.js           one function per page
 js/app.js             boot, auth, router, actions
@@ -143,6 +166,25 @@ js/scan.js            the public scan page
 js/vendor/            supabase-js and the QR encoder, vendored so nothing loads from a CDN
 supabase/schema.sql   tables, row level security, functions, triggers
 ```
+
+---
+
+## On a phone
+
+It is a real installable app, not a page that happens to fit. Open it on a phone and it
+offers to add itself to the home screen; from there it launches full screen with no
+browser bar at all.
+
+- **A bottom tab bar** replaces the sidebar under 860px — the four places that role
+  actually goes, plus *More* for everything else. The approval count rides on the tab.
+- **Safe areas** are respected, so nothing hides under a notch or a home indicator.
+- **Inputs are 16px**, which is the only way to stop iOS zooming when one is focused.
+- **The shell is cached** by [`sw.js`](sw.js), so a cold start is instant and a dropped
+  signal does not blank the page. Supabase calls always go to the network — attendance and
+  reports are never served from a cache.
+
+Bump `CACHE` in [`sw.js`](sw.js) when you change the shell, or installed phones will keep
+the old files until they happen to refetch.
 
 ---
 
