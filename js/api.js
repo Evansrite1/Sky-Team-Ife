@@ -178,6 +178,13 @@
     async remove(id) {
       guard(await sb.from('offices').delete().eq('id', id));
       store.offices = store.offices.filter(o => o.id !== id);
+    },
+    /* Moves the office and everything stamped with its zone. */
+    async move(id, centerId) {
+      const { error } = await sb.rpc('move_office', { p_office: id, p_center: centerId });
+      if (error) throw new Error(error.message);
+      const i = store.offices.findIndex(o => o.id === id);
+      if (i > -1) store.offices[i] = Object.assign({}, store.offices[i], { center_id: centerId });
     }
   };
 

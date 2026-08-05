@@ -10,6 +10,9 @@
   const state = {
     page: 'dashboard',
     week: U.weekStart(),
+    /* The evaluation held today reads the week that just closed — the
+       seven days ending now — not the week currently open. */
+    evalWeek: U.iso(U.addDays(U.weekStart(), -7)),
     month: U.monthKey(U.weekStart()),
     center: null,
     chartType: 'bar',
@@ -73,6 +76,7 @@
         { p: 'center', l: 'Your zone', i: 'layers' }
       ],
       more: [
+        { p: 'offices', l: 'Offices in your zone', i: 'building' },
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'subscriptions', l: 'Subscription', i: 'card' },
@@ -84,7 +88,7 @@
   const ALLOWED = {
     super_admin: null,   // everything
     platform_admin: ['dashboard', 'evaluation', 'monthly', 'centers', 'offices', 'rankings', 'reports', 'trainings', 'events', 'distributors', 'account', 'guide'],
-    office: ['dashboard', 'reports', 'trainings', 'events', 'distributors', 'center', 'monthly', 'subscriptions', 'account', 'guide']
+    office: ['dashboard', 'reports', 'trainings', 'events', 'distributors', 'center', 'offices', 'monthly', 'subscriptions', 'account', 'guide']
   };
 
   function go(hash) { location.hash = hash; }
@@ -185,16 +189,20 @@
   function topbar(v) {
     const picker = v.picker === 'month'
       ? '<div class="wk"><span class="wk-l">Month</span><select data-act="month">' + monthOptions() + '</select></div>'
-      : v.picker === 'week'
-        ? '<div class="wk"><span class="wk-l">Week</span><select data-act="week">' + weekOptions() + '</select></div>' : '';
+      : v.picker === 'evalweek'
+        ? '<div class="wk"><span class="wk-l">Evaluating</span><select data-act="evalweek">'
+        + weekOptions(state.evalWeek) + '</select></div>'
+        : v.picker === 'week'
+          ? '<div class="wk"><span class="wk-l">Week</span><select data-act="week">'
+          + weekOptions(state.week) + '</select></div>' : '';
     return '<header class="tb"><button class="burger" data-act="nav" aria-label="Menu">' + ico('menu', 18) + '</button>'
       + '<div>' + (v.crumbs ? '<div class="crumb">' + v.crumbs + '</div>' : '')
       + '<div class="tb-t">' + esc(v.title) + '</div></div>'
       + '<div class="tb-r">' + picker + '</div></header>';
   }
-  const weekOptions = () => U.recentWeeks(window.CONFIG.weeksShown || 12)
-    .map(w => '<option value="' + w + '" ' + (w === state.week ? 'selected' : '') + '>'
-      + esc(U.weekLabel(w)) + (U.weekClosed(w) ? '' : ' (open)') + '</option>').join('');
+  const weekOptions = (sel) => U.recentWeeks(window.CONFIG.weeksShown || 12)
+    .map(w => '<option value="' + w + '" ' + (w === sel ? 'selected' : '') + '>'
+      + esc(U.weekRange(w)) + (U.weekClosed(w) ? '' : ' (open)') + '</option>').join('');
   const monthOptions = () => U.recentMonths(12)
     .map(m => '<option value="' + m + '" ' + (m === state.month ? 'selected' : '') + '>'
       + esc(U.monthLabel(m)) + '</option>').join('');
@@ -761,12 +769,13 @@
         amount: amount,
         niches: niches,
         new_niches: state.form.newNiches || [],
-        office_size: Number(val('#f-size')) || 0,
-        total_office: Number(val('#f-total')) || 0,
         num_distributors: Number(val('#f-dist')) || 0,
         num_senior_managers: Number(val('#f-sm')) || 0,
         num_newbies: Number(val('#f-new')) || 0,
-        num_prospects: Number(val('#f-pros')) || 0,
+        /* Kept in step so the rankings and the "reports in" counts, which
+           were built on office_size, keep meaning the same thing. */
+        office_size: Number(val('#f-dist')) || 0,
+        total_office: (Number(val('#f-dist')) || 0) + (Number(val('#f-sm')) || 0),
         issues: val('#f-issues'),
         submitted_by: A.store.me.id,
         submitted_at: new Date().toISOString()
@@ -878,6 +887,18 @@
       await A.loadMe(); busy(el, false); toast('Saved.'); route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
+  ACT['office-move'] = async (el) => {
+    const to = val('#mv-zone');
+    if (!to) return toast('Pick the zone to move it to.', 'no');
+    busy(el, true, 'Moving…');
+    try {
+      await A.offices.move(el.dataset.id, to);
+      await A.loadLookups();
+      toast('Moved to ' + ((A.centerById(to) || {}).name || 'the new zone') + '.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   ACT['office-save'] = async (el) => {
     busy(el, true, 'Saving…');
     try {
@@ -924,6 +945,7 @@
     const el = e.target.closest('[data-act]');
     if (!el) return;
     if (el.dataset.act === 'week') { state.week = el.value; route(); }
+    if (el.dataset.act === 'evalweek') { state.evalWeek = el.value; route(); }
     if (el.dataset.act === 'month') { state.month = el.value; route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
   });

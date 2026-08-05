@@ -807,6 +807,27 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
      because `hidden` makes an element a scroll container and that is
      what stops the page scrolling down at all. */
   html, body { max-width: 100%; overflow-x: clip; }
+
+  /* ---- weight ----------------------------------------------------
+     A phone pays for all of this and sees almost none of it. Every
+     backdrop-filter forces the browser to re-blur what is behind the
+     element on each frame, and eleven animated layers in a preserve-3d
+     scene keep asking it to. Both go. The washes stay, because a flat
+     gradient costs nothing and keeps the app looking like itself. */
+  :root { --blur: none; }
+  .bg3d { perspective: none; }
+  .bg3d-stage { transform: none; animation: none; }
+  .bg3d .d, .bg3d .dust { display: none; }
+  .bg3d .wash { animation: none; }
+  .card, .sb, .tabs, .mo-c, .auth-card, .inst {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+  .tabs { background: rgba(9,14,32,.96); }
+  /* Entrance animations on every card add up to a stutter on a slow
+     phone. The page still fades in as a whole. !important because the
+     motion section further down the file would otherwise win. */
+  .page.enter .kpi, .page.enter .card { animation: none !important; }
+  .card:hover, .kpi:hover, .ticket:hover { transform: none !important; box-shadow: var(--pop-sm); }
 }
 
 /* Standalone: no browser bar, so the header carries the status bar. */
@@ -879,7 +900,7 @@ html.standalone .inst { display: none; }
 .scan-brand { display: grid; place-items: center; color: var(--blue); margin-bottom: 14px; }
 
 /* ================== WHO WAS IN THE ROOM THIS WEEK ==================== */
-.room { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.room { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .room-c {
   display: flex; align-items: center; gap: 11px; padding: 14px;
   border: 1px solid var(--hair); border-radius: var(--r); background: var(--grey);
@@ -888,7 +909,7 @@ html.standalone .inst { display: none; }
 .room-v { font-size: 21px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
 .room-l { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 /* The four headcount inputs on the report form. */
-.gsm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.gsm { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .gsm .field { margin: 0; }
 @media (max-width: 900px) { .room, .gsm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { .room { grid-template-columns: minmax(0, 1fr); } }

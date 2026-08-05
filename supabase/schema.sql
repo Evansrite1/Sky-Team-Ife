@@ -975,6 +975,51 @@ begin
   end if;
 end $$;
 
+-- =====================================================================
+-- Moving an office to another zone
+-- ---------------------------------------------------------------------
+-- The office row is only half of it. Distributors and reports each carry
+-- their own center_id so the row level security policies can answer
+-- without a join, and those copies have to follow the office or the
+-- office's history disappears from the zone it moved to.
+-- =====================================================================
+create or replace function move_office(p_office uuid, p_center uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare v_old uuid;
+begin
+  /* Super Admin only. A Director could not finish the job anyway: the
+     profiles_guard trigger refuses to let anyone but the Super Admin
+     move a profile's center_id, so the office's own account would be
+     left pointing at the zone it came from. */
+  if my_role() <> 'super_admin' then
+    raise exception 'Only the Super Admin can move an office between zones.';
+  end if;
+  select center_id into v_old from offices where id = p_office;
+  if v_old is null then
+    raise exception 'No such office.';
+  end if;
+  if not exists (select 1 from centers where id = p_center) then
+    raise exception 'That zone no longer exists.';
+  end if;
+  if v_old = p_center then
+    return;
+  end if;
+  if exists (select 1 from offices o
+              where o.center_id = p_center and o.id <> p_office
+                and lower(o.name) = (select lower(name) from offices where id = p_office)) then
+    raise exception 'That zone already has an office with this name.';
+  end if;
+
+  update offices      set center_id = p_center where id = p_office;
+  update distributors set center_id = p_center where office_id = p_office;
+  update reports      set center_id = p_center where office_id = p_office;
+  update profiles     set center_id = p_center where office_id = p_office;
+end $$;
+
+revoke all on function move_office(uuid, uuid)         from public;
+grant execute on function move_office(uuid, uuid)       to authenticated;
+
 revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text, text) from public;
 revoke all on function center_lookup(uuid)             from public;

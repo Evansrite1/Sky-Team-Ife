@@ -19,13 +19,13 @@
   const totals = rs => ({
     orders: sumBy(rs, r => r.orders), amount: sumBy(rs, r => r.amount), count: rs.length,
     dists: sumBy(rs, r => r.num_distributors), sms: sumBy(rs, r => r.num_senior_managers),
-    newbies: sumBy(rs, r => r.num_newbies), prospects: sumBy(rs, r => r.num_prospects)
+    newbies: sumBy(rs, r => r.num_newbies)
   });
 
   /* The room, as reported. Shown wherever a set of reports is summed. */
   const roomRow = (t) => '<div class="room">'
     + [['Distributors', t.dists, 'users'], ['Senior managers', t.sms, 'crown'],
-    ['Newbies', t.newbies, 'plus'], ['New prospects', t.prospects, 'star']]
+    ['Newbies', t.newbies, 'plus']]
       .map(c => '<div class="room-c">' + ico(c[2], 15)
         + '<div><div class="room-v">' + (c[1] || 0).toLocaleString() + '</div>'
         + '<div class="room-l">' + c[0] + '</div></div></div>').join('')
@@ -221,7 +221,9 @@
      EVALUATION LIST  (admin)
      =================================================================== */
   async function evaluation() {
-    const ws = S().week, prev = U.iso(U.addDays(ws, -7));
+    /* Its own week, defaulting to the one that closed rather than the one
+       still running: an evaluation always reads the seven days behind it. */
+    const ws = S().evalWeek, prev = U.iso(U.addDays(ws, -7));
     const cid = S().center || (A.store.centers[0] || {}).id;
     if (!cid) return { title: 'Evaluation list', html: empty('layers', 'No zones yet', 'Create a zone first.') };
     const [reps, prevReps] = await Promise.all([
@@ -234,11 +236,12 @@
     const c = A.centerById(cid);
 
     return {
-      title: 'Evaluation list', picker: 'week',
-      crumbs: esc(U.weekLabel(ws)),
+      title: 'Evaluation list', picker: 'evalweek',
+      crumbs: esc(U.weekRange(ws)),
       html: '<div class="card"><div class="card-h">'
         + '<div><div class="card-t">' + esc(c.name) + '</div>'
-        + '<div class="card-s">' + evalLine(ws) + '</div></div>'
+        + '<div class="card-s">The seven days from <b>' + esc(U.weekRange(ws)) + '</b>, '
+        + 'read at the evaluation on ' + esc(U.fullDate(U.evalDate(ws))) + '.</div></div>'
         + '<div class="card-a">' + centerPick(cid, 'center') + '</div></div>'
         + '<div class="grid g4" style="margin-bottom:4px">'
         + kpi('Offices', offs.length, '', 'building')
@@ -450,12 +453,21 @@
   async function offices(id) {
     if (id) return officeDetail(id);
     const ws = S().week;
-    const [reps, dists] = await Promise.all([A.reports.list({ week: ws }), A.distributors.list({})]);
-    const list = A.store.offices.filter(o => o.active);
+    /* An office sees its own zone and no further. Row level security says
+       the same thing, so this only keeps the page honest about it. */
+    const own = A.isOffice() ? A.store.me.center_id : null;
+    const [reps, dists] = await Promise.all([
+      A.reports.list(own ? { week: ws, center: own } : { week: ws }),
+      A.distributors.list(own ? { center: own } : {})
+    ]);
+    const list = A.store.offices.filter(o => o.active && (!own || o.center_id === own));
+    const zoneName = own ? ((A.centerById(own) || {}).name || 'your zone') : null;
     return {
-      title: 'Offices', picker: 'week',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Every office</div>'
-        + '<div class="card-s">' + list.length + ' offices · numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div></div>'
+      title: own ? 'Offices in your zone' : 'Offices', picker: 'week',
+      html: '<div class="card"><div class="card-h"><div>'
+        + '<div class="card-t">' + (own ? esc(zoneName) : 'Every office') + '</div>'
+        + '<div class="card-s">' + list.length + ' office' + (list.length === 1 ? '' : 's')
+        + ' · numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Distributors', num: true },
         { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           list.map(o => {
@@ -488,7 +500,19 @@
     return {
       title: o.name,
       crumbs: '<a href="' + link('offices') + '">Offices</a> · ' + esc((A.centerById(o.center_id) || {}).name || ''),
-      html: '<div class="grid g4">'
+      html: (A.isSuper()
+        ? '<div class="card"><div class="card-h"><div><div class="card-t">Zone</div>'
+        + '<div class="card-s">Moving the office brings its reports, its distributors and its '
+        + 'account with it. Nothing is left behind in the old zone.</div></div></div>'
+        + '<div class="row" style="gap:10px;flex-wrap:wrap">'
+        + '<select class="select" id="mv-zone" style="max-width:280px">'
+        + A.store.centers.map(c => '<option value="' + c.id + '"'
+          + (c.id === o.center_id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+        + '</select>'
+        + '<button class="btn btn-p" data-act="office-move" data-id="' + o.id + '">'
+        + ico('layers', 15) + 'Move office</button></div></div>'
+        : '')
+        + '<div class="grid g4">'
         + kpi('Reports filed', reps.length, 'all time', 'file')
         + kpi('Total orders', t.orders.toLocaleString(), '', 'trend')
         + kpi('Total amount', usd(t.amount), '', 'cash', 'kpi-blue')
@@ -608,18 +632,9 @@
         + '<div class="field"><label for="f-amount">Amount in USD</label>'
         + '<input class="input" id="f-amount" type="number" min="0" step="0.01" required value="' + (mine ? mine.amount : '') + '" placeholder="0"></div>'
         + '</div>'
-        + '<div class="two">'
-        + '<div class="field"><label for="f-size">Distributors who wrote orders</label>'
-        + '<input class="input" id="f-size" type="number" min="0" step="1" value="' + (mine ? mine.office_size : dists.length) + '"></div>'
-        + '<div class="field"><label for="f-total">Total distributors in the office</label>'
-        + '<input class="input" id="f-total" type="number" min="0" step="1" value="' + (mine ? mine.total_office : dists.length) + '"></div>'
-        + '</div>'
 
-        + '<div class="field"><label>Who came into the office this week?</label>'
-        + '<div class="hint" style="margin:-2px 0 10px">Headcount for the week, not names. '
-        + 'This is what the zone reads to see whether the room is growing.</div>'
         + '<div class="g4 gsm">'
-        + '<div class="field"><label for="f-dist">Distributors</label>'
+        + '<div class="field"><label for="f-dist">Distributors in the office</label>'
         + '<input class="input" id="f-dist" type="number" min="0" step="1" placeholder="0" value="'
         + (mine ? mine.num_distributors : (dists.filter(d => d.status === 'Distributor').length || '')) + '"></div>'
         + '<div class="field"><label for="f-sm">Senior managers</label>'
@@ -628,12 +643,9 @@
         + '<div class="field"><label for="f-new">Newbies</label>'
         + '<input class="input" id="f-new" type="number" min="0" step="1" placeholder="0" value="'
         + (mine ? mine.num_newbies : '') + '"></div>'
-        + '<div class="field"><label for="f-pros">New prospects</label>'
-        + '<input class="input" id="f-pros" type="number" min="0" step="1" placeholder="0" value="'
-        + (mine ? mine.num_prospects : '') + '"></div>'
-        + '</div></div>'
+        + '</div>'
 
-        + '<div class="field"><label>Which niches did the orders come from?</label>'
+        + '<div class="field"><label>Niches and keywords the orders came from</label>'
         + '<div class="chips" id="niche-chips">' + nicheChips(niches) + '</div>'
         + '<div class="combo" style="margin-top:9px"><input class="input" id="niche-input" placeholder="Type a product and press Enter to add it" autocomplete="off">'
         + '<div id="niche-menu"></div></div>'

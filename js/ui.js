@@ -423,6 +423,12 @@
      no pointer, so the gyroscope drives it there instead. */
   (function parallax() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    /* Phones do not get this. A rAF loop rewriting a custom property that
+       drives a preserve-3d transform makes the whole scene recomposite on
+       every frame, and on a mid-range handset that is the difference
+       between the app feeling light and feeling like treacle. The
+       backdrop is still there, just still. */
+    if (window.matchMedia('(max-width: 860px), (hover: none)').matches) return;
     const root = document.documentElement;
     let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
     const clamp = v => Math.max(-1, Math.min(1, v));
