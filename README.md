@@ -16,8 +16,9 @@ Vercel     ──►  index.html     the staff app — admins and offices, signe
                      ▼
 Supabase   ──►  Postgres       every table, protected by row level security
                 Auth           email and password, with password reset
-                Functions      claim_office, claim_admin, check_join_code, scan_lookup,
-                               record_scan, center_lookup, ensure_week_events — SECURITY DEFINER
+                Functions      submit_access_request, approve_access_request,
+                               decline_access_request, scan_lookup, record_scan,
+                               center_lookup, ensure_week_events — SECURITY DEFINER
 ```
 
 The browser only ever holds the Supabase **anon key**, which is designed to be public. Row
@@ -44,15 +45,26 @@ insert into app_settings (key, value) values ('bootstrap_admin', 'ademiluaolufem
 Sign up on the live site with that address and you land as Super Admin. Change the row
 first if you want a different one.
 
-**4. Create your centers,** then hand out the access codes. Sign-up is locked behind them:
-nobody even sees the sign-up form without the right code.
+**4. Create your centers,** then send people the site address. That is the whole
+invitation — there are no codes to hand out.
 
-| Joining as | Access code |
-|---|---|
-| An office | `SKY-OFC-4Q7M` |
-| A leader | `SKY-LDR-9T2X` |
+---
 
-Both live under *Centers & leaders* in the app and can be changed there at any time.
+## Joining
+
+Sign-up is open, and approval is the gate.
+
+1. Anyone creates an account with an email and a password.
+2. They say what they are joining as — an office (name, short code, which center) or a
+   leader — and that lands as a request.
+3. The Super Admin sees it under *Centers & leaders*, with a count in the sidebar, and
+   hits **Approve**. Approving an office is what creates it; nothing exists before that.
+4. Declining sends a reason back, and they can fix it and ask again.
+
+Until approval the account is `pending`. It has no navigation, no dashboard, and the row
+level security policies return nothing to it — not a report, not a distributor, not even
+the list of offices. A pending account can read the names of your centers, because the
+sign-up form has to offer them, and nothing else.
 
 ---
 
@@ -60,7 +72,8 @@ Both live under *Centers & leaders* in the app and can be changed there at any t
 
 | | Super Admin | Leader | Office |
 |---|---|---|---|
-| Create centers, add leaders, change access codes | yes | – | – |
+| Approve or decline new accounts | yes | – | – |
+| Create centers, add leaders | yes | – | – |
 | Every center, every office, every report | yes | yes | – |
 | Wednesday evaluation list, monthly summary, rankings | yes | yes | own center |
 | File the weekly report | – | – | own office |

@@ -5,9 +5,14 @@
 -- It is idempotent: running it a second time will not destroy data.
 --
 -- Roles
---   super_admin     creates centers, adds leaders, sees everything
+--   super_admin     creates centers, approves accounts, sees everything
 --   platform_admin  a Leader — sees every center, runs the Wednesday evaluation
 --   office          files one weekly report, manages its own distributors
+--   pending         signed up, waiting on the Super Admin
+--
+-- Sign-up is open. Anyone can create an account, say whether they are an
+-- office or a leader, and that lands as a request. Until the Super Admin
+-- approves it the account is 'pending' and can see nothing at all.
 --
 -- A week runs Wednesday -> Tuesday. The evaluation sits on the Wednesday
 -- after the week closes, at 2:45pm. Every report and event is stamped with
@@ -54,15 +59,13 @@ create table if not exists app_settings (
 
 insert into app_settings (key, value) values
   ('organisation',      'Sky Team Ife'),
-  ('office_join_code',  'SKY-OFC-4Q7M'),
-  ('admin_join_code',   'SKY-LDR-9T2X'),
   ('bootstrap_admin',   'ademiluaolufemi@gmail.com'),
   ('training_time',     '2:45pm')
 on conflict (key) do nothing;
 
--- If the old default codes are still in place, move them to the new ones.
-update app_settings set value = 'SKY-OFC-4Q7M' where key = 'office_join_code' and value = 'SKY-OFFICE-2026';
-update app_settings set value = 'SKY-LDR-9T2X' where key = 'admin_join_code'  and value = 'SKY-ADMIN-2026';
+-- Sign-up used to be locked behind two access codes. It is approval-based
+-- now, so the codes mean nothing and are cleared out.
+delete from app_settings where key in ('office_join_code', 'admin_join_code');
 
 create or replace function setting(p_key text)
 returns text language sql stable security definer set search_path = public as $$
@@ -113,6 +116,20 @@ create table if not exists profiles (
 );
 create index if not exists profiles_office_idx on profiles(office_id);
 
+-- The access request that sits on a profile until it is approved. These
+-- columns are only ever meaningful while role = 'pending'; approving
+-- clears them and moves the account onto its real role.
+--   req_status  none | pending | declined
+--   req_kind    office | leader
+alter table profiles add column if not exists req_status      text not null default 'none';
+alter table profiles add column if not exists req_kind        text;
+alter table profiles add column if not exists req_center_id   uuid references centers(id) on delete set null;
+alter table profiles add column if not exists req_office_name text;
+alter table profiles add column if not exists req_office_code text;
+alter table profiles add column if not exists req_note        text not null default '';
+alter table profiles add column if not exists req_at          timestamptz;
+create index if not exists profiles_req_idx on profiles(req_status) where req_status <> 'none';
+
 -- The bootstrap address becomes super admin the moment it signs up.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -157,6 +174,29 @@ create or replace function is_admin()
 returns boolean language sql stable security definer set search_path = public as $$
   select my_role() in ('super_admin', 'platform_admin');
 $$;
+
+-- Anyone may sign up now, so the row a signed-up account can already write
+-- to — its own profile — has to be nailed down. Row level security cannot
+-- protect single columns, so this does it: whoever you are, you may change
+-- your name and your access request and nothing else. Only the Super Admin
+-- (and the SQL editor, where auth.uid() is null) can move role, office or
+-- center, and approve_access_request runs as the Super Admin who called it.
+create or replace function guard_profile_update()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or my_role() = 'super_admin' then return new; end if;
+  new.id        := old.id;
+  new.email     := old.email;
+  new.role      := old.role;
+  new.office_id := old.office_id;
+  new.center_id := old.center_id;
+  return new;
+end $$;
+
+drop trigger if exists profiles_guard on profiles;
+create trigger profiles_guard
+  before update on profiles
+  for each row execute function guard_profile_update();
 
 -- ---------------------------------------------------------------------
 -- Distributors
@@ -372,9 +412,12 @@ create policy centers_write on centers
   using (my_role() = 'super_admin') with check (my_role() = 'super_admin');
 
 -- offices -------------------------------------------------------------
+-- Sign-up is open, so an account waiting on approval must not be able to
+-- read the office list — it carries manager names and email addresses.
 drop policy if exists offices_read on offices;
 create policy offices_read on offices
-  for select to authenticated using (true);
+  for select to authenticated
+  using (is_admin() or id = my_office() or center_id = my_center());
 
 drop policy if exists offices_admin_write on offices;
 create policy offices_admin_write on offices
@@ -459,81 +502,144 @@ create policy payments_write on payments
   for all to authenticated using (is_admin()) with check (is_admin());
 
 -- =====================================================================
--- Sign-up: an office or an admin joins with the in-house code
+-- Sign-up: you ask, the Super Admin approves
+-- ---------------------------------------------------------------------
+-- The old access codes are gone. Anyone may create an account; it starts
+-- as 'pending', which can see nothing. They say what they are joining as,
+-- the Super Admin approves, and only then does the office get created and
+-- the role handed over.
 -- =====================================================================
-create or replace function claim_office(
-  p_code        text,
-  p_office_name text,
-  p_office_code text,
+drop function if exists claim_office(text, text, text, uuid, text, text, text);
+drop function if exists claim_admin(text, text);
+drop function if exists check_join_code(text, text);
+
+-- Called by the applicant, on their own account, once.
+create or replace function submit_access_request(
+  p_kind        text,
+  p_full_name   text,
   p_center_id   uuid,
-  p_manager     text,
-  p_area        text,
-  p_address     text
-) returns uuid
+  p_office_name text,
+  p_office_code text
+) returns void
 language plpgsql security definer set search_path = public as $$
-declare
-  v_office uuid;
-  v_email  text;
+declare v_role user_role;
 begin
   if auth.uid() is null then
     raise exception 'Not signed in';
   end if;
-  if upper(trim(coalesce(p_code, ''))) <> upper(coalesce(setting('office_join_code'), '')) then
-    raise exception 'That office code is not right. Ask your center leader for the current one.';
+  select role into v_role from profiles where id = auth.uid();
+  if v_role is distinct from 'pending' then
+    raise exception 'This account has already been approved.';
   end if;
-  if exists (select 1 from profiles where id = auth.uid() and role <> 'pending') then
-    raise exception 'This account already belongs to an office.';
+  if coalesce(p_kind, '') not in ('office', 'leader') then
+    raise exception 'Say whether you are joining as an office or as a leader.';
   end if;
-  if exists (select 1 from offices where lower(code) = lower(p_office_code)) then
-    raise exception 'An office is already using the code %', p_office_code;
+  if coalesce(trim(p_full_name), '') = '' then
+    raise exception 'Please give your name.';
   end if;
 
-  select email into v_email from profiles where id = auth.uid();
+  if p_kind = 'office' then
+    if p_center_id is null then
+      raise exception 'Pick the center your office belongs to.';
+    end if;
+    if coalesce(trim(p_office_name), '') = '' then
+      raise exception 'Your office needs a name.';
+    end if;
+    if coalesce(trim(p_office_code), '') = '' then
+      raise exception 'Your office needs a short code.';
+    end if;
+    if exists (select 1 from offices where lower(code) = lower(trim(p_office_code))) then
+      raise exception 'An office is already using the code %.', upper(trim(p_office_code));
+    end if;
+    if exists (select 1 from profiles
+                where id <> auth.uid() and req_status = 'pending'
+                  and lower(coalesce(req_office_code, '')) = lower(trim(p_office_code))) then
+      raise exception 'Someone else is already waiting on the code %.', upper(trim(p_office_code));
+    end if;
+  end if;
 
-  insert into offices (center_id, name, code, manager_name, email, area, address)
-  values (p_center_id, p_office_name, upper(p_office_code), p_manager, v_email, p_area, p_address)
-  returning id into v_office;
-
-  update profiles
-     set role = 'office', office_id = v_office, center_id = p_center_id,
-         full_name = coalesce(nullif(full_name, ''), p_manager)
-   where id = auth.uid();
-
-  return v_office;
+  update profiles set
+    full_name       = trim(p_full_name),
+    req_kind        = p_kind,
+    req_center_id   = case when p_kind = 'office' then p_center_id end,
+    req_office_name = case when p_kind = 'office' then trim(p_office_name) end,
+    req_office_code = case when p_kind = 'office' then upper(trim(p_office_code)) end,
+    req_status      = 'pending',
+    req_note        = '',
+    req_at          = now()
+  where id = auth.uid();
 end $$;
 
-create or replace function claim_admin(p_code text, p_full_name text)
+-- Super Admin only. Creates the office if that is what was asked for, then
+-- moves the account onto its real role and clears the request.
+create or replace function approve_access_request(p_user uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  r        profiles%rowtype;
+  v_office uuid;
+begin
+  if my_role() <> 'super_admin' then
+    raise exception 'Only the Super Admin can approve an account.';
+  end if;
+  select * into r from profiles where id = p_user;
+  if not found then
+    raise exception 'No such account.';
+  end if;
+  if r.role <> 'pending' or r.req_status <> 'pending' then
+    raise exception 'There is nothing waiting on that account.';
+  end if;
+
+  if r.req_kind = 'office' then
+    if r.req_center_id is null then
+      raise exception 'That request does not say which center.';
+    end if;
+    if exists (select 1 from offices where lower(code) = lower(r.req_office_code)) then
+      raise exception 'An office is already using the code %.', r.req_office_code;
+    end if;
+
+    insert into offices (center_id, name, code, manager_name, email, area)
+    select r.req_center_id, r.req_office_name, upper(r.req_office_code),
+           r.full_name, r.email, coalesce(c.area, '')
+      from centers c where c.id = r.req_center_id
+    returning id into v_office;
+
+    if v_office is null then
+      raise exception 'That center no longer exists. Ask them to pick another one.';
+    end if;
+
+    update profiles
+       set role = 'office', office_id = v_office, center_id = r.req_center_id,
+           req_status = 'none', req_note = ''
+     where id = p_user;
+
+  elsif r.req_kind = 'leader' then
+    update profiles
+       set role = 'platform_admin', req_status = 'none', req_note = ''
+     where id = p_user;
+
+  else
+    raise exception 'That request does not say what it is for.';
+  end if;
+end $$;
+
+-- Super Admin only. The account stays pending and can put in a fresh
+-- request; the reason is shown to them so they know what to change.
+create or replace function decline_access_request(p_user uuid, p_reason text)
 returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if auth.uid() is null then
-    raise exception 'Not signed in';
+  if my_role() <> 'super_admin' then
+    raise exception 'Only the Super Admin can decline an account.';
   end if;
-  if upper(trim(coalesce(p_code, ''))) <> upper(coalesce(setting('admin_join_code'), '')) then
-    raise exception 'That leader code is not right.';
-  end if;
-  if exists (select 1 from profiles where id = auth.uid() and role <> 'pending') then
-    raise exception 'This account already has a role.';
-  end if;
-
   update profiles
-     set role = 'platform_admin',
-         full_name = coalesce(nullif(p_full_name, ''), full_name)
-   where id = auth.uid();
+     set req_status = 'declined',
+         req_note   = coalesce(nullif(trim(p_reason), ''), 'No reason was given.')
+   where id = p_user and role = 'pending' and req_status = 'pending';
+  if not found then
+    raise exception 'There is nothing waiting on that account.';
+  end if;
 end $$;
-
--- The join gate. Nobody sees the sign-up form until they hold the right
--- code, and the check happens here — the codes never travel to the
--- browser. Rate limiting is Supabase's own; the codes are low-value.
-create or replace function check_join_code(p_kind text, p_code text)
-returns boolean
-language sql stable security definer set search_path = public as $$
-  select case
-    when p_kind = 'office' then upper(trim(p_code)) = upper(coalesce(setting('office_join_code'), ''))
-    when p_kind = 'leader' then upper(trim(p_code)) = upper(coalesce(setting('admin_join_code'), ''))
-    else false
-  end;
-$$;
 
 -- =====================================================================
 -- The two weekly trainings create themselves, per center, per week
@@ -736,17 +842,19 @@ end $$;
 
 revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text)   from public;
-revoke all on function check_join_code(text, text)     from public;
 revoke all on function center_lookup(uuid)             from public;
 revoke all on function ensure_week_events_for(uuid, date) from public;
+revoke all on function submit_access_request(text, text, uuid, text, text) from public;
+revoke all on function approve_access_request(uuid)    from public;
+revoke all on function decline_access_request(uuid, text) from public;
 grant execute on function scan_lookup(text)             to anon, authenticated;
 grant execute on function record_scan(text, uuid, text) to anon, authenticated;
-grant execute on function check_join_code(text, text)   to anon, authenticated;
 grant execute on function center_lookup(uuid)           to anon, authenticated;
-grant execute on function claim_office(text, text, text, uuid, text, text, text) to authenticated;
-grant execute on function claim_admin(text, text)       to authenticated;
 grant execute on function ensure_week_events(date)      to authenticated;
 grant execute on function week_start(date)              to anon, authenticated;
+grant execute on function submit_access_request(text, text, uuid, text, text) to authenticated;
+grant execute on function approve_access_request(uuid)  to authenticated;
+grant execute on function decline_access_request(uuid, text) to authenticated;
 
 -- The sign-up screen has to list centers before the user has a role.
 drop policy if exists centers_public_read on centers;
@@ -755,6 +863,6 @@ create policy centers_public_read on centers
 
 -- =====================================================================
 -- Done. Sign up at your site with ademiluaolufemi@gmail.com and you land
--- as Super Admin. Create your centers, then hand the office join code to
--- the offices.
+-- as Super Admin. Create your centers, then send people the site address.
+-- They sign up, ask to join, and you approve them from Centers & admins.
 -- =====================================================================

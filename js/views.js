@@ -892,7 +892,13 @@
      =================================================================== */
   async function adminPanel() {
     const [admins, pending] = await Promise.all([A.people.admins(), A.people.pending()]);
-    const st = A.store.settings;
+    const asked = pending.filter(p => p.req_status === 'pending');
+    const quiet = pending.filter(p => p.req_status !== 'pending');
+    const wants = p => p.req_kind === 'leader'
+      ? tag('A leader', 't-gold')
+      : tag('An office', 't-ok') + '<div class="sub">' + esc(p.req_office_name || '—')
+      + ' · <span class="mono">' + esc(p.req_office_code || '') + '</span>'
+      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>';
     return {
       title: 'Centers & admins',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
@@ -908,14 +914,30 @@
           { empty: empty('layers', 'No centers yet', 'Everything else hangs off a center, so start here.') })
         + '</div>'
 
-        + (pending.length ? '<div class="card"><div class="card-h"><div>'
-          + '<div class="card-t">Waiting to be placed · ' + pending.length + '</div>'
-          + '<div class="card-s">These accounts signed up but have not joined an office or been made a leader.</div></div></div>'
+        + (asked.length ? '<div class="card"><div class="card-h"><div>'
+          + '<div class="card-t">Waiting on you · ' + asked.length + '</div>'
+          + '<div class="card-s">They have signed up and said what they are joining as. '
+          + 'Approving an office creates it; nothing exists until you do.</div></div></div>'
+          + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Asking to join as' }, { label: 'Asked' }, { label: '' }],
+            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
+              + '<td>' + esc(p.email) + '</td><td>' + wants(p) + '</td>'
+              + '<td class="sub">' + esc(U.timeAgo(p.req_at || p.created_at)) + '</td>'
+              + '<td class="num"><button class="btn btn-sm btn-d" data-act="decline-req" data-id="' + p.id + '"'
+              + ' data-name="' + esc(p.full_name || p.email) + '">Decline</button> '
+              + '<button class="btn btn-sm btn-a" data-act="approve-req" data-id="' + p.id + '"'
+              + ' data-name="' + esc(p.full_name || p.email) + '">' + ico('check', 13) + 'Approve</button></td></tr>'))
+          + '</div>' : '')
+
+        + (quiet.length ? '<div class="card"><div class="card-h"><div>'
+          + '<div class="card-t">Signed up, nothing asked · ' + quiet.length + '</div>'
+          + '<div class="card-s">These accounts exist but have not said what they are joining as, '
+          + 'or you turned their request down. They see nothing until they ask and you approve.</div></div></div>'
           + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Signed up' }, { label: '' }],
-            pending.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
+            quiet.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
               + '<td>' + esc(p.email) + '</td><td class="sub">' + esc(U.timeAgo(p.created_at)) + '</td>'
-              + '<td class="num"><button class="btn btn-sm" data-act="make-admin" data-id="' + p.id + '">'
-              + ico('shield', 13) + 'Make a leader</button></td></tr>'))
+              + '<td class="num">' + (p.req_status === 'declined'
+                ? tag('Declined', 't-mute') + '<div class="sub">' + esc(p.req_note || '') + '</div>' : '')
+              + '</td></tr>'))
           + '</div>' : '')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
@@ -928,17 +950,6 @@
             + '<td class="num">' + (p.role === 'platform_admin' && p.id !== A.store.me.id
               ? '<button class="btn btn-sm btn-d" data-act="drop-admin" data-id="' + p.id + '">Remove</button>' : '') + '</td></tr>'))
         + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Join codes</div>'
-        + '<div class="card-s">Hand each code only to the people it is for: the office code unlocks office sign-up, the leader code unlocks leader sign-up.</div></div></div>'
-        + '<div class="two">'
-        + '<div class="field"><label for="s-office-code">Office access code</label>'
-        + '<input class="input mono" id="s-office-code" value="' + esc(st.office_join_code || '') + '"></div>'
-        + '<div class="field"><label for="s-admin-code">Leader access code</label>'
-        + '<input class="input mono" id="s-admin-code" value="' + esc(st.admin_join_code || '') + '"></div></div>'
-        + '<div class="row" style="justify-content:flex-end"><button class="btn btn-p" data-act="codes-save">'
-        + ico('check', 15) + 'Save codes</button></div>'
-        + '</div>'
     };
   }
 
@@ -947,7 +958,7 @@
      =================================================================== */
   async function account() {
     const me = A.store.me;
-    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office', pending: 'Not placed yet' };
+    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office', pending: 'Waiting for approval' };
     return {
       title: 'Account',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">You</div></div></div>'

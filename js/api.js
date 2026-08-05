@@ -33,7 +33,8 @@
     centers: [],
     offices: [],
     niches: [],
-    settings: {}
+    settings: {},
+    waiting: 0         // accounts asking to be approved (super admin only)
   };
 
   /* ------------------------------------------------------------- auth */
@@ -101,6 +102,14 @@
     store.niches = rows(n).map(r => r.name);
     store.settings = {};
     rows(s).forEach(r => { store.settings[r.key] = r.value; });
+
+    /* So the sidebar can badge accounts waiting to be approved. */
+    store.waiting = 0;
+    if (isSuper()) {
+      const { count } = await sb.from('profiles')
+        .select('id', { count: 'exact', head: true }).eq('req_status', 'pending');
+      store.waiting = count || 0;
+    }
     return store;
   }
 
@@ -237,8 +246,18 @@
       return rows(await sb.from('profiles').select('*')
         .in('role', ['super_admin', 'platform_admin']).order('created_at'));
     },
+    /* Everyone who has signed up and is still waiting — whether they have
+       filled in what they are joining as or not. */
     async pending() {
-      return rows(await sb.from('profiles').select('*').eq('role', 'pending').order('created_at'));
+      return rows(await sb.from('profiles').select('*').eq('role', 'pending').order('req_at'));
+    },
+    async approve(id) {
+      const { error } = await sb.rpc('approve_access_request', { p_user: id });
+      if (error) throw new Error(error.message);
+    },
+    async decline(id, reason) {
+      const { error } = await sb.rpc('decline_access_request', { p_user: id, p_reason: reason || '' });
+      if (error) throw new Error(error.message);
     },
     async setRole(id, role) {
       return guard(await sb.from('profiles').update({ role }).eq('id', id).select().single());
@@ -265,33 +284,21 @@
 
   /* ------------------------------------------------------------- join */
   const join = {
-    async office(code, payload) {
-      const { data, error } = await sb.rpc('claim_office', {
-        p_code: code,
-        p_office_name: payload.name,
-        p_office_code: payload.officeCode,
-        p_center_id: payload.centerId,
-        p_manager: payload.manager,
-        p_area: payload.area,
-        p_address: payload.address
+    /* What a new account asks for. Nothing is created here — the row just
+       goes on their own profile and waits for the Super Admin. */
+    async request(kind, payload) {
+      const { error } = await sb.rpc('submit_access_request', {
+        p_kind: kind,
+        p_full_name: payload.fullName,
+        p_center_id: kind === 'office' ? payload.centerId : null,
+        p_office_name: kind === 'office' ? payload.officeName : null,
+        p_office_code: kind === 'office' ? payload.officeCode : null
       });
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    async admin(code, fullName) {
-      const { error } = await sb.rpc('claim_admin', { p_code: code, p_full_name: fullName });
       if (error) throw new Error(error.message);
     },
     /* The sign-up screen needs the centers before the user has a role. */
     async publicCenters() {
       return rows(await sb.from('centers').select('id,name,area').order('name'));
-    },
-    /* The gate. True only when the code matches the one for that role —
-       checked in the database, so the codes never reach the browser. */
-    async checkCode(kind, code) {
-      const { data, error } = await sb.rpc('check_join_code', { p_kind: kind, p_code: code });
-      if (error) throw new Error(error.message);
-      return data === true;
     }
   };
 

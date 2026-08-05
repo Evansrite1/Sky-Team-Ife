@@ -15,7 +15,8 @@
     chartType: 'bar',
     q: '',
     form: {},
-    booted: false
+    booted: false,
+    editRequest: false   // a waiting account asked to change what it sent
   };
   window.APP = { state, go, refresh };
 
@@ -37,7 +38,7 @@
       { grp: 'People & admin' },
       { p: 'distributors', l: 'Distributors', i: 'users' },
       { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-      { p: 'admin', l: 'Centers & leaders', i: 'shield' },
+      { p: 'admin', l: 'Centers & leaders', i: 'shield', alert: true, c: () => A.store.waiting || '' },
       { p: 'account', l: 'Account', i: 'lock' }
     ],
     platform_admin: [
@@ -87,11 +88,13 @@
     const nav = NAV[me.role] || [];
     return '<aside class="sb"><div class="sb-top"><div class="brand">'
       + '<span class="brand-mk">' + esc(brand()[0]) + '</span>' + esc(brand()) + '</div></div>'
-      + '<nav class="sb-nav">' + nav.map(n => n.grp
-        ? '<div class="sb-grp">' + esc(n.grp) + '</div>'
-        : '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
-        + '<span>' + esc(n.l) + '</span>'
-        + (n.c ? '<span class="cnt">' + n.c() + '</span>' : '') + '</a>').join('') + '</nav>'
+      + '<nav class="sb-nav">' + nav.map(n => {
+        if (n.grp) return '<div class="sb-grp">' + esc(n.grp) + '</div>';
+        const cnt = n.c ? n.c() : '';
+        return '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
+          + '<span>' + esc(n.l) + '</span>'
+          + (cnt ? '<span class="cnt' + (n.alert ? ' cnt-a' : '') + '">' + cnt + '</span>' : '') + '</a>';
+      }).join('') + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Leader', office: 'Office' }[me.role] || '') + '</div></div></div>'
@@ -125,7 +128,10 @@
     const me = A.store.me;
 
     if (!me) return renderAuth(parts[0] || 'login');
-    if (me.role === 'pending') return renderOnboard();
+    if (me.role === 'pending') {
+      return (me.req_status === 'pending' && !state.editRequest)
+        ? renderWaiting() : renderOnboard();
+    }
 
     let page = parts[0] || 'dashboard';
     const id = parts[1];
@@ -169,57 +175,17 @@
 
   const RIGHT = art(
     'Every office, every week, <span class="hl">on one line</span>.',
-    'Trainings scan themselves in. Reports land before Tuesday closes. The center evaluates on Wednesday at 2:45pm, and month after month it builds the history the forecast will run on.',
-    ['Unlock sign-up with your team\'s access code.',
-      'Distributors scan in at the door with one QR.',
-      'One report a week, filed before Tuesday closes.',
-      'Rankings, attendance and history build themselves.']);
-
-  /* The gate. Sign-up stays locked until the right access code is typed,
-     and each role has its own code. Nothing personal is asked for here. */
-  const gate = {
-    read() {
-      try { return JSON.parse(sessionStorage.getItem('sti-gate') || 'null'); } catch (e) { return null; }
-    },
-    save(kind, code) {
-      try { sessionStorage.setItem('sti-gate', JSON.stringify({ kind, code })); } catch (e) { /* ignore */ }
-    },
-    clear() { try { sessionStorage.removeItem('sti-gate'); } catch (e) { /* ignore */ } }
-  };
+    'One place for the week\'s numbers, who turned up, and how each office is doing.',
+    ['Create your account with an email and a password.',
+      'Tell us which center you belong to.',
+      'Your leader approves you, and you are in.']);
 
   function renderAuth(which) {
     const r = $('#root');
-    if (which === 'join') {
-      const g = gate.read() || {};
-      const kind = g.kind || 'office';
-      r.innerHTML = authShell(
-        '<h1 class="auth-h">First, the code</h1>'
-        + '<p class="auth-s">Sign-up is by invitation. Pick what you are joining as, then type the access code you were given.</p>'
-        + '<div class="gate-pick">'
-        + '<button type="button" class="gate-opt ' + (kind === 'office' ? 'on' : '') + '" data-act="gate-pick" data-v="office">'
-        + '<span class="go-ic">' + ico('building', 19) + '</span><span class="go-t">An office</span>'
-        + '<span class="go-d">Files the weekly report and runs its own distributors.</span></button>'
-        + '<button type="button" class="gate-opt ' + (kind === 'leader' ? 'on' : '') + '" data-act="gate-pick" data-v="leader">'
-        + '<span class="go-ic">' + ico('crown', 19) + '</span><span class="go-t">A leader</span>'
-        + '<span class="go-d">Sees every center and runs the Wednesday evaluation.</span></button>'
-        + '</div>'
-        + '<form id="gate-form">'
-        + '<div class="field gate-code"><label for="g-code">Access code</label>'
-        + '<input class="input mono" id="g-code" required autocomplete="off" spellcheck="false" placeholder="XXX-XXX-XXXX"></div>'
-        + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="gate-go">Unlock sign-up</button>'
-        + '</form>'
-        + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>', RIGHT);
-      const el = $('#gate-form'); if (el) el.dataset.kind = kind;
-      return;
-    }
     if (which === 'signup') {
-      const g = gate.read();
-      if (!g) { go('#/join'); return; }
       r.innerHTML = authShell(
         '<h1 class="auth-h">Create your account</h1>'
-        + '<p class="auth-s">Joining as ' + (g.kind === 'leader' ? 'a leader' : 'an office') + '. '
-        + '<a href="#/join" style="text-decoration:underline">Not right?</a> '
-        + 'Just an email and a password — nothing else.</p>'
+        + '<p class="auth-s">An email and a password is all it takes. You will say who you are next.</p>'
         + '<form id="signup-form">'
         + '<div class="field"><label for="su-email">Email</label>'
         + '<input class="input" id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -264,44 +230,77 @@
       + '</form>'
       + '<div class="auth-alt"><a href="#/forgot">Forgot your password?</a></div>'
       + '<div class="divider">New here</div>'
-      + '<a class="btn btn-lg btn-block" href="#/join">I have an access code</a>', RIGHT);
+      + '<a class="btn btn-lg btn-block" href="#/signup">Create an account</a>', RIGHT);
   }
 
   /* --------------------------------------------------- onboarding */
+  /* A new account picks what it is joining as. Nothing is created yet —
+     it goes to the Super Admin, who approves it. */
   async function renderOnboard() {
+    const me = A.store.me;
     const centers = await A.join.publicCenters();
-    const g = gate.read() || {};
-    const officeOn = g.kind !== 'leader';
-    $('#root').innerHTML = authShell(
-      '<h1 class="auth-h">One more step</h1>'
-      + '<p class="auth-s">Your access code places you. Nothing else about you is collected.</p>'
-      + '<div class="seg" style="width:100%;margin-bottom:18px">'
-      + '<button style="flex:1" class="' + (officeOn ? 'on' : '') + '" data-act="ob-tab" data-v="office">An office</button>'
-      + '<button style="flex:1" class="' + (officeOn ? '' : 'on') + '" data-act="ob-tab" data-v="admin">A leader</button></div>'
+    const kind = me.req_kind === 'leader' ? 'leader' : 'office';
+    const officeOn = kind === 'office';
+    const turned = me.req_status === 'declined';
 
-      + '<form id="ob-office" class="' + (officeOn ? '' : 'hide') + '">'
-      + '<div class="field gate-code"><label for="ob-code">Office access code</label>'
-      + '<input class="input mono" id="ob-code" required placeholder="XXX-XXX-XXXX" value="'
-      + esc(officeOn && g.code ? g.code : '') + '"></div>'
+    $('#root').innerHTML = authShell(
+      '<h1 class="auth-h">' + (turned ? 'Have another go' : 'Tell us who you are') + '</h1>'
+      + '<p class="auth-s">' + (turned
+        ? 'Your last request came back. Fix what is below and send it again.'
+        : 'Your leader approves this, and then your dashboard opens up.') + '</p>'
+      + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
+
+      + '<form id="ob-form" data-kind="' + kind + '">'
+      + '<div class="field"><label for="ob-you">Your name</label>'
+      + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Femi Ademilua" value="'
+      + esc(me.full_name || '') + '"></div>'
+
+      + '<div class="field"><label>Joining as</label>'
+      + '<div class="seg" style="width:100%">'
+      + '<button type="button" style="flex:1" class="' + (officeOn ? 'on' : '') + '" data-act="ob-tab" data-v="office">An office</button>'
+      + '<button type="button" style="flex:1" class="' + (officeOn ? '' : 'on') + '" data-act="ob-tab" data-v="leader">A leader</button>'
+      + '</div></div>'
+
+      + '<div id="ob-office" class="' + (officeOn ? '' : 'hide') + '">'
       + '<div class="field"><label for="ob-center">Which center?</label>'
-      + '<select class="select" id="ob-center" required>'
-      + (centers.length ? centers.map(c => '<option value="' + c.id + '">' + esc(c.name) + ' · ' + esc(c.area) + '</option>').join('')
+      + '<select class="select" id="ob-center">'
+      + (centers.length
+        ? centers.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
+          + esc(c.name) + ' · ' + esc(c.area) + '</option>').join('')
         : '<option value="">No centers exist yet</option>') + '</select></div>'
       + '<div class="two"><div class="field"><label for="ob-name">Office name</label>'
-      + '<input class="input" id="ob-name" required placeholder="Lagere Office"></div>'
-      + '<div class="field"><label for="ob-ocode">Office short code</label>'
-      + '<input class="input mono" id="ob-ocode" required placeholder="LG-01"></div></div>'
-      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-office">Join as an office</button>'
-      + '</form>'
+      + '<input class="input" id="ob-name" placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
+      + '<div class="field"><label for="ob-ocode">Short code</label>'
+      + '<input class="input mono" id="ob-ocode" placeholder="LG-01" value="' + esc(me.req_office_code || '') + '"></div></div>'
+      + '</div>'
 
-      + '<form id="ob-admin" class="' + (officeOn ? 'hide' : '') + '">'
-      + '<div class="field gate-code"><label for="ob-acode">Leader access code</label>'
-      + '<input class="input mono" id="ob-acode" required placeholder="XXX-XXX-XXXX" value="'
-      + esc(!officeOn && g.code ? g.code : '') + '"></div>'
-      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-admin">Join as a leader</button>'
+      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-request">'
+      + (turned ? 'Send it again' : 'Ask to join') + '</button>'
       + '</form>'
 
       + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>', RIGHT);
+  }
+
+  /* The account is in, the request is filed, and it is the Super Admin's
+     turn. Nothing else in the app is reachable from here. */
+  async function renderWaiting() {
+    const me = A.store.me;
+    let what = 'a leader';
+    if (me.req_kind !== 'leader') {
+      /* A pending account has no lookups loaded, so name the center here. */
+      const c = (await A.join.publicCenters()).find(x => x.id === me.req_center_id);
+      what = 'the office <b>' + esc(me.req_office_name || '') + '</b>' + (c ? ' at ' + esc(c.name) : '');
+    }
+    $('#root').innerHTML = authShell(
+      '<h1 class="auth-h">You are on the list</h1>'
+      + '<p class="auth-s">You asked to join as ' + what + '. Your leader will approve it, '
+      + 'and the moment they do, this page opens onto your dashboard.</p>'
+      + U.note('ok', 'check', 'Nothing else to do. You can close this and come back later — '
+        + 'sign in with <b>' + esc(me.email) + '</b>.')
+      + '<div class="row" style="margin-top:18px">'
+      + '<button class="btn btn-a btn-block" data-act="check-approval">' + ico('refresh', 15) + 'Check again</button></div>'
+      + '<div class="auth-alt"><a href="#" data-act="ob-edit">Change what I asked for</a> · '
+      + '<a href="#" data-act="signout">Sign out</a></div>', RIGHT);
   }
 
   /* ============================= SETUP GATE ========================= */
@@ -334,32 +333,6 @@
       toast(err.message === 'Invalid login credentials'
         ? 'That email and password do not match an account.' : err.message, 'no');
     }
-  };
-
-  ACT['gate-pick'] = (el) => {
-    U.$$('[data-act="gate-pick"]').forEach(b => b.classList.toggle('on', b === el));
-    const f = $('#gate-form'); if (f) f.dataset.kind = el.dataset.v;
-    const c = $('#g-code'); if (c) c.focus();
-  };
-
-  ACT['gate-go'] = async (el, e) => {
-    e.preventDefault();
-    const kind = ($('#gate-form').dataset.kind) || 'office';
-    const code = val('#g-code');
-    if (!code) return toast('Type the access code you were given.', 'no');
-    const btn = $('[data-act="gate-go"]');
-    busy(btn, true, 'Checking…');
-    try {
-      const ok = await A.join.checkCode(kind, code);
-      if (!ok) {
-        busy(btn, false);
-        const f = $('#g-code');
-        if (f) { f.classList.add('gate-shake'); setTimeout(() => f.classList.remove('gate-shake'), 450); }
-        return toast('That code is not right for ' + (kind === 'leader' ? 'a leader' : 'an office') + '.', 'no');
-      }
-      gate.save(kind, code.toUpperCase());
-      go('#/signup');
-    } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
   ACT['do-signup'] = async (el, e) => {
@@ -405,37 +378,46 @@
   ACT['ob-tab'] = (el) => {
     const v = el.dataset.v;
     U.$$('[data-act="ob-tab"]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    $('#ob-form').dataset.kind = v;
     $('#ob-office').classList.toggle('hide', v !== 'office');
-    $('#ob-admin').classList.toggle('hide', v !== 'admin');
   };
 
-  ACT['do-join-office'] = async (el, e) => {
+  ACT['do-request'] = async (el, e) => {
     e.preventDefault();
-    const btn = $('[data-act="do-join-office"]');
-    busy(btn, true, 'Joining…');
+    const kind = $('#ob-form').dataset.kind || 'office';
+    const btn = $('[data-act="do-request"]');
+    if (kind === 'office' && !val('#ob-center')) {
+      return toast('There are no centers yet. Your leader has to create one first.', 'no');
+    }
+    busy(btn, true, 'Sending…');
     try {
-      await A.join.office(val('#ob-code'), {
-        name: val('#ob-name'), officeCode: val('#ob-ocode'), centerId: val('#ob-center'),
-        manager: '', area: '', address: ''
+      await A.join.request(kind, {
+        fullName: val('#ob-you'),
+        centerId: val('#ob-center'),
+        officeName: val('#ob-name'),
+        officeCode: val('#ob-ocode')
       });
-      gate.clear();
+      state.editRequest = false;
       await boot(true);
-      toast('Welcome. Your office is set up.');
-      go('#/dashboard');
+      await route();
+      toast('Sent. Your leader takes it from here.');
     } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
-  ACT['do-join-admin'] = async (el, e) => {
-    e.preventDefault();
-    const btn = $('[data-act="do-join-admin"]');
-    busy(btn, true, 'Joining…');
-    try {
-      await A.join.admin(val('#ob-acode'), '');
-      gate.clear();
-      await boot(true);
-      toast('You are in.');
+  ACT['ob-edit'] = (el, e) => { e.preventDefault(); state.editRequest = true; route(); };
+
+  ACT['check-approval'] = async (el) => {
+    busy(el, true, 'Checking…');
+    const was = A.store.me.role;
+    await boot(true);
+    if (A.store.me && A.store.me.role !== was) {
+      toast('You are in. Welcome.');
       go('#/dashboard');
-    } catch (err) { busy(btn, false); toast(err.message, 'no'); }
+      await route();
+    } else {
+      busy(el, false);
+      toast('Not yet — your leader has not approved it.');
+    }
   };
 
   /* --- chrome ------------------------------------------------------ */
@@ -671,23 +653,37 @@
   };
 
   /* --- admin ------------------------------------------------------- */
-  ACT['make-admin'] = async (el) => {
-    busy(el, true, 'Promoting…');
-    try { await A.people.setRole(el.dataset.id, 'platform_admin'); toast('They are a Leader now.'); route(); }
+  ACT['approve-req'] = async (el) => {
+    busy(el, true, 'Approving…');
+    try {
+      await A.people.approve(el.dataset.id);
+      await A.loadLookups();          // the office it just created
+      toast(el.dataset.name + ' is in.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  ACT['decline-req'] = (el) => {
+    state.pendingReq = el.dataset.id;
+    modal('Turn this request down?', esc(el.dataset.name || ''),
+      '<p class="card-s" style="margin-bottom:14px">They stay signed up and can send a new request. '
+      + 'Tell them what to change.</p>'
+      + '<div class="field"><label for="dq-why">Reason</label>'
+      + '<input class="input" id="dq-why" placeholder="That office already exists — pick another code."></div>',
+      '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
+      + '<button class="btn btn-d" data-act="decline-req-yes">Turn it down</button>');
+  };
+
+  ACT['decline-req-yes'] = async (el) => {
+    busy(el, true, 'Sending…');
+    try { await A.people.decline(state.pendingReq, val('#dq-why')); closeModal(); toast('They have been told.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
+
   ACT['drop-admin'] = async (el) => {
     busy(el, true, 'Removing…');
     try { await A.people.setRole(el.dataset.id, 'pending'); toast('Leader access removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
-  };
-  ACT['codes-save'] = async (el) => {
-    busy(el, true, 'Saving…');
-    try {
-      await A.settings.set('office_join_code', val('#s-office-code'));
-      await A.settings.set('admin_join_code', val('#s-admin-code'));
-      busy(el, false); toast('Codes saved.');
-    } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
   /* --- account ----------------------------------------------------- */
