@@ -92,7 +92,7 @@
           ? S.data.offices.map(o => '<button data-office="' + o.id + '">'
             + '<span style="flex:1">' + esc(o.name) + '</span>'
             + ico('right', 15) + '</button>').join('')
-          : '<div class="empty-d">No offices in this center yet.</div>')
+          : '<div class="empty-d">No offices in this zone yet.</div>')
         + '</div></div>');
       return;
     }
@@ -184,7 +184,7 @@
     + (e.elig === 'sm'
       ? U.note('info', 'crown', 'This session is for Senior Managers and above.') + '<div style="height:14px"></div>' : '');
 
-  /* The center QR — one code per center, forever. Look the center up,
+  /* The zone QR — one code per zone, forever. Look the zone up,
      list this week's sessions, and let the distributor pick one. */
   async function lookupCenter(id) {
     S.step = 'load'; paint();
@@ -192,7 +192,7 @@
       const { data, error } = await A.sb.rpc('center_lookup', { p_center: id });
       if (error) throw new Error(error.message);
       if (!data || !data.ok) {
-        S.step = 'code'; S.error = (data && data.error) || 'That QR code does not match any center.';
+        S.step = 'code'; S.error = (data && data.error) || 'That QR code does not match any zone.';
         paint(); return;
       }
       S.center = data; S.step = 'pick'; paint();
@@ -212,7 +212,7 @@
       }
       S.data = data; S.code = code; S.error = '';
       S.step = 'office';
-      /* One office in the center? Skip straight to the name list. */
+      /* One office in the zone? Skip straight to the name list. */
       if (data.offices.length === 1) { S.office = data.offices[0]; S.step = 'name'; }
       paint();
     } catch (err) {
@@ -229,7 +229,7 @@
       if (error) throw new Error(error.message);
       if (data && data.ok) { S.step = 'done'; S.error = ''; return paint(); }
       /* A wrong number or a missing one is worth another go; anything
-         else — closed session, already in, wrong center — is final. */
+         else — closed session, already in, wrong zone — is final. */
       S.error = (data && data.error) || 'We could not scan you in.';
       S.step = (data && (data.retry || data.needs_phone)) ? 'phone' : 'fail';
     } catch (err) { S.step = 'fail'; S.error = err.message; }
@@ -295,9 +295,9 @@
   /* ----------------------------------------------------------- boot */
   const params = new URLSearchParams(location.search);
   const code = (params.get('c') || params.get('code') || '').trim();
-  const center = (params.get('center') || '').trim();
+  const zone = (params.get('center') || '').trim();
   if (!window.CONFIG.ready || !A.ready) paint();
-  else if (center) lookupCenter(center);
+  else if (zone) lookupCenter(zone);
   else if (code) lookup(code);
   else { S.step = 'code'; paint(); }
 })();

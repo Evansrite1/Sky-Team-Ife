@@ -636,7 +636,7 @@ begin
 
   if p_kind = 'office' then
     if p_center_id is null then
-      raise exception 'Pick the center your office reports to.';
+      raise exception 'Pick the zone your office reports to.';
     end if;
     if coalesce(trim(p_office_name), '') = '' then
       raise exception 'Your office needs a name.';
@@ -646,7 +646,7 @@ begin
     end if;
     if exists (select 1 from offices
                 where lower(name) = lower(trim(p_office_name)) and center_id = p_center_id) then
-      raise exception 'That center already has an office called %.', trim(p_office_name);
+      raise exception 'That zone already has an office called %.', trim(p_office_name);
     end if;
   end if;
 
@@ -688,7 +688,7 @@ begin
 
   if r.req_kind = 'office' then
     if r.req_center_id is null then
-      raise exception 'That request does not say which center.';
+      raise exception 'That request does not say which zone.';
     end if;
 
     -- manager_name holds the office's team leader.
@@ -699,7 +699,7 @@ begin
     returning id into v_office;
 
     if v_office is null then
-      raise exception 'That center no longer exists. Ask them to pick another one.';
+      raise exception 'That zone no longer exists. Ask them to pick another one.';
     end if;
 
     update profiles
@@ -856,7 +856,7 @@ begin
     return jsonb_build_object('ok', false, 'error', 'We could not find you on the list.');
   end if;
   if v_dist.center_id <> v_event.center_id then
-    return jsonb_build_object('ok', false, 'error', 'You belong to a different center.');
+    return jsonb_build_object('ok', false, 'error', 'You belong to a different zone.');
   end if;
   if v_event.elig = 'sm' and v_dist.status = 'Distributor' then
     return jsonb_build_object('ok', false,
@@ -927,7 +927,7 @@ declare
 begin
   select * into v_center from centers where id = p_center;
   if v_center is null then
-    return jsonb_build_object('ok', false, 'error', 'That QR code does not match any center.');
+    return jsonb_build_object('ok', false, 'error', 'That QR code does not match any zone.');
   end if;
 
   perform ensure_week_events_for(p_center, week_start());

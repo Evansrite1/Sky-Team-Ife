@@ -29,8 +29,8 @@
   /* --------------------------------------------------------- the cache */
   const store = {
     session: null,
-    me: null,          // profile row + office + center
-    centers: [],
+    me: null,          // profile row + office + zone
+    centers: [],       // zones, as the UI calls them; the table is centers
     offices: [],
     niches: [],
     settings: {},
@@ -140,7 +140,9 @@
   const officeById = id => store.offices.find(o => o.id === id) || null;
   const officesOf = cid => store.offices.filter(o => o.center_id === cid);
 
-  /* ---------------------------------------------------------- centers */
+  /* ------------------------------------------------------------ zones */
+  /* Called centers throughout the code, because that is the table name.
+     The word the user sees is Zone. */
   const centers = {
     async create(row) {
       const d = guard(await sb.from('centers').insert(row).select().single());
@@ -359,7 +361,7 @@
       });
       if (error) throw new Error(error.message);
     },
-    /* The sign-up screen needs the centers before the user has a role. */
+    /* The sign-up screen needs the zones before the user has a role. */
     async publicCenters() {
       return rows(await sb.from('centers').select('id,name').order('name'));
     }

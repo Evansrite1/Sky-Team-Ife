@@ -66,7 +66,7 @@
   const statusTag = st => LEADER.includes(st) ? tag(st, 't-gold')
     : SM_PLUS.includes(st) ? tag(st, 't-ok') : tag(st, 't-mute');
 
-  const evalLine = (ws) => 'Read at the center evaluation on ' + esc(U.fullDate(U.evalDate(ws))) + ' at 2:45pm.';
+  const evalLine = (ws) => 'Read at the zone evaluation on ' + esc(U.fullDate(U.evalDate(ws))) + ' at 2:45pm.';
 
   /* ===================================================================
      DASHBOARD
@@ -102,7 +102,7 @@
       crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · open until Tuesday'),
       html:
         (!A.store.centers.length ? note('gold', 'info',
-          '<b>No centers yet.</b> Create your first center under <a href="' + link('admin') + '" style="text-decoration:underline">Centers &amp; admins</a>, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
+          '<b>No zones yet.</b> Create your first zone under <a href="' + link('admin') + '" style="text-decoration:underline">Zones &amp; admins</a>, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
         + '<div class="grid g4">'
         + kpi('Orders this week', t.orders.toLocaleString(), U.change(t.orders, p.orders), 'trend')
         + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-blue')
@@ -122,7 +122,7 @@
         + '<div class="card-a">' + chartToggle(S().chartType) + '</div></div>'
         + chart(series, series.length - 1, S().chartType) + '</div>'
 
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Centers this week</div>'
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Zones this week</div>'
         + '<div class="card-s">Ranked by amount.</div></div></div>'
         + (centerRows.length ? centerRows.map(r =>
           '<a href="' + link('centers', r.c.id) + '" style="display:block;padding:11px 0;border-bottom:1px solid #edf0f7">'
@@ -130,13 +130,13 @@
           + '<div class="num nm">' + usd(r.amount) + '</div></div>'
           + '<div style="margin-top:7px">' + bar(r.amount, maxCenter, true) + '</div>'
           + '<div class="sub">' + r.count + ' of ' + r.os.length + ' offices filed · ' + r.orders + ' orders</div></a>').join('')
-          : empty('layers', 'No centers yet', 'Create a center and its offices can start filing.'))
+          : empty('layers', 'No zones yet', 'Create a zone and its offices can start filing.'))
         + '</div></div>'
 
         + (missing.length ? '<div class="card" style="margin-top:18px">'
           + '<div class="card-h"><div><div class="card-t">Still to file · ' + missing.length + '</div>'
           + '<div class="card-s">' + evalLine(ws) + '</div></div></div>'
-          + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Team leader' }, { label: '' }],
+          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: '' }],
             missing.map(r => '<tr class="click" data-href="' + link('offices', r.office.id) + '">'
               + '<td class="nm">' + esc(r.office.name) + '</td>'
               + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
@@ -180,7 +180,7 @@
           mine ? U.change(mine.orders, prevMine ? prevMine.orders : 0) : 'No report for this week', 'trend')
         + kpi('Your amount', mine ? usd(mine.amount) : '—',
           mine ? U.change(mine.amount, prevMine ? prevMine.amount : 0) : 'Nothing filed yet', 'cash', 'kpi-blue')
-        + kpi('Rank in center', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
+        + kpi('Rank in zone', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
           ranked.length ? esc((A.centerById(off.center_id) || {}).name || '') : '', 'crown', 'kpi-dark')
         + kpi('Distributors', dists.length.toLocaleString(),
           dists.filter(d => SM_PLUS.includes(d.status)).length + ' Senior Manager and above', 'users')
@@ -193,7 +193,7 @@
         + chart(series, series.length - 1, S().chartType) + '</div>'
 
         + '<div class="stack">'
-        + '<div class="card"><div class="card-h"><div><div class="card-t">This week in your center</div>'
+        + '<div class="card"><div class="card-h"><div><div class="card-t">This week in your zone</div>'
         + '<div class="card-s">Ranked by amount.</div></div></div>'
         + (ranked.length ? ranked.slice(0, 6).map(r =>
           '<div class="spread" style="padding:9px 0;border-bottom:1px solid #edf0f7">'
@@ -201,7 +201,7 @@
           + '<span class="' + (r.office_id === off.id ? 'nm' : '') + '">' + esc(r.office.name)
           + (r.office_id === off.id ? ' <span class="tag t-ok">You</span>' : '') + '</span></div>'
           + '<div class="num nm">' + (r.missing ? '<span style="color:var(--faint)">—</span>' : usd(r.amount)) + '</div></div>').join('')
-          : empty('crown', 'No reports yet', 'Once offices in your center file, the ranking appears.'))
+          : empty('crown', 'No reports yet', 'Once offices in your zone file, the ranking appears.'))
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Attendance this week</div>'
@@ -223,7 +223,7 @@
   async function evaluation() {
     const ws = S().week, prev = U.iso(U.addDays(ws, -7));
     const cid = S().center || (A.store.centers[0] || {}).id;
-    if (!cid) return { title: 'Evaluation list', html: empty('layers', 'No centers yet', 'Create a center first.') };
+    if (!cid) return { title: 'Evaluation list', html: empty('layers', 'No zones yet', 'Create a zone first.') };
     const [reps, prevReps] = await Promise.all([
       A.reports.list({ week: ws, center: cid }),
       A.reports.list({ week: prev, center: cid })
@@ -270,7 +270,7 @@
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
               + '<td style="max-width:280px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
           }),
-          { empty: empty('clipboard', 'No offices in this center', 'Offices appear here once they sign up and you approve them.') })
+          { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here once they sign up and you approve them.') })
         + '</div>'
     };
   }
@@ -322,7 +322,7 @@
         + (mine ? '' : '<div class="card" style="margin-top:18px">'
           + '<div class="card-h"><div><div class="card-t">Offices this month</div>'
           + '<div class="card-s">Ranked by amount across ' + weeks.length + ' weeks.</div></div></div>'
-          + table([{ label: '#' }, { label: 'Office' }, { label: 'Center' }, { label: 'Reports', num: true },
+          + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Reports', num: true },
           { label: 'Orders', num: true }, { label: 'Amount', num: true }],
             ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
@@ -356,22 +356,22 @@
         + '<td class="num nm">' + usdFull(t.amount) + '</td></tr>';
     });
     return {
-      title: 'Centers', picker: 'week',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Every center</div>'
+      title: 'Zones', picker: 'week',
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Every zone</div>'
         + '<div class="card-s">Numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">'
-          + ico('plus', 15) + 'New center</button></div>' : '') + '</div>'
-        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true },
+          + ico('plus', 15) + 'New zone</button></div>' : '') + '</div>'
+        + table([{ label: 'Zone' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true },
         { label: 'Filed', num: true }, { label: 'Amount', num: true }], rowsHtml,
-          { empty: empty('layers', 'No centers yet', 'A center holds its own offices and runs its own Wednesday evaluation.',
-            A.isSuper() ? '<button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'Create the first center</button>' : '') })
+          { empty: empty('layers', 'No zones yet', 'A zone holds its own offices and runs its own Wednesday evaluation.',
+            A.isSuper() ? '<button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'Create the first zone</button>' : '') })
         + '</div>'
     };
   }
 
   async function centerDetail(id) {
     const c = A.centerById(id);
-    if (!c) return { title: 'Center', html: empty('layers', 'Center not found', 'It may have been removed.') };
+    if (!c) return { title: 'Zone', html: empty('layers', 'Zone not found', 'It may have been removed.') };
     const ws = S().week;
     const offs = A.officesOf(id).filter(o => o.active);
     const [reps, evs, dists] = await Promise.all([
@@ -385,7 +385,7 @@
 
     const centerUrl = window.CONFIG.appUrl + '/scan.html?center=' + encodeURIComponent(c.id);
     return {
-      title: c.name, crumbs: '<a href="' + link('centers') + '">Centers</a>', picker: 'week',
+      title: c.name, crumbs: '<a href="' + link('centers') + '">Zones</a>', picker: 'week',
       html: '<div class="grid g4">'
         + kpi('Offices', offs.length, '', 'building')
         + kpi('Distributors', dists.length, dists.filter(d => SM_PLUS.includes(d.status)).length + ' SM and above', 'users')
@@ -395,7 +395,7 @@
 
         + '<div style="margin-top:18px;max-width:660px">'
         + '<div class="ticket tilt"><div class="ticket-h">'
-        + '<div class="t-n">Center QR, one code for every session</div>'
+        + '<div class="t-n">Zone QR, one code for every session</div>'
         + '<div class="t-m">' + esc(c.name) + '</div></div>'
         + '<div class="ticket-b"><div class="qr-box">' + U.qrSvg(centerUrl) + '</div>'
         + '<div><div class="card-s" style="margin:0 0 10px">Print this once and keep it at the door. '
@@ -416,7 +416,7 @@
         + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
         + '<div class="card-t">Offices ranked</div><div class="card-s">' + esc(U.weekLabel(ws)) + '</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
-          + ico('edit', 14) + 'Edit center</button></div>' : '') + '</div>'
+          + ico('edit', 14) + 'Edit zone</button></div>' : '') + '</div>'
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Team leader' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
@@ -424,11 +424,11 @@
             + '<td>' + esc(r.office.manager_name || '—') + '</td>'
             + '<td class="num">' + (r.missing ? tag('Not filed', 't-warn') : r.orders) + '</td>'
             + '<td class="num nm">' + (r.missing ? '—' : usdFull(r.amount)) + '</td></tr>'),
-          { empty: empty('building', 'No offices yet', 'Offices pick this center when they sign up, and appear once approved.') })
+          { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear once approved.') })
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Sessions this week</div>'
-        + '<div class="card-s">Trainings and events at this center.</div></div></div>'
+        + '<div class="card-s">Trainings and events at this zone.</div></div></div>'
         + table([{ label: 'Session' }, { label: 'Date' }, { label: 'Who may scan' }, { label: 'Status' }, { label: 'In', num: true }],
           evs.map(e => '<tr class="click" data-href="' + link('trainings', e.id) + '">'
             + '<td class="nm">' + esc(e.name) + '</td>'
@@ -456,7 +456,7 @@
       title: 'Offices', picker: 'week',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Every office</div>'
         + '<div class="card-s">' + list.length + ' offices · numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div></div>'
-        + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Team leader' }, { label: 'Distributors', num: true },
+        + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Distributors', num: true },
         { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           list.map(o => {
             const r = reps.find(x => x.office_id === o.id);
@@ -468,7 +468,7 @@
               + '<td class="num">' + (r ? r.orders : tag('Not filed', 't-warn')) + '</td>'
               + '<td class="num nm">' + (r ? usdFull(r.amount) : '—') + '</td></tr>';
           }),
-          { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its center, and appears once you approve it.') })
+          { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its zone, and appears once you approve it.') })
         + '</div>'
     };
   }
@@ -533,8 +533,8 @@
     return {
       title: 'Office rankings', picker: 'week', crumbs: esc(U.weekLabel(ws)),
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Ranked by amount</div>'
-        + '<div class="card-s">Every office across every center. ' + evalLine(ws) + '</div></div></div>'
-        + table([{ label: '#' }, { label: 'Office' }, { label: 'Center' }, { label: 'Orders', num: true },
+        + '<div class="card-s">Every office across every zone. ' + evalLine(ws) + '</div></div></div>'
+        + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Orders', num: true },
         { label: 'Amount', num: true }, { label: '' }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
@@ -563,7 +563,7 @@
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Everything filed this week</div>'
         + '<div class="card-s">' + reps.length + ' of ' + A.store.offices.filter(o => o.active).length
         + ' offices. ' + evalLine(ws) + '</div></div></div>'
-        + table([{ label: 'Office' }, { label: 'Center' }, { label: 'Orders', num: true }, { label: 'Amount', num: true },
+        + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Orders', num: true }, { label: 'Amount', num: true },
         { label: 'Niches' }, { label: 'New niches' }, { label: 'Issues raised' }, { label: 'Filed' }],
           reps.map(r => {
             const o = A.officeById(r.office_id) || {};
@@ -617,7 +617,7 @@
 
         + '<div class="field"><label>Who came into the office this week?</label>'
         + '<div class="hint" style="margin:-2px 0 10px">Headcount for the week, not names. '
-        + 'This is what the center reads to see whether the room is growing.</div>'
+        + 'This is what the zone reads to see whether the room is growing.</div>'
         + '<div class="g4 gsm">'
         + '<div class="field"><label for="f-dist">Distributors</label>'
         + '<input class="input" id="f-dist" type="number" min="0" step="1" placeholder="0" value="'
@@ -649,7 +649,7 @@
         + '<button type="button" class="btn btn-sm" data-act="new-niche-add">' + ico('plus', 14) + 'Mark as new</button></div></div>'
 
         + '<div class="field"><label for="f-issues">What slowed you down this week?</label>'
-        + '<textarea class="input" id="f-issues" placeholder="Anything the center should hear at the evaluation. Write “No major blockers” if the week ran clean.">'
+        + '<textarea class="input" id="f-issues" placeholder="Anything the zone should hear at the evaluation. Write “No major blockers” if the week ran clean.">'
         + esc(mine ? mine.issues : '') + '</textarea></div>'
 
         + '<div class="row" style="justify-content:flex-end">'
@@ -694,11 +694,11 @@
       && (e.elig === 'sm' ? SM_PLUS.includes(d.status) : true)).length;
 
     return {
-      title: kind === 'training' ? 'Trainings' : 'Center events', picker: 'week',
+      title: kind === 'training' ? 'Trainings' : 'Zone events', picker: 'week',
       crumbs: esc(U.weekLabel(ws)),
       html: (kind === 'training'
         ? note('info', 'info', '<b>Senior Manager Training runs every Wednesday, Distributor Training every Friday, both at 2:45pm.</b> '
-          + 'The platform creates them for each center. Open scanning when the session starts, and close it when it ends.')
+          + 'The platform creates them for each zone. Open scanning when the session starts, and close it when it ends.')
         : '')
         + '<div class="card" style="margin-top:16px"><div class="card-h"><div>'
         + '<div class="card-t">' + (kind === 'training' ? 'This week\'s trainings' : 'Events this week') + '</div>'
@@ -707,7 +707,7 @@
         + (A.isAdmin() && A.store.centers.length ? centerPick(S().center || A.store.centers[0].id, 'center') : '')
         + (kind === 'event' ? '<button class="btn btn-a btn-pop" data-act="event-new">' + ico('plus', 15) + 'New event</button>' : '')
         + '</div></div>'
-        + table([{ label: 'Session' }, { label: 'Center' }, { label: 'Date' }, { label: 'Who may scan' },
+        + table([{ label: 'Session' }, { label: 'Zone' }, { label: 'Date' }, { label: 'Who may scan' },
         { label: 'Scanned in', num: true }, { label: 'Status' }],
           evs.map(e => {
             const acc = scans.filter(s => s.event_id === e.id && s.status === 'accepted').length;
@@ -724,8 +724,8 @@
             empty: empty(kind === 'training' ? 'qr' : 'star',
               kind === 'training' ? 'No trainings for this week' : 'No events this week',
               kind === 'training'
-                ? 'Trainings appear once at least one center exists. Create a center first.'
-                : 'A center event is anything outside the two weekly trainings: a rally, a launch, a leaders\' meeting.',
+                ? 'Trainings appear once at least one zone exists. Create a zone first.'
+                : 'A zone event is anything outside the two weekly trainings: a rally, a launch, a leaders\' meeting.',
               kind === 'event' ? '<button class="btn btn-a btn-pop" data-act="event-new">' + ico('plus', 15) + 'Create an event</button>' : '')
           })
         + '</div>'
@@ -749,7 +749,7 @@
     return {
       title: e.name,
       crumbs: '<a href="' + link(e.kind === 'training' ? 'trainings' : 'events') + '">'
-        + (e.kind === 'training' ? 'Trainings' : 'Center events') + '</a> · ' + esc(c.name || ''),
+        + (e.kind === 'training' ? 'Trainings' : 'Zone events') + '</a> · ' + esc(c.name || ''),
       html: '<div class="grid g-1-2">'
         + '<div class="ticket tilt"><div class="ticket-h">'
         + '<div class="t-n">' + esc(e.name) + '</div>'
@@ -846,7 +846,7 @@
         + (own ? '<button class="btn btn-a btn-pop" data-act="dist-new">' + ico('plus', 15) + 'Add distributor</button>' : '')
         + '</div></div>'
         + table([{ label: 'Name' }, { label: own ? 'Status' : 'Office' }, { label: own ? 'Phone' : 'Status' },
-        { label: own ? 'Added' : 'Center' }, { label: '' }],
+        { label: own ? 'Added' : 'Zone' }, { label: '' }],
           shown.map(d => '<tr>'
             + '<td class="nm">' + esc(d.full_name) + '</td>'
             + '<td>' + (own ? statusTag(d.status) : esc((A.officeById(d.office_id) || {}).name || '—')) + '</td>'
@@ -869,7 +869,7 @@
      =================================================================== */
   async function myCenter() {
     const cid = A.store.me.center_id;
-    if (!cid) return { title: 'Center', html: empty('layers', 'No center', 'Your office is not attached to a center yet.') };
+    if (!cid) return { title: 'Zone', html: empty('layers', 'No zone', 'Your office is not attached to a zone yet.') };
     return centerDetail(cid);
   }
 
@@ -975,21 +975,21 @@
       ? tag('Director', 't-gold')
       : tag('An office', 't-ok')
       + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
-      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>'
+      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no zone') + '</div>'
       + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
     return {
-      title: 'Centers & directors',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
-        + '<div class="card-s">A center holds its own offices and runs its own Wednesday evaluation.</div></div>'
-        + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New center</button></div></div>'
-        + table([{ label: 'Center' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true }, { label: '' }],
+      title: 'Zones & directors',
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Zones</div>'
+        + '<div class="card-s">A zone holds its own offices and runs its own Wednesday evaluation.</div></div>'
+        + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New zone</button></div></div>'
+        + table([{ label: 'Zone' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true }, { label: '' }],
           A.store.centers.map(c => '<tr><td class="nm">' + esc(c.name) + '</td>'
             + '<td>' + esc(c.address || '—') + '</td>'
             + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
             + '<td class="num">' + A.officesOf(c.id).length + '</td>'
             + '<td class="num"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
             + ico('edit', 13) + 'Edit</button></td></tr>'),
-          { empty: empty('layers', 'No centers yet', 'Everything else hangs off a center, so start here.') })
+          { empty: empty('layers', 'No zones yet', 'Everything else hangs off a zone, so start here.') })
         + '</div>'
 
         + (asked.length ? '<div class="card"><div class="card-h"><div>'
@@ -1020,7 +1020,7 @@
           + '</div>' : '')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
-        + '<div class="card-s">Directors see every center and run the Wednesday evaluation. They cannot create centers.</div></div></div>'
+        + '<div class="card-s">Directors see every zone and run the Wednesday evaluation. They cannot create zones.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
           admins.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
             + '<td>' + esc(p.email) + '</td>'
@@ -1072,7 +1072,7 @@
         + '<button class="btn btn-p" data-act="name-save">' + ico('check', 15) + 'Save</button></div></div>'
 
         + (A.isOffice() ? '<div class="card"><div class="card-h"><div><div class="card-t">Your office</div>'
-          + '<div class="card-s">What the center sees next to your reports.</div></div></div>'
+          + '<div class="card-s">What the zone sees next to your reports.</div></div></div>'
           + '<div class="two">'
           + '<div class="field"><label for="o-name">Office name</label>'
           + '<input class="input" id="o-name" value="' + esc(me.office.name) + '"></div>'
@@ -1113,18 +1113,18 @@
     office: [
       ['clipboard', 'File one report a week', 'Open <b>Weekly report</b> before Tuesday closes and put in the number of orders you got, what they came to, the products they came from, and anything that slowed you down. That single form is what every ranking and every summary is built from.'],
       ['users', 'Keep your distributor list true', 'Add everyone under <b>Distributors</b>, with a phone number for each. The number matters: it is what a distributor completes at the door to prove the scan is really them.'],
-      ['qr', 'Open scanning when a session starts', 'On <b>Trainings</b>, press open when the room fills. Everyone scans the center QR, finds their name, completes their number, and they are in. Close it when the session ends.'],
+      ['qr', 'Open scanning when a session starts', 'On <b>Trainings</b>, press open when the room fills. Everyone scans the zone QR, finds their name, completes their number, and they are in. Close it when the session ends.'],
       ['card', 'Keep your subscription live', 'Your office has its own subscription. Check <b>Subscription</b> for when the next payment falls due.']
     ],
     platform_admin: [
-      ['grid', 'Read the week at a glance', 'The <b>Dashboard</b> shows every center for the week you pick: what came in, who filed and who has not.'],
+      ['grid', 'Read the week at a glance', 'The <b>Dashboard</b> shows every zone for the week you pick: what came in, who filed and who has not.'],
       ['clipboard', 'Run the Wednesday evaluation', '<b>Evaluation list</b> is the sheet for the 2:45pm meeting. It arrives already filled in from the reports that were filed.'],
       ['crown', 'Watch the rankings', '<b>Office rankings</b> orders every office by the week, so the conversation starts from the numbers rather than from memory.'],
-      ['qr', 'Keep attendance honest', 'Open and close scanning for your centers, and check <b>Trainings</b> afterwards for who actually came.']
+      ['qr', 'Keep attendance honest', 'Open and close scanning for your zones, and check <b>Trainings</b> afterwards for who actually came.']
     ],
     super_admin: [
-      ['shield', 'Approve who gets in', 'Nobody sees anything until you approve them. <b>Centers & directors</b> carries a blue count whenever somebody is waiting. Approving an office is what creates that office.'],
-      ['layers', 'Create the centers first', 'Everything hangs off a center. Offices pick one when they sign up, and each center runs its own Wednesday evaluation and has its own permanent QR poster.'],
+      ['shield', 'Approve who gets in', 'Nobody sees anything until you approve them. <b>Zones & directors</b> carries a blue count whenever somebody is waiting. Approving an office is what creates that office.'],
+      ['layers', 'Create the zones first', 'Everything hangs off a zone. Offices pick one when they sign up, and each zone runs its own Wednesday evaluation and has its own permanent QR poster.'],
       ['building', 'Watch every office', '<b>Offices</b>, <b>Office rankings</b> and <b>Weekly reports</b> give you the whole picture, week by week.'],
       ['card', 'Keep an eye on billing', '<b>Subscriptions</b> shows which offices are on trial, which are paying, and which have lapsed.']
     ]
@@ -1160,7 +1160,7 @@
         + '<div class="step-d">A week opens on Wednesday and closes the following Tuesday. Reports belong to the week they cover, not the day they are filed.</div></div></div>'
         + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>1</i></div>'
         + '<div><div class="step-t">Senior Manager Training, Wednesday 2:45pm</div>'
-        + '<div class="step-d">Senior Managers and above. Creates itself for every center.</div></div></div>'
+        + '<div class="step-d">Senior Managers and above. Creates itself for every zone.</div></div></div>'
         + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>2</i></div>'
         + '<div><div class="step-t">Distributor Training, Friday 2:45pm</div>'
         + '<div class="step-d">Everyone. Also creates itself.</div></div></div>'

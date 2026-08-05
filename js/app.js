@@ -32,14 +32,14 @@
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
-        { p: 'admin', l: 'Approvals & centers', i: 'shield', alertC: () => A.store.waiting || '' }
+        { p: 'admin', l: 'Approvals & zones', i: 'shield', alertC: () => A.store.waiting || '' }
       ],
       more: [
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
-        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
+        { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
         { p: 'account', l: 'Account', i: 'lock' },
@@ -57,8 +57,8 @@
       more: [
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'centers', l: 'Centers', i: 'layers', c: () => A.store.centers.length },
-        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
+        { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
@@ -70,11 +70,11 @@
         { p: 'reports', l: 'Weekly report', i: 'clipboard' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
-        { p: 'center', l: 'Your center', i: 'layers' }
+        { p: 'center', l: 'Your zone', i: 'layers' }
       ],
       more: [
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'events', l: 'Center events', i: 'star' },
+        { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'subscriptions', l: 'Subscription', i: 'card' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
@@ -267,21 +267,6 @@
   /* =============================== AUTH ============================= */
   const CREDIT = '<div class="credit">Site developed by <b>Large Technologies</b></div>';
 
-  /* What the platform is for, in the applicant's own words. Shown on the
-     sign-in screen and again inside the guide. */
-  const DOES = [
-    'Manage documentation digitally.',
-    'Track attendance for trainings and meetings.',
-    'Conduct evaluations.',
-    'Monitor productivity and performance across every office.',
-    'Generate reports that help us make better decisions and measure our growth over time.'
-  ];
-  const tickList = (cls) => '<ul class="ticks ' + (cls || '') + '">'
-    + DOES.map(d => '<li>' + ico('check', 15) + '<span>' + esc(d) + '</span></li>').join('')
-    + '</ul>';
-  const WHAT_IT_DOES = '<div class="does"><div class="does-h">The platform lets us</div>'
-    + tickList() + '</div>';
-
   /* The mark on the card is deliberately still. Everything that moves is
      behind the glass, so the brand itself stays steady to read against. */
   const authShell = (inner) => '<div class="auth">' + U.backdrop3d()
@@ -315,7 +300,7 @@
         + '<span class="pick-d">You run an office. You file the weekly report and manage your own distributors.</span></button>'
         + '<button type="button" class="pick-o ' + (k === 'leader' ? 'on' : '') + '" data-act="pick" data-v="leader">'
         + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A director</span>'
-        + '<span class="pick-d">You oversee centers. You see every office and run the Wednesday evaluation.</span></button>'
+        + '<span class="pick-d">You oversee zones. You see every office and run the Wednesday evaluation.</span></button>'
         + '</div>'
         + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>');
       return;
@@ -364,10 +349,10 @@
         + '</form>');
       return;
     }
+    /* Nothing but the form. Anyone reaching this screen already knows
+       what the platform is; the pitch lives inside the guide. */
     r.innerHTML = authShell(
       '<h1 class="auth-h">Welcome back</h1>'
-      + '<p class="auth-s">Sign in and pick up where the week left off.</p>'
-      + WHAT_IT_DOES
       + '<form id="login-form">'
       + '<div class="field"><label for="li-email">Email address</label>'
       + '<input class="input" id="li-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -388,7 +373,7 @@
        whatever it asked for last time. */
     const kind = pick.read() || (me.req_kind === 'leader' ? 'leader' : 'office');
     const turned = me.req_status === 'declined';
-    const centers = kind === 'office' ? await A.join.publicCenters() : [];
+    const zones = kind === 'office' ? await A.join.publicCenters() : [];
 
     const mine = '<div class="field"><label for="ob-you">Your full name</label>'
       + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Femi Ademilua" value="'
@@ -397,13 +382,13 @@
       + '<input class="input" id="ob-phone" type="tel" required autocomplete="tel" placeholder="0803 000 0000" value="'
       + esc(me.phone || '') + '"></div>';
 
-    const officeFields = '<div class="field"><label for="ob-center">Which center do you report to?</label>'
-      + '<select class="select" id="ob-center" required>'
-      + (centers.length
-        ? centers.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
+    const officeFields = '<div class="field"><label for="ob-zone">Which zone do you report to?</label>'
+      + '<select class="select" id="ob-zone" required>'
+      + (zones.length
+        ? zones.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
           + esc(c.name) + '</option>').join('')
 
-        : '<option value="">No centers exist yet</option>') + '</select></div>'
+        : '<option value="">No zones exist yet</option>') + '</select></div>'
       + '<div class="field"><label for="ob-name">Office name</label>'
       + '<input class="input" id="ob-name" required placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
       + '<div class="field"><label for="ob-address">Office address</label>'
@@ -434,7 +419,7 @@
     const me = A.store.me;
     let what = 'a director';
     if (me.req_kind !== 'leader') {
-      /* A pending account has no lookups loaded, so name the center here. */
+      /* A pending account has no lookups loaded, so name the zone here. */
       const c = (await A.join.publicCenters()).find(x => x.id === me.req_center_id);
       what = 'the office <b>' + esc(me.req_office_name || '') + '</b>' + (c ? ' at ' + esc(c.name) : '');
     }
@@ -547,15 +532,15 @@
     e.preventDefault();
     const kind = $('#ob-form').dataset.kind || 'office';
     const btn = $('[data-act="do-request"]');
-    if (kind === 'office' && !val('#ob-center')) {
-      return toast('There are no centers yet. A director has to create one first.', 'no');
+    if (kind === 'office' && !val('#ob-zone')) {
+      return toast('There are no zones yet. A director has to create one first.', 'no');
     }
     busy(btn, true, 'Sending…');
     try {
       await A.join.request(kind, {
         fullName: val('#ob-you'),
         phone: val('#ob-phone'),
-        centerId: val('#ob-center'),
+        centerId: val('#ob-zone'),
         officeName: val('#ob-name'),
         address: val('#ob-address')
       });
@@ -630,9 +615,9 @@
     toast('Poster downloaded. Print it and put it at the door.');
   };
 
-  /* --- centers ----------------------------------------------------- */
-  const centerForm = (c) => '<div class="field"><label for="c-name">Center name</label>'
-    + '<input class="input" id="c-name" value="' + esc(c.name || '') + '" placeholder="Lagere Center"></div>'
+  /* --- zones ----------------------------------------------------- */
+  const centerForm = (c) => '<div class="field"><label for="c-name">Zone name</label>'
+    + '<input class="input" id="c-name" value="' + esc(c.name || '') + '" placeholder="Lagere Zone"></div>'
     + '<div class="field"><label for="c-address">Address</label>'
     + '<input class="input" id="c-address" value="' + esc(c.address || '') + '" placeholder="14 Ondo Road, Ile-Ife"></div>'
     + '<div class="two"><div class="field"><label for="c-leader">Director</label>'
@@ -640,13 +625,13 @@
     + '<div class="field"><label for="c-assistant">Assistant</label>'
     + '<input class="input" id="c-assistant" value="' + esc(c.assistant_name || '') + '"></div></div>';
 
-  ACT['center-new'] = () => modal('New center', 'Offices join a center, and the center evaluates them every Wednesday.',
+  ACT['center-new'] = () => modal('New zone', 'Offices join a zone, and the zone evaluates them every Wednesday.',
     centerForm({}), '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
-    + '<button class="btn btn-a btn-pop" data-act="center-save">Create center</button>');
+    + '<button class="btn btn-a btn-pop" data-act="center-save">Create zone</button>');
 
   ACT['center-edit'] = (el) => {
     const c = A.centerById(el.dataset.id) || {};
-    modal('Edit center', esc(c.name || ''), centerForm(c),
+    modal('Edit zone', esc(c.name || ''), centerForm(c),
       '<button class="btn btn-d left" data-act="center-del" data-id="' + c.id + '">Delete</button>'
       + '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
       + '<button class="btn btn-a btn-pop" data-act="center-save" data-id="' + c.id + '">Save</button>');
@@ -657,25 +642,25 @@
       name: val('#c-name'), address: val('#c-address'),
       leader_name: val('#c-leader'), assistant_name: val('#c-assistant')
     };
-    if (!row.name) return toast('A center needs a name.', 'no');
+    if (!row.name) return toast('A zone needs a name.', 'no');
     busy(el, true, 'Saving…');
     try {
       if (el.dataset.id) await A.centers.update(el.dataset.id, row);
       else await A.centers.create(row);
-      closeModal(); toast('Center saved.'); route();
+      closeModal(); toast('Zone saved.'); route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
   ACT['center-del'] = (el) => {
     state.pendingDelete = el.dataset.id;
-    U.confirmDialog('Delete this center?',
-      'You cannot delete a center that still has offices in it. This cannot be undone.',
-      'Delete center', 'center-del-yes', true);
+    U.confirmDialog('Delete this zone?',
+      'You cannot delete a zone that still has offices in it. This cannot be undone.',
+      'Delete zone', 'center-del-yes', true);
   };
 
   ACT['center-del-yes'] = async (el) => {
     busy(el, true, 'Deleting…');
-    try { await A.centers.remove(state.pendingDelete); closeModal(); toast('Center deleted.'); route(); }
+    try { await A.centers.remove(state.pendingDelete); closeModal(); toast('Zone deleted.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
@@ -794,12 +779,12 @@
 
   /* --- events ------------------------------------------------------ */
   ACT['event-new'] = () => {
-    const centers = A.isOffice() ? A.store.centers.filter(c => c.id === A.store.me.center_id) : A.store.centers;
-    modal('New center event', 'Anything outside the two weekly trainings.',
+    const zones = A.isOffice() ? A.store.centers.filter(c => c.id === A.store.me.center_id) : A.store.centers;
+    modal('New zone event', 'Anything outside the two weekly trainings.',
       '<div class="field"><label for="e-name">What is it called?</label>'
       + '<input class="input" id="e-name" placeholder="Cheque Rally"></div>'
-      + '<div class="field"><label for="e-center">Center</label><select class="select" id="e-center">'
-      + centers.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('') + '</select></div>'
+      + '<div class="field"><label for="e-zone">Zone</label><select class="select" id="e-zone">'
+      + zones.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join('') + '</select></div>'
       + '<div class="two"><div class="field"><label for="e-date">Date</label>'
       + '<input class="input" id="e-date" type="date" value="' + U.iso(new Date()) + '"></div>'
       + '<div class="field"><label for="e-time">Time</label>'
@@ -812,9 +797,9 @@
   };
 
   ACT['event-save'] = async (el) => {
-    const name = val('#e-name'), cid = val('#e-center'), date = val('#e-date');
+    const name = val('#e-name'), cid = val('#e-zone'), date = val('#e-date');
     if (!name) return toast('Give the event a name.', 'no');
-    if (!cid) return toast('Pick a center.', 'no');
+    if (!cid) return toast('Pick a zone.', 'no');
     busy(el, true, 'Creating…');
     try {
       const code = 'EV-' + String(name).replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()
@@ -856,7 +841,7 @@
       '<p class="card-s" style="margin-bottom:14px">They stay signed up and can send a new request. '
       + 'Tell them what to change.</p>'
       + '<div class="field"><label for="dq-why">Reason</label>'
-      + '<input class="input" id="dq-why" placeholder="That name is already taken in this center."></div>',
+      + '<input class="input" id="dq-why" placeholder="That name is already taken in this zone."></div>',
       '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
       + '<button class="btn btn-d" data-act="decline-req-yes">Turn it down</button>');
   };
