@@ -102,6 +102,11 @@ create table if not exists offices (
 );
 create index if not exists offices_center_idx on offices(center_id);
 
+-- Collected when the office signs up. start_size is the headcount it
+-- opened with; the weekly report tracks office_size from then on.
+alter table offices add column if not exists phone      text not null default '';
+alter table offices add column if not exists start_size integer not null default 0;
+
 -- ---------------------------------------------------------------------
 -- Profiles — one row per auth user
 -- ---------------------------------------------------------------------
@@ -116,16 +121,23 @@ create table if not exists profiles (
 );
 create index if not exists profiles_office_idx on profiles(office_id);
 
+alter table profiles add column if not exists phone text not null default '';
+
 -- The access request that sits on a profile until it is approved. These
 -- columns are only ever meaningful while role = 'pending'; approving
--- clears them and moves the account onto its real role.
+-- copies what it needs onto the new office and clears them.
 --   req_status  none | pending | declined
 --   req_kind    office | leader
+-- A leader fills in nothing beyond their name and phone, which live on
+-- the profile itself. Everything below is what an office has to give.
 alter table profiles add column if not exists req_status      text not null default 'none';
 alter table profiles add column if not exists req_kind        text;
 alter table profiles add column if not exists req_center_id   uuid references centers(id) on delete set null;
 alter table profiles add column if not exists req_office_name text;
 alter table profiles add column if not exists req_office_code text;
+alter table profiles add column if not exists req_area        text;
+alter table profiles add column if not exists req_address     text;
+alter table profiles add column if not exists req_size        integer;
 alter table profiles add column if not exists req_note        text not null default '';
 alter table profiles add column if not exists req_at          timestamptz;
 create index if not exists profiles_req_idx on profiles(req_status) where req_status <> 'none';
@@ -512,14 +524,20 @@ create policy payments_write on payments
 drop function if exists claim_office(text, text, text, uuid, text, text, text);
 drop function if exists claim_admin(text, text);
 drop function if exists check_join_code(text, text);
+drop function if exists submit_access_request(text, text, uuid, text, text);
 
--- Called by the applicant, on their own account, once.
+-- Called by the applicant, on their own account. An office has to give
+-- everything the office record needs; a leader gives a name and a phone.
 create or replace function submit_access_request(
   p_kind        text,
   p_full_name   text,
+  p_phone       text,
   p_center_id   uuid,
   p_office_name text,
-  p_office_code text
+  p_office_code text,
+  p_area        text,
+  p_address     text,
+  p_size        integer
 ) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_role user_role;
@@ -537,6 +555,9 @@ begin
   if coalesce(trim(p_full_name), '') = '' then
     raise exception 'Please give your name.';
   end if;
+  if coalesce(trim(p_phone), '') = '' then
+    raise exception 'Please give a phone number.';
+  end if;
 
   if p_kind = 'office' then
     if p_center_id is null then
@@ -547,6 +568,15 @@ begin
     end if;
     if coalesce(trim(p_office_code), '') = '' then
       raise exception 'Your office needs a short code.';
+    end if;
+    if coalesce(trim(p_area), '') = '' then
+      raise exception 'Say which area your office is in.';
+    end if;
+    if coalesce(trim(p_address), '') = '' then
+      raise exception 'Give the address of your office.';
+    end if;
+    if coalesce(p_size, 0) < 0 then
+      raise exception 'Office size cannot be negative.';
     end if;
     if exists (select 1 from offices where lower(code) = lower(trim(p_office_code))) then
       raise exception 'An office is already using the code %.', upper(trim(p_office_code));
@@ -560,10 +590,14 @@ begin
 
   update profiles set
     full_name       = trim(p_full_name),
+    phone           = trim(p_phone),
     req_kind        = p_kind,
     req_center_id   = case when p_kind = 'office' then p_center_id end,
     req_office_name = case when p_kind = 'office' then trim(p_office_name) end,
     req_office_code = case when p_kind = 'office' then upper(trim(p_office_code)) end,
+    req_area        = case when p_kind = 'office' then trim(p_area) end,
+    req_address     = case when p_kind = 'office' then trim(p_address) end,
+    req_size        = case when p_kind = 'office' then greatest(coalesce(p_size, 0), 0) end,
     req_status      = 'pending',
     req_note        = '',
     req_at          = now()
@@ -598,9 +632,12 @@ begin
       raise exception 'An office is already using the code %.', r.req_office_code;
     end if;
 
-    insert into offices (center_id, name, code, manager_name, email, area)
+    insert into offices (center_id, name, code, manager_name, email, phone,
+                         area, address, start_size)
     select r.req_center_id, r.req_office_name, upper(r.req_office_code),
-           r.full_name, r.email, coalesce(c.area, '')
+           r.full_name, r.email, r.phone,
+           coalesce(nullif(r.req_area, ''), c.area, ''),
+           coalesce(r.req_address, ''), coalesce(r.req_size, 0)
       from centers c where c.id = r.req_center_id
     returning id into v_office;
 
@@ -844,7 +881,7 @@ revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text)   from public;
 revoke all on function center_lookup(uuid)             from public;
 revoke all on function ensure_week_events_for(uuid, date) from public;
-revoke all on function submit_access_request(text, text, uuid, text, text) from public;
+revoke all on function submit_access_request(text, text, text, uuid, text, text, text, text, integer) from public;
 revoke all on function approve_access_request(uuid)    from public;
 revoke all on function decline_access_request(uuid, text) from public;
 grant execute on function scan_lookup(text)             to anon, authenticated;
@@ -852,7 +889,7 @@ grant execute on function record_scan(text, uuid, text) to anon, authenticated;
 grant execute on function center_lookup(uuid)           to anon, authenticated;
 grant execute on function ensure_week_events(date)      to authenticated;
 grant execute on function week_start(date)              to anon, authenticated;
-grant execute on function submit_access_request(text, text, uuid, text, text) to authenticated;
+grant execute on function submit_access_request(text, text, text, uuid, text, text, text, text, integer) to authenticated;
 grant execute on function approve_access_request(uuid)  to authenticated;
 grant execute on function decline_access_request(uuid, text) to authenticated;
 

@@ -895,10 +895,13 @@
     const asked = pending.filter(p => p.req_status === 'pending');
     const quiet = pending.filter(p => p.req_status !== 'pending');
     const wants = p => p.req_kind === 'leader'
-      ? tag('A leader', 't-gold')
-      : tag('An office', 't-ok') + '<div class="sub">' + esc(p.req_office_name || '—')
+      ? tag('Leader / Director', 't-gold')
+      : tag('An office', 't-ok')
+      + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
       + ' · <span class="mono">' + esc(p.req_office_code || '') + '</span>'
-      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>';
+      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no center') + '</div>'
+      + '<div class="sub">' + esc(p.req_area || '—') + ' · ' + esc(p.req_address || 'no address')
+      + (p.req_size ? ' · ' + p.req_size + ' to start' : '') + '</div>';
     return {
       title: 'Centers & admins',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Centers</div>'
@@ -919,7 +922,8 @@
           + '<div class="card-s">They have signed up and said what they are joining as. '
           + 'Approving an office creates it; nothing exists until you do.</div></div></div>'
           + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Asking to join as' }, { label: 'Asked' }, { label: '' }],
-            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
+            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '—')
+              + '<div class="sub">' + esc(p.phone || 'no phone') + '</div></td>'
               + '<td>' + esc(p.email) + '</td><td>' + wants(p) + '</td>'
               + '<td class="sub">' + esc(U.timeAgo(p.req_at || p.created_at)) + '</td>'
               + '<td class="num"><button class="btn btn-sm btn-d" data-act="decline-req" data-id="' + p.id + '"'
@@ -965,7 +969,9 @@
         + '<div class="two">'
         + '<div class="field"><label for="a-name">Full name</label>'
         + '<input class="input" id="a-name" value="' + esc(me.full_name || '') + '"></div>'
-        + '<div class="field"><label>Email</label><input class="input" value="' + esc(me.email) + '" disabled></div></div>'
+        + '<div class="field"><label for="a-phone">Phone</label>'
+        + '<input class="input" id="a-phone" type="tel" value="' + esc(me.phone || '') + '"></div></div>'
+        + '<div class="field"><label>Email</label><input class="input" value="' + esc(me.email) + '" disabled></div>'
         + '<div class="row"><span class="card-s">Role:</span> ' + tag(roleLabel[me.role] || me.role, 't-ok')
         + (me.office ? tag(me.office.name, 't-mute') : '') + '</div>'
         + '<div class="row" style="justify-content:flex-end;margin-top:14px">'
@@ -981,8 +987,10 @@
           + '<div class="two">'
           + '<div class="field"><label for="o-area">Area</label>'
           + '<input class="input" id="o-area" value="' + esc(me.office.area || '') + '"></div>'
+          + '<div class="field"><label for="o-phone">Office phone</label>'
+          + '<input class="input" id="o-phone" type="tel" value="' + esc(me.office.phone || '') + '"></div></div>'
           + '<div class="field"><label for="o-address">Address</label>'
-          + '<input class="input" id="o-address" value="' + esc(me.office.address || '') + '"></div></div>'
+          + '<input class="input" id="o-address" value="' + esc(me.office.address || '') + '"></div>'
           + '<div class="row" style="justify-content:flex-end">'
           + '<button class="btn btn-p" data-act="office-save">' + ico('check', 15) + 'Save office</button></div></div>' : '')
 

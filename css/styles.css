@@ -523,6 +523,25 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .tilt { transform-style: preserve-3d; }
 .tilt:hover { transform: perspective(900px) rotateX(2.5deg) rotateY(-3deg) translateY(-2px); }
 
+/* ===================== JOINING AS — THE FORK ========================= */
+.pick { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 4px 0 18px; }
+.pick-o {
+  border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--white);
+  padding: 18px 16px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 9px;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.pick-o:hover { transform: translateY(-2px); box-shadow: var(--pop-sm); background: var(--blue-tint); }
+.pick-o.on { background: var(--dark); color: #fff; box-shadow: var(--pop-sm); }
+.pick-o .pick-ic {
+  width: 40px; height: 40px; border-radius: 12px; background: var(--blue); color: #fff;
+  display: grid; place-items: center;
+}
+.pick-o .pick-t { font-weight: 600; font-size: 15px; }
+.pick-o .pick-d { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.pick-o.on .pick-d { color: #aeb6cd; }
+.pick-sm { margin: 0; }
+@media (max-width: 560px) { .pick { grid-template-columns: 1fr; } }
+
 /* ========================= REDUCED MOTION ============================ */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

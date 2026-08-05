@@ -54,12 +54,23 @@ invitation — there are no codes to hand out.
 
 Sign-up is open, and approval is the gate.
 
-1. Anyone creates an account with an email and a password.
-2. They say what they are joining as — an office (name, short code, which center) or a
-   leader — and that lands as a request.
-3. The Super Admin sees it under *Centers & leaders*, with a count in the sidebar, and
-   hits **Approve**. Approving an office is what creates it; nothing exists before that.
-4. Declining sends a reason back, and they can fix it and ask again.
+1. **They pick first.** An office, or a leader/director. The two need different things,
+   so the choice comes before anything is typed and only the right fields are ever shown.
+2. **They create the account** — an email and a password, nothing else on that screen.
+3. **They fill in their details,** which depend on the choice:
+
+   | | An office | A leader / director |
+   |---|---|---|
+   | Full name, phone | yes | yes |
+   | Which center | yes | – |
+   | Office name, short code | yes | – |
+   | Area, street address | yes | – |
+   | Distributors to start with | optional | – |
+
+4. **The Super Admin approves.** It shows under *Centers & leaders* with a count in the
+   sidebar. Approving an office is what creates it; nothing exists before that.
+5. Declining sends a reason back, and the form comes back pre-filled so they can fix it
+   and ask again.
 
 Until approval the account is `pending`. It has no navigation, no dashboard, and the row
 level security policies return nothing to it — not a report, not a distributor, not even

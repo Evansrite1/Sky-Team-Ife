@@ -176,16 +176,47 @@
   const RIGHT = art(
     'Every office, every week, <span class="hl">on one line</span>.',
     'One place for the week\'s numbers, who turned up, and how each office is doing.',
-    ['Create your account with an email and a password.',
-      'Tell us which center you belong to.',
-      'Your leader approves you, and you are in.']);
+    ['Say whether you are an office or a leader.',
+      'Create your account and fill in your details.',
+      'You are approved, and you are in.']);
+
+  /* Which of the two they picked on #/join. Kept for the hop through
+     account creation so the details form knows what to ask for. */
+  const pick = {
+    read() { try { return sessionStorage.getItem('sti-join') || ''; } catch (e) { return ''; } },
+    save(k) { try { sessionStorage.setItem('sti-join', k); } catch (e) { /* ignore */ } },
+    clear() { try { sessionStorage.removeItem('sti-join'); } catch (e) { /* ignore */ } }
+  };
+  const KIND_LABEL = { office: 'an office', leader: 'a leader' };
 
   function renderAuth(which) {
     const r = $('#root');
+    /* The fork. Nothing is asked for here but the choice itself — what
+       an office has to fill in and what a leader does barely overlap. */
+    if (which === 'join') {
+      const k = pick.read();
+      r.innerHTML = authShell(
+        '<h1 class="auth-h">How are you joining?</h1>'
+        + '<p class="auth-s">The two ask for different things, so pick first and we will only ask you for yours.</p>'
+        + '<div class="pick">'
+        + '<button type="button" class="pick-o ' + (k === 'office' ? 'on' : '') + '" data-act="pick" data-v="office">'
+        + '<span class="pick-ic">' + ico('building', 19) + '</span><span class="pick-t">An office</span>'
+        + '<span class="pick-d">You run an office. You file the weekly report and manage your own distributors.</span></button>'
+        + '<button type="button" class="pick-o ' + (k === 'leader' ? 'on' : '') + '" data-act="pick" data-v="leader">'
+        + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A leader or director</span>'
+        + '<span class="pick-d">You oversee centers. You see every office and run the Wednesday evaluation.</span></button>'
+        + '</div>'
+        + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>', RIGHT);
+      return;
+    }
     if (which === 'signup') {
+      const k = pick.read();
+      if (!k) { go('#/join'); return; }
       r.innerHTML = authShell(
         '<h1 class="auth-h">Create your account</h1>'
-        + '<p class="auth-s">An email and a password is all it takes. You will say who you are next.</p>'
+        + '<p class="auth-s">Joining as ' + KIND_LABEL[k] + '. '
+        + '<a href="#/join" style="text-decoration:underline">Not right?</a><br>'
+        + 'An email and a password to start — your details come next.</p>'
         + '<form id="signup-form">'
         + '<div class="field"><label for="su-email">Email</label>'
         + '<input class="input" id="su-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
@@ -230,7 +261,7 @@
       + '</form>'
       + '<div class="auth-alt"><a href="#/forgot">Forgot your password?</a></div>'
       + '<div class="divider">New here</div>'
-      + '<a class="btn btn-lg btn-block" href="#/signup">Create an account</a>', RIGHT);
+      + '<a class="btn btn-lg btn-block" href="#/join">Create an account</a>', RIGHT);
   }
 
   /* --------------------------------------------------- onboarding */
@@ -238,42 +269,49 @@
      it goes to the Super Admin, who approves it. */
   async function renderOnboard() {
     const me = A.store.me;
-    const centers = await A.join.publicCenters();
-    const kind = me.req_kind === 'leader' ? 'leader' : 'office';
-    const officeOn = kind === 'office';
+    /* The choice made on #/join wins; a returning account falls back to
+       whatever it asked for last time. */
+    const kind = pick.read() || (me.req_kind === 'leader' ? 'leader' : 'office');
     const turned = me.req_status === 'declined';
+    const centers = kind === 'office' ? await A.join.publicCenters() : [];
 
-    $('#root').innerHTML = authShell(
-      '<h1 class="auth-h">' + (turned ? 'Have another go' : 'Tell us who you are') + '</h1>'
-      + '<p class="auth-s">' + (turned
-        ? 'Your last request came back. Fix what is below and send it again.'
-        : 'Your leader approves this, and then your dashboard opens up.') + '</p>'
-      + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
-
-      + '<form id="ob-form" data-kind="' + kind + '">'
-      + '<div class="field"><label for="ob-you">Your name</label>'
+    const mine = '<div class="field"><label for="ob-you">Your full name</label>'
       + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Femi Ademilua" value="'
       + esc(me.full_name || '') + '"></div>'
+      + '<div class="field"><label for="ob-phone">Phone number</label>'
+      + '<input class="input" id="ob-phone" type="tel" required autocomplete="tel" placeholder="0803 000 0000" value="'
+      + esc(me.phone || '') + '"></div>';
 
-      + '<div class="field"><label>Joining as</label>'
-      + '<div class="seg" style="width:100%">'
-      + '<button type="button" style="flex:1" class="' + (officeOn ? 'on' : '') + '" data-act="ob-tab" data-v="office">An office</button>'
-      + '<button type="button" style="flex:1" class="' + (officeOn ? '' : 'on') + '" data-act="ob-tab" data-v="leader">A leader</button>'
-      + '</div></div>'
-
-      + '<div id="ob-office" class="' + (officeOn ? '' : 'hide') + '">'
-      + '<div class="field"><label for="ob-center">Which center?</label>'
-      + '<select class="select" id="ob-center">'
+    const officeFields = '<div class="field"><label for="ob-center">Which center do you report to?</label>'
+      + '<select class="select" id="ob-center" required>'
       + (centers.length
         ? centers.map(c => '<option value="' + c.id + '"' + (c.id === me.req_center_id ? ' selected' : '') + '>'
           + esc(c.name) + ' · ' + esc(c.area) + '</option>').join('')
         : '<option value="">No centers exist yet</option>') + '</select></div>'
       + '<div class="two"><div class="field"><label for="ob-name">Office name</label>'
-      + '<input class="input" id="ob-name" placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
+      + '<input class="input" id="ob-name" required placeholder="Lagere Office" value="' + esc(me.req_office_name || '') + '"></div>'
       + '<div class="field"><label for="ob-ocode">Short code</label>'
-      + '<input class="input mono" id="ob-ocode" placeholder="LG-01" value="' + esc(me.req_office_code || '') + '"></div></div>'
-      + '</div>'
+      + '<input class="input mono" id="ob-ocode" required placeholder="LG-01" value="' + esc(me.req_office_code || '') + '"></div></div>'
+      + '<div class="two"><div class="field"><label for="ob-area">Area</label>'
+      + '<input class="input" id="ob-area" required placeholder="Lagere" value="' + esc(me.req_area || '') + '"></div>'
+      + '<div class="field"><label for="ob-size">Distributors to start</label>'
+      + '<input class="input" id="ob-size" type="number" min="0" placeholder="0" value="'
+      + esc(me.req_size == null ? '' : String(me.req_size)) + '"></div></div>'
+      + '<div class="field"><label for="ob-address">Office address</label>'
+      + '<input class="input" id="ob-address" required placeholder="12 Ede Road, opposite the filling station" value="'
+      + esc(me.req_address || '') + '"></div>';
 
+    $('#root').innerHTML = authShell(
+      '<h1 class="auth-h">' + (turned ? 'Have another go' : kind === 'office' ? 'About your office' : 'About you') + '</h1>'
+      + '<p class="auth-s">' + (turned
+        ? 'Your last request came back. Fix what is below and send it again.'
+        : 'Joining as ' + KIND_LABEL[kind] + '. <a href="#" data-act="ob-switch" style="text-decoration:underline">Not right?</a>'
+        + ' Your leader approves this, and then your dashboard opens up.') + '</p>'
+      + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
+
+      + '<form id="ob-form" data-kind="' + kind + '">'
+      + mine
+      + (kind === 'office' ? officeFields : '')
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-request">'
       + (turned ? 'Send it again' : 'Ask to join') + '</button>'
       + '</form>'
@@ -375,12 +413,26 @@
 
   ACT['signout'] = async () => { await A.auth.signOut(); state.booted = true; go('#/login'); await route(); };
 
-  ACT['ob-tab'] = (el) => {
-    const v = el.dataset.v;
-    U.$$('[data-act="ob-tab"]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-    $('#ob-form').dataset.kind = v;
-    $('#ob-office').classList.toggle('hide', v !== 'office');
+  ACT['pick'] = (el) => { pick.save(el.dataset.v); go('#/signup'); };
+
+  /* Changing your mind after the account exists — back to the fork, but
+     the account stays, so #/join has to send them on to the details. */
+  ACT['ob-switch'] = (el, e) => {
+    e.preventDefault();
+    pick.clear();
+    modal('Joining as what?', '',
+      '<div class="pick pick-sm">'
+      + '<button type="button" class="pick-o" data-act="ob-switch-to" data-v="office">'
+      + '<span class="pick-ic">' + ico('building', 19) + '</span><span class="pick-t">An office</span>'
+      + '<span class="pick-d">Files the weekly report, runs its own distributors.</span></button>'
+      + '<button type="button" class="pick-o" data-act="ob-switch-to" data-v="leader">'
+      + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A leader or director</span>'
+      + '<span class="pick-d">Sees every office, runs the Wednesday evaluation.</span></button>'
+      + '</div>',
+      '<button class="btn btn-g" data-act="modal-close">Cancel</button>');
   };
+
+  ACT['ob-switch-to'] = (el) => { pick.save(el.dataset.v); closeModal(); route(); };
 
   ACT['do-request'] = async (el, e) => {
     e.preventDefault();
@@ -393,10 +445,15 @@
     try {
       await A.join.request(kind, {
         fullName: val('#ob-you'),
+        phone: val('#ob-phone'),
         centerId: val('#ob-center'),
         officeName: val('#ob-name'),
-        officeCode: val('#ob-ocode')
+        officeCode: val('#ob-ocode'),
+        area: val('#ob-area'),
+        address: val('#ob-address'),
+        size: val('#ob-size')
       });
+      pick.clear();
       state.editRequest = false;
       await boot(true);
       await route();
@@ -690,7 +747,8 @@
   ACT['name-save'] = async (el) => {
     busy(el, true, 'Saving…');
     try {
-      await A.sb.from('profiles').update({ full_name: val('#a-name') }).eq('id', A.store.me.id);
+      await A.sb.from('profiles')
+        .update({ full_name: val('#a-name'), phone: val('#a-phone') }).eq('id', A.store.me.id);
       await A.loadMe(); busy(el, false); toast('Saved.'); route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
@@ -698,7 +756,7 @@
     busy(el, true, 'Saving…');
     try {
       await A.offices.update(A.store.me.office_id, {
-        name: val('#o-name'), manager_name: val('#o-manager'),
+        name: val('#o-name'), manager_name: val('#o-manager'), phone: val('#o-phone'),
         area: val('#o-area'), address: val('#o-address')
       });
       busy(el, false); toast('Office saved.'); route();

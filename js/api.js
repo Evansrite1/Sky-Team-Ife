@@ -287,12 +287,17 @@
     /* What a new account asks for. Nothing is created here — the row just
        goes on their own profile and waits for the Super Admin. */
     async request(kind, payload) {
+      const office = kind === 'office';
       const { error } = await sb.rpc('submit_access_request', {
         p_kind: kind,
         p_full_name: payload.fullName,
-        p_center_id: kind === 'office' ? payload.centerId : null,
-        p_office_name: kind === 'office' ? payload.officeName : null,
-        p_office_code: kind === 'office' ? payload.officeCode : null
+        p_phone: payload.phone,
+        p_center_id: office ? payload.centerId : null,
+        p_office_name: office ? payload.officeName : null,
+        p_office_code: office ? payload.officeCode : null,
+        p_area: office ? payload.area : null,
+        p_address: office ? payload.address : null,
+        p_size: office ? (parseInt(payload.size, 10) || 0) : null
       });
       if (error) throw new Error(error.message);
     },
