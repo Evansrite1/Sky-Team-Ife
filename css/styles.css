@@ -912,6 +912,30 @@ html.standalone .inst { display: none; }
 .step-d b { color: var(--ink); font-weight: 600; }
 .card-dark .ticks li { color: rgba(255,255,255,.86); }
 
+/* ============= SCAN — THE ZONE TABLE, AFTER SIGNING IN =============== */
+.rank-wrap { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+.rank-h {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  font-size: 14px; font-weight: 600; margin-bottom: 10px;
+}
+.rank-h span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.rank li {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 12px; border-radius: var(--r); background: var(--grey);
+  border: 1px solid transparent;
+}
+.rank li.me { background: var(--blue-tint); border-color: var(--blue); }
+.rank-n {
+  flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2);
+  color: var(--muted); font-size: 11.5px; font-weight: 700; display: grid; place-items: center;
+}
+.rank li.me .rank-n { background: var(--blue); color: #fff; }
+.rank-o { flex: 1; font-size: 13.5px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.rank-o i { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--blue); margin-left: 7px; }
+.rank-v { flex: none; text-align: right; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+.rank-v em { display: block; font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--muted); }
+
 /* ================= SCAN — CONFIRMING IT IS YOU ======================= */
 .who { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
 .who-av {

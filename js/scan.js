@@ -10,7 +10,7 @@
   const { esc, ico } = U;
   const root = document.getElementById('root');
 
-  const S = { step: 'load', code: '', data: null, office: null, dist: null, q: '', error: '', center: null };
+  const S = { step: 'load', code: '', data: null, office: null, dist: null, q: '', error: '', center: null, result: null };
 
   /* One stable id per handset, so the same phone cannot sign two people
      in. It is written to three places that heal each other: clearing any
@@ -159,8 +159,9 @@
         + '<div class="card-t" style="font-size:20px">You are in, ' + esc(String(S.dist.name).split(' ')[0]) + '</div>'
         + '<div class="card-s" style="margin-top:6px">' + esc(S.data.event.name) + ' · ' + esc(S.data.center.name) + '</div>'
         + '<div class="card-s">' + esc(U.fullDate(S.data.event.date)) + ' · ' + esc(S.data.event.time) + '</div>'
-        + '<div style="margin-top:18px">' + U.tag('Attendance recorded', 't-ok') + '</div>'
-        + '<p class="card-s" style="margin-top:18px">You can close this page.</p></div>');
+        + '<div style="margin-top:18px">' + U.tag('Attendance recorded', 't-ok') + '</div></div>'
+        + ranking()
+        + '<p class="card-s" style="margin-top:18px;text-align:center">You can close this page.</p>');
       return;
     }
 
@@ -172,6 +173,25 @@
         + '<div class="card-s" style="margin:8px auto 0;max-width:300px">' + esc(S.error) + '</div>'
         + '<button class="btn btn-block btn-lg" id="s-again" style="margin-top:20px">Try again</button></div>');
     }
+  }
+
+  /* The zone's table for the week, shown once someone is signed in and
+     shown as a table only. Nothing here is a link and nothing here is a
+     button: this is the end of the road for the scan page. */
+  function ranking() {
+    const rows = (S.result && S.result.ranking) || [];
+    if (!rows.length) return '';
+    return '<div class="rank-wrap">'
+      + '<div class="rank-h">' + esc((S.result && S.result.center) || 'Your zone')
+      + '<span>this week</span></div>'
+      + '<ol class="rank">'
+      + rows.map((r, i) => '<li class="' + (r.mine ? 'me' : '') + '">'
+        + '<span class="rank-n">' + (i + 1) + '</span>'
+        + '<span class="rank-o">' + esc(r.name) + (r.mine ? '<i>you</i>' : '') + '</span>'
+        + '<span class="rank-v">' + (r.filed ? U.usdFull(r.amount) : '—')
+        + '<em>' + (r.filed ? r.orders + (r.orders === 1 ? ' order' : ' orders') : 'not filed') + '</em>'
+        + '</span></li>').join('')
+      + '</ol></div>';
   }
 
   const header = (e, c) => '<div class="card-h"><div>'
@@ -227,7 +247,7 @@
         p_code: S.code, p_distributor: S.dist.id, p_device: deviceId(), p_phone: phone || ''
       });
       if (error) throw new Error(error.message);
-      if (data && data.ok) { S.step = 'done'; S.error = ''; return paint(); }
+      if (data && data.ok) { S.result = data; S.step = 'done'; S.error = ''; return paint(); }
       /* A wrong number or a missing one is worth another go; anything
          else — closed session, already in, wrong zone — is final. */
       S.error = (data && data.error) || 'We could not scan you in.';

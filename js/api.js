@@ -355,6 +355,29 @@
     }
   };
 
+  /* --------------------------------------------------------- realtime */
+  /* One channel for the whole app. Postgres tells us a row moved, we tell
+     the router, and it repaints whatever page is open. Row level security
+     applies to the stream too, so nobody is told about a row they could
+     not have read in the first place. */
+  let live = null;
+  function watch(onChange) {
+    if (!sb || live) return;
+    const tables = ['reports', 'offices', 'centers', 'distributors',
+      'events', 'scans', 'profiles', 'subscriptions'];
+    live = sb.channel('sti-live');
+    tables.forEach(t => {
+      live.on('postgres_changes', { event: '*', schema: 'public', table: t },
+        (p) => onChange(t, p));
+    });
+    live.subscribe();
+  }
+  function unwatch() {
+    if (!sb || !live) return;
+    sb.removeChannel(live);
+    live = null;
+  }
+
   /* ------------------------------------------------------------- join */
   const join = {
     /* What a new account asks for. Nothing is created here — the row just
@@ -381,6 +404,6 @@
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
-    people, settings, billing, join
+    people, settings, billing, join, watch, unwatch
   };
 })();

@@ -85,6 +85,15 @@
     const top = ranked.find(r => !r.missing);
     const missing = ranked.filter(r => r.missing);
 
+    /* Who never filed the week behind this one. Only worth showing while
+       standing in the current week — scrolling back through history, the
+       answer is always "everyone" and it means nothing. */
+    const lastWk = U.iso(U.addDays(U.weekStart(), -7));
+    const lastReps = ws === U.weekStart() ? await A.reports.list({ week: lastWk }) : [];
+    const lastMissing = ws === U.weekStart()
+      ? offices.filter(o => !lastReps.some(r => r.office_id === o.id))
+      : [];
+
     const series = hist.map(w => ({
       l: 'W' + U.isoWeekNo(w),
       v: sumBy(histReps.filter(r => r.week_start === w), r => r.amount)
@@ -136,12 +145,27 @@
         + (missing.length ? '<div class="card" style="margin-top:18px">'
           + '<div class="card-h"><div><div class="card-t">Still to file · ' + missing.length + '</div>'
           + '<div class="card-s">' + evalLine(ws) + '</div></div></div>'
-          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: '' }],
+          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Phone' }, { label: '' }],
             missing.map(r => '<tr class="click" data-href="' + link('offices', r.office.id) + '">'
               + '<td class="nm">' + esc(r.office.name) + '</td>'
               + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
               + '<td>' + esc(r.office.manager_name || '—') + '</td>'
+              + '<td class="sub">' + esc(r.office.phone || '—') + '</td>'
               + '<td class="num">' + tag('Not filed', 't-warn') + '</td></tr>'))
+          + '</div>' : '')
+
+        /* Last week matters more than this one: it is about to be locked
+           and after that nobody can put it right. */
+        + (lastMissing.length ? '<div class="card">'
+          + '<div class="card-h"><div><div class="card-t">Last week never came in · ' + lastMissing.length + '</div>'
+          + '<div class="card-s">' + esc(U.weekRange(lastWk)) + '. These offices can still file it '
+          + 'until the week now running closes, and not after.</div></div></div>'
+          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Phone' }],
+            lastMissing.map(o => '<tr class="click" data-href="' + link('offices', o.id) + '">'
+              + '<td class="nm">' + esc(o.name) + '</td>'
+              + '<td>' + esc((A.centerById(o.center_id) || {}).name || '—') + '</td>'
+              + '<td>' + esc(o.manager_name || '—') + '</td>'
+              + '<td class="sub">' + esc(o.phone || '—') + '</td></tr>'))
           + '</div>' : '')
     };
   }
@@ -171,7 +195,19 @@
       title: 'Dashboard', picker: 'week',
       crumbs: esc(off.name + ' · ' + ((A.centerById(off.center_id) || {}).name || '')),
       html:
-        (!mine && !U.weekClosed(ws) ? note('gold', 'alert',
+        /* Last week first: it is the one about to be locked, and a late
+           joiner would otherwise never learn they could still file it. */
+        ((() => {
+          const lastWk = U.iso(U.addDays(U.weekStart(), -7));
+          if (prevMine || ws !== U.weekStart()) return '';
+          return note('warn', 'alert',
+            '<b>Last week is missing.</b> ' + esc(U.weekRange(lastWk))
+            + ' has no report, and once the week now running closes it can no longer be filed. '
+            + '<a href="#" data-act="go-week" data-v="' + lastWk
+            + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
+            + '<div style="height:18px"></div>';
+        })())
+        + (!mine && !U.weekClosed(ws) ? note('gold', 'alert',
           '<b>Your ' + esc(U.weekName(ws)) + ' report is not in.</b> ' + evalLine(ws)
           + ' <a href="' + link('reports') + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
           + '<div style="height:18px"></div>' : '')
@@ -619,16 +655,42 @@
     S().form = { niches, newNiches };
 
     const closed = U.weekClosed(ws);
+    /* This week and the one behind it. Anything older is read only: the
+       evaluation has been held and the numbers have been reported on, so
+       rewriting them after the fact would change a record people have
+       already acted on. */
+    const thisWk = U.weekStart();
+    const lastWk = U.iso(U.addDays(thisWk, -7));
+    const openToFile = ws === thisWk || ws === lastWk;
+    const lastFiled = all.some(r => r.week_start === lastWk);
+
     return {
       title: 'Weekly report', picker: 'week', crumbs: esc(U.weekLabel(ws)),
-      html: '<div class="card"><div class="card-h"><div>'
+      html:
+        /* The nudge, wherever they are in the picker. */
+        (!lastFiled && ws !== lastWk
+          ? note('warn', 'alert', '<b>Last week is still not filed.</b> '
+            + esc(U.weekRange(lastWk)) + ' is missing, and this is the last week you can '
+            + 'still fill it in. <a href="' + link('reports') + '" data-act="go-week" data-v="' + lastWk
+            + '" style="text-decoration:underline">Fill it now</a>.') + '<div style="height:16px"></div>'
+          : '')
+
+        + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + esc(U.weekName(ws)) + ' · ' + esc(U.weekRange(ws)) + '</div>'
         + '<div class="card-s">' + evalLine(ws) + '</div></div>'
         + '<div class="card-a">' + (mine ? tag('Filed ' + U.timeAgo(mine.submitted_at), 't-ok') : tag('Not filed', 't-warn')) + '</div></div>'
 
-        + (closed && !mine ? note('warn', 'alert', 'This week has closed. Anything filed now is late, and the evaluation has already been read.') + '<div style="height:16px"></div>' : '')
+        + (!openToFile
+          ? note('info', 'lock', '<b>This week is closed for filing.</b> '
+            + 'Its evaluation has been held. You can still fill in <a href="#" data-act="go-week" data-v="'
+            + lastWk + '" style="text-decoration:underline">' + esc(U.weekRange(lastWk)) + '</a> '
+            + 'and the week running now.')
+          : (ws === lastWk && !mine
+            ? note('warn', 'alert', '<b>This is last week, and it is your last chance to file it.</b> '
+              + 'Once the week now running closes, this one is locked.') + '<div style="height:16px"></div>'
+            : ''))
 
-        + '<form id="report-form">'
+        + (openToFile ? '<form id="report-form">' : '<div class="ro-form" aria-disabled="true">')
         + '<div class="two">'
         + '<div class="field"><label for="f-orders">Number of orders gotten</label>'
         + '<input class="input" id="f-orders" type="number" min="0" step="1" required value="' + (mine ? mine.orders : '') + '" placeholder="0"></div>'
@@ -667,10 +729,13 @@
         + '<textarea class="input" id="f-issues" placeholder="Anything the zone should hear at the evaluation. Write “No major blockers” if the week ran clean.">'
         + esc(mine ? mine.issues : '') + '</textarea></div>'
 
-        + '<div class="row" style="justify-content:flex-end">'
-        + '<button type="submit" class="btn btn-a btn-pop btn-lg" data-act="report-save">'
-        + ico('check', 16) + (mine ? 'Update the report' : 'File the report') + '</button></div>'
-        + '</form></div>'
+        + (openToFile
+          ? '<div class="row" style="justify-content:flex-end">'
+          + '<button type="submit" class="btn btn-a btn-pop btn-lg" data-act="report-save">'
+          + ico('check', 16) + (mine ? 'Update the report' : 'File the report') + '</button></div>'
+          + '</form>'
+          : '</div>')
+        + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Everything you have filed</div>'
         + '<div class="card-s">' + all.length + ' report' + (all.length === 1 ? '' : 's') + ', newest first.</div></div></div>'

@@ -868,6 +868,7 @@ declare
   v_typed text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
   v_have  text;
   v_bad   integer;
+  v_rank  jsonb;
 begin
   select * into v_event from events where upper(code) = upper(trim(p_code));
   if v_event is null then
@@ -939,7 +940,32 @@ begin
   insert into scans (event_id, distributor_id, office_id, device_id, status)
   values (v_event.id, p_distributor, v_dist.office_id, p_device, 'accepted');
 
-  return jsonb_build_object('ok', true, 'name', v_dist.full_name, 'event', v_event.name);
+  /* The zone's table for the week the session sits in, handed back with
+     the receipt. It rides on a successful scan rather than living in a
+     function of its own, so the only way to see these numbers is to be
+     on the list and know the last four digits of your own phone. */
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.amount desc, x.orders desc, x.name), '[]'::jsonb)
+    into v_rank
+    from (
+      select o.id,
+             o.name,
+             (o.id = v_dist.office_id)      as mine,
+             coalesce(r.orders, 0)::int     as orders,
+             coalesce(r.amount, 0)::numeric as amount,
+             (r.id is not null)             as filed
+        from offices o
+        left join reports r
+               on r.office_id = o.id
+              and r.week_start = week_start(v_event.event_date)
+       where o.center_id = v_event.center_id and o.active
+    ) x;
+
+  return jsonb_build_object(
+    'ok', true, 'name', v_dist.full_name, 'event', v_event.name,
+    'office', (select name from offices where id = v_dist.office_id),
+    'center', (select name from centers where id = v_event.center_id),
+    'week', week_start(v_event.event_date),
+    'ranking', v_rank);
 end $$;
 
 -- One QR per center. It opens the scan page with the center id, this
@@ -1096,6 +1122,37 @@ grant execute on function my_office_locked()            to authenticated;
 grant execute on function submit_access_request(text, text, text, uuid, text, text) to authenticated;
 grant execute on function approve_access_request(uuid)  to authenticated;
 grant execute on function decline_access_request(uuid, text) to authenticated;
+
+-- =====================================================================
+-- Realtime
+-- ---------------------------------------------------------------------
+-- Postgres broadcasts changes on these tables and the app refreshes the
+-- page being looked at. Row level security still applies to the stream,
+-- so an office is only told about rows it could have read anyway.
+-- =====================================================================
+do $$
+declare t text;
+begin
+  foreach t in array array['reports','offices','centers','distributors',
+                           'events','scans','profiles','subscriptions']
+  loop
+    if to_regclass('public.' || t) is not null
+       and not exists (select 1 from pg_publication_tables
+                        where pubname = 'supabase_realtime'
+                          and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+exception when undefined_object then
+  raise notice 'supabase_realtime publication missing — skipping realtime setup';
+end $$;
+
+-- Without a full replica identity a delete arrives carrying nothing but
+-- the primary key, so the app cannot tell which row left.
+alter table reports      replica identity full;
+alter table offices      replica identity full;
+alter table distributors replica identity full;
+alter table events       replica identity full;
 
 -- The sign-up screen has to list centers before the user has a role.
 drop policy if exists centers_public_read on centers;

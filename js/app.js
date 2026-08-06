@@ -523,7 +523,11 @@
     } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
-  ACT['signout'] = async () => { await A.auth.signOut(); state.booted = true; go('#/login'); await route(); };
+  ACT['signout'] = async () => {
+    A.unwatch();
+    await A.auth.signOut();
+    state.booted = true; go('#/login'); await route();
+  };
 
   ACT['pick'] = (el) => { pick.save(el.dataset.v); go('#/signup'); };
 
@@ -988,6 +992,15 @@
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
   });
 
+  /* Jump the week picker straight to a given week. */
+  ACT['go-week'] = (el, e) => {
+    e.preventDefault();
+    state.week = el.dataset.v;
+    state.form = {};
+    go('#/reports');
+    route();
+  };
+
   let searchTimer = null;
   document.addEventListener('input', (e) => {
     const el = e.target.closest('[data-act]');
@@ -1043,11 +1056,39 @@
   window.addEventListener('hashchange', route);
 
   /* =============================== BOOT ============================= */
+  /* Live updates. A change lands, and the page being looked at repaints
+     itself. Coalesced on a short timer because one action often moves
+     several rows — approving an office writes an office and a profile —
+     and each of those would otherwise be a separate reload.
+
+     Anything the lookups hold (offices, zones, counts) is refetched
+     first; everything else the view will pull for itself on render. */
+  let liveTimer = null, liveNeedsLookups = false;
+  const LOOKUP_TABLES = ['offices', 'centers', 'profiles', 'subscriptions'];
+
+  function startLive() {
+    A.watch((table) => {
+      if (LOOKUP_TABLES.indexOf(table) > -1) liveNeedsLookups = true;
+      clearTimeout(liveTimer);
+      liveTimer = setTimeout(async () => {
+        /* Never yank the page out from under someone mid-edit. */
+        if ($('#modal').innerHTML) return;
+        const el = document.activeElement;
+        if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+        try {
+          if (liveNeedsLookups) { await A.loadLookups(); liveNeedsLookups = false; }
+          await route();
+        } catch (e) { /* a failed refresh must not break the page */ }
+      }, 450);
+    });
+  }
+
   async function boot(silent) {
     if (!window.CONFIG.ready || !A.ready) { state.booted = true; renderSetup(); return; }
     try {
       const me = await A.loadMe();
-      if (me && me.role !== 'pending') await A.loadLookups();
+      if (me && me.role !== 'pending') { await A.loadLookups(); startLive(); }
+      else A.unwatch();
       state.booted = true;
       if (!silent) await route();
     } catch (err) {
