@@ -1103,6 +1103,60 @@ end $$;
 revoke all on function delete_office(uuid)             from public;
 grant execute on function delete_office(uuid)           to authenticated;
 
+-- ---------------------------------------------------------------------
+-- Marking someone in by hand
+-- ---------------------------------------------------------------------
+-- Not everyone owns a phone, and the scan flow assumes one. A Director
+-- or the Super Admin can put a distributor on the list themselves, at
+-- any session in any zone. It is written with the reason set so it can
+-- always be told apart from a scan the person made for themselves, and
+-- with no device id, so it never blocks a real handset later.
+-- ---------------------------------------------------------------------
+create or replace function mark_present(p_event uuid, p_distributor uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_event record;
+  v_dist  record;
+begin
+  if not is_admin() then
+    raise exception 'Only a Director or the Super Admin can mark attendance.';
+  end if;
+
+  select * into v_event from events where id = p_event;
+  if not found then
+    raise exception 'No such session.';
+  end if;
+
+  select * into v_dist from distributors where id = p_distributor and active;
+  if not found then
+    raise exception 'No such distributor.';
+  end if;
+  if v_dist.center_id <> v_event.center_id then
+    raise exception 'They belong to a different zone.';
+  end if;
+  if v_event.elig = 'sm' and v_dist.status = 'Distributor' then
+    raise exception 'This session is for Senior Managers and above.';
+  end if;
+
+  if exists (select 1 from scans
+              where event_id = p_event and distributor_id = p_distributor
+                and status = 'accepted') then
+    return jsonb_build_object('ok', false, 'error', 'They are already on the list.');
+  end if;
+
+  insert into scans (event_id, distributor_id, office_id, device_id, status, reason)
+  values (p_event, p_distributor, v_dist.office_id, '', 'accepted',
+          'Marked present by ' || coalesce(
+            (select nullif(full_name, '') from profiles where id = auth.uid()),
+            (select email from profiles where id = auth.uid()), 'an admin'));
+
+  return jsonb_build_object('ok', true, 'name', v_dist.full_name);
+end $$;
+
+revoke all on function mark_present(uuid, uuid)        from public;
+grant execute on function mark_present(uuid, uuid)      to authenticated;
+
 revoke all on function scan_lookup(text)               from public;
 revoke all on function record_scan(text, uuid, text, text) from public;
 revoke all on function center_lookup(uuid)             from public;

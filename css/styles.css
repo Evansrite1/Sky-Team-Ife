@@ -505,7 +505,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   min-height: 100vh; min-height: 100dvh; position: relative; overflow: hidden;
   display: grid; place-items: center;
   padding: calc(34px + var(--safe-t)) 18px calc(30px + var(--safe-b));
-  background: #05091a;
+  background: var(--void);
 }
 .auth-mid {
   position: relative; z-index: 3; width: 100%; max-width: 428px;
@@ -735,19 +735,6 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   }
   .tab:active { color: var(--blue); }
 
-  /* The install invitation, just above the tabs. */
-  .inst {
-    position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabh) + var(--safe-b) + 12px);
-    z-index: 75; display: flex; align-items: center; gap: 11px;
-    background: var(--dark); color: #fff; border-radius: var(--r-lg);
-    padding: 12px 12px 12px 14px; box-shadow: 0 12px 34px rgba(13,27,61,.34);
-    animation: rise .4s cubic-bezier(.22,.9,.3,1) both .6s;
-  }
-  .inst-ic { color: #fff; flex: none; }
-  .inst-t { flex: 1; display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
-  .inst-t b { font-size: 13.5px; font-weight: 600; }
-  .inst-t span { font-size: 11.5px; color: #aeb6cd; }
-  .inst-x { border: 0; background: none; color: #7e88a3; padding: 4px; cursor: pointer; flex: none; }
 
   /* A card header is a title and an action side by side. At this width
      they do not fit, so the action drops underneath. */
@@ -982,3 +969,177 @@ html.standalone .inst { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* =====================================================================
+   THE INSTALL INVITATION
+   ---------------------------------------------------------------------
+   Fixed, always, in every theme and at every width. It used to be
+   position:fixed only inside the phone media query, so on a laptop it
+   fell back to being a flex child of .shell, sat in the row next to the
+   sidebar and the main column, and squeezed the page. Nothing about it
+   may touch layout: it is fixed, it is out of flow, and the only thing
+   below it is the tab bar it clears.
+
+   app.js only renders it on a real handheld, so a laptop never sees it
+   at all. These rules exist so that if it ever does render, it cannot
+   push anything about.
+   ===================================================================== */
+.inst {
+  position: fixed;
+  left: 12px; right: 12px;
+  bottom: calc(var(--tabh, 0px) + var(--safe-b, 0px) + 12px);
+  z-index: 90;
+  display: flex; align-items: center; gap: 12px;
+  max-width: 520px; margin: 0 auto;
+  background: var(--dark); color: #fff;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: var(--r-lg);
+  padding: 12px 12px 12px 14px;
+  box-shadow: 0 18px 44px rgba(0,0,0,.42);
+  animation: rise .4s cubic-bezier(.22,.9,.3,1) both .6s;
+}
+.inst-ic { color: #fff; flex: none; }
+.inst-t { flex: 1; display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.inst-t b { font-size: 13.5px; font-weight: 600; }
+.inst-t span { font-size: 11.5px; color: #b7c0d6; }
+/* The dismiss used to be grey on navy and effectively invisible. It is a
+   filled circle now, with a border, so it can always be found. */
+.inst-x {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  border: 1px solid rgba(255,255,255,.24); border-radius: 50%;
+  background: rgba(255,255,255,.12); color: #fff; cursor: pointer;
+  transition: background .14s ease;
+}
+.inst-x:hover { background: rgba(255,255,255,.24); }
+html.standalone .inst { display: none; }
+
+/* =====================================================================
+   LIGHT MODE CORRECTIONS
+   ---------------------------------------------------------------------
+   Everything below was written for a dark base and has to be said again
+   for light: white text, translucent white fills and white hairlines all
+   vanish on a pale background. The sidebar and the install bar stay dark
+   in both themes by design, so they are deliberately left alone.
+   ===================================================================== */
+:root[data-theme="light"] {
+  /* The signed-out screens are a card on a tinted page rather than glass
+     over a dark field, so the card needs a real surface. */
+  --auth-card-bg: #ffffff;
+  --auth-card-line: #dfe5f0;
+  --auth-ink: #0f1729;
+  --auth-muted: #5b6478;
+}
+
+:root[data-theme="light"] .auth-card {
+  background: var(--auth-card-bg);
+  border-color: var(--auth-card-line);
+  color: var(--auth-ink);
+  box-shadow: 0 24px 60px rgba(16,28,60,.12);
+}
+/* The sheen is a white gradient meant to catch light on dark glass. On
+   white it is invisible at best and a smear at worst. */
+:root[data-theme="light"] .auth-card::before { display: none; }
+:root[data-theme="light"] .auth-h { color: var(--auth-ink); }
+:root[data-theme="light"] .auth-s { color: var(--auth-muted); }
+:root[data-theme="light"] .auth-brand { color: var(--auth-muted); }
+:root[data-theme="light"] .auth-brand .mark { color: var(--blue); }
+:root[data-theme="light"] .auth-card label { color: var(--auth-muted); }
+:root[data-theme="light"] .auth-card .input,
+:root[data-theme="light"] .auth-card .select {
+  background: #f7f9fd; border-color: #d9e0ee; color: var(--auth-ink);
+}
+:root[data-theme="light"] .auth-card .input::placeholder { color: #98a1b5; }
+:root[data-theme="light"] .auth-card .input:focus,
+:root[data-theme="light"] .auth-card .select:focus {
+  background: #fff; border-color: var(--blue);
+}
+:root[data-theme="light"] .auth-alt,
+:root[data-theme="light"] .auth-row { color: var(--auth-muted); }
+:root[data-theme="light"] .credit { color: #7c869c; }
+
+/* Chart gridlines were a white wash; on paper they have to be ink. */
+:root[data-theme="light"] .chart .gl { stroke: rgba(15,23,41,.10); }
+:root[data-theme="light"] .chart text { fill: var(--muted); }
+
+/* A ghost button's hover was a white film, which does nothing on white. */
+:root[data-theme="light"] .btn-g:hover { background: rgba(15,23,41,.05); }
+:root[data-theme="light"] .btn-d { background: #fff; }
+
+/* Panels that sat on the dark base and borrowed its translucency. */
+:root[data-theme="light"] .mo-c { background: #fff; border-color: var(--line); }
+:root[data-theme="light"] .mo { background: rgba(15,23,41,.42); }
+:root[data-theme="light"] .toast { background: var(--dark); color: #fff; }
+:root[data-theme="light"] .scan-card { background: #fff; }
+:root[data-theme="light"] .empty-d { color: var(--muted); }
+
+/* The rank pills and the zone table on the scan receipt. */
+:root[data-theme="light"] .rank li { background: #f6f8fc; }
+:root[data-theme="light"] .rank-n { background: #e7ecf6; color: var(--muted); }
+
+/* The one on the picker that turns white text onto a white field. */
+:root[data-theme="light"] .wk select { background: #fff; color: var(--ink); border-color: var(--line); }
+:root[data-theme="light"] .tb { background: rgba(255,255,255,.92); }
+
+/* =====================================================================
+   THE WALKTHROUGH
+   ---------------------------------------------------------------------
+   Seven cards on first sign-in. It sits over the app rather than
+   replacing it, and lights up the sidebar item each step is about, so
+   the words always have the thing they describe next to them.
+   ===================================================================== */
+.tour {
+  position: fixed; inset: 0; z-index: 120;
+  display: grid; place-items: center; padding: 20px;
+  background: rgba(5,9,26,.72);
+  animation: fade .2s ease;
+}
+:root[data-theme="light"] .tour { background: rgba(15,23,41,.5); }
+.tour-c {
+  width: 100%; max-width: 430px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: 22px 24px 20px; box-shadow: var(--pop);
+  animation: rise .34s cubic-bezier(.22,.9,.3,1) both;
+}
+:root[data-theme="light"] .tour-c { background: #fff; }
+.tour-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.tour-mk { color: var(--blue); display: grid; place-items: center; }
+.tour-x {
+  width: 32px; height: 32px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: var(--grey); color: var(--muted); cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+.tour-x:hover { background: var(--grey-2); color: var(--ink); }
+.tour-n {
+  font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--blue); font-weight: 700; margin-bottom: 7px;
+}
+.tour-t { font-size: 21px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 9px; }
+.tour-d { font-size: 14px; line-height: 1.6; color: var(--muted); }
+.tour-dots { display: flex; gap: 6px; margin: 20px 0 18px; }
+.tour-dots i {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--line);
+  transition: background .2s ease, width .2s ease;
+}
+.tour-dots i.on { background: var(--blue); width: 20px; border-radius: 4px; }
+.tour-btm { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* The sidebar item the current step is talking about. */
+.sb-a.tour-lit {
+  background: var(--blue); color: #fff; font-weight: 500;
+  box-shadow: 0 0 0 3px rgba(79,131,255,.35);
+}
+
+@media (max-width: 560px) {
+  .tour { place-items: end center; padding: 0; }
+  .tour-c {
+    max-width: none; border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: calc(20px + var(--safe-b, 0px));
+  }
+}
+
+/* The credit line under the sign-in card, and its bold half, were both
+   white-on-dark literals. Light needs its own pair. */
+:root[data-theme="light"] .credit { color: #6f7a91; }
+:root[data-theme="light"] .credit b { color: #3b4557; }

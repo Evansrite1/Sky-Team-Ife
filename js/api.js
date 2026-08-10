@@ -355,6 +355,17 @@
     }
   };
 
+  /* Puts a distributor on the list without a scan, for anyone who has no
+     phone. Admin only, enforced in the function. */
+  scans.markPresent = async (eventId, distributorId) => {
+    const { data, error } = await sb.rpc('mark_present', {
+      p_event: eventId, p_distributor: distributorId
+    });
+    if (error) throw new Error(error.message);
+    if (data && data.ok === false) throw new Error(data.error);
+    return data;
+  };
+
   /* --------------------------------------------------------- realtime */
   /* One channel for the whole app. Postgres tells us a row moved, we tell
      the router, and it repaints whatever page is open. Row level security

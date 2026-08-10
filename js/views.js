@@ -466,6 +466,33 @@
           { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear once approved.') })
         + '</div>'
 
+        /* What gets read out on the Wednesday. Everything the evaluation
+           needs is here, so a Director never has to leave the zone. */
+        + '<div class="card"><div class="card-h"><div>'
+        + '<div class="card-t">Evaluation list</div>'
+        + '<div class="card-s">' + esc(U.weekRange(ws)) + ', read on '
+        + esc(U.fullDate(U.evalDate(ws))) + ' at 2:45pm.</div></div>'
+        + '<div class="card-a"><button class="btn btn-sm btn-a" data-act="eval-pdf"'
+        + ' data-center="' + c.id + '" data-week="' + ws + '">'
+        + ico('file', 14) + 'Download as PDF</button></div></div>'
+        + table([{ label: 'Office' }, { label: 'Orders', num: true }, { label: 'Amount', num: true },
+        { label: 'Dists', num: true }, { label: 'SMs', num: true }, { label: 'New', num: true },
+        { label: 'What slowed them down' }],
+          ranked.map(r => {
+            const rep = reps.find(x => x.office_id === r.office_id);
+            return '<tr><td class="nm">' + esc(r.office.name)
+              + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
+              + '<td class="num">' + (rep ? rep.orders : tag('Not filed', 't-warn')) + '</td>'
+              + '<td class="num nm">' + (rep ? usdFull(rep.amount) : '—') + '</td>'
+              + '<td class="num">' + (rep ? rep.num_distributors : '—') + '</td>'
+              + '<td class="num">' + (rep ? rep.num_senior_managers : '—') + '</td>'
+              + '<td class="num">' + (rep ? rep.num_newbies : '—') + '</td>'
+              + '<td style="max-width:280px;white-space:normal">'
+              + esc(rep ? (rep.issues || '—') : '—') + '</td></tr>';
+          }),
+          { empty: empty('clipboard', 'Nothing to evaluate', 'No offices in this zone yet.') })
+        + '</div>'
+
         + '<div class="card"><div class="card-h"><div><div class="card-t">Sessions this week</div>'
         + '<div class="card-s">Trainings and events at this zone.</div></div></div>'
         + table([{ label: 'Session' }, { label: 'Date' }, { label: 'Who may scan' }, { label: 'Status' }, { label: 'In', num: true }],
@@ -879,7 +906,8 @@
               + '<td>' + esc(o.name || '—') + '</td>'
               + '<td>' + (d.status ? statusTag(d.status) : '—') + '</td>'
               + '<td>' + esc(U.clock(s.scanned_at)) + '</td>'
-              + '<td class="mono sub">' + esc(s.device_id || '—') + '</td></tr>';
+              + '<td class="' + (s.device_id ? 'mono sub' : 'sub') + '">'
+              + esc(s.device_id || (s.reason || 'Marked by hand')) + '</td></tr>';
           }),
           { empty: empty('scan', 'Nobody has scanned in', 'Open scanning and show the QR code at the door.') })
         + '</div>'
@@ -894,11 +922,21 @@
                 + '<td class="mono sub">' + esc(s.device_id || '—') + '</td></tr>';
             })) + '</div>' : '')
 
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Did not come · ' + missed.length + '</div></div></div>'
-        + table([{ label: 'Name' }, { label: 'Office' }, { label: 'Status' }],
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Did not come · ' + missed.length + '</div>'
+        + (A.isAdmin()
+          ? '<div class="card-s">Somebody here without a phone? Mark them in by hand. '
+          + 'It is recorded as marked by you, not as a scan.</div>'
+          : '') + '</div></div>'
+        + table([{ label: 'Name' }, { label: 'Office' }, { label: 'Status' }]
+          .concat(A.isAdmin() ? [{ label: '' }] : []),
           missed.map(d => '<tr><td class="nm">' + esc(d.full_name) + '</td>'
             + '<td>' + esc((A.officeById(d.office_id) || {}).name || '—') + '</td>'
-            + '<td>' + statusTag(d.status) + '</td></tr>'),
+            + '<td>' + statusTag(d.status) + '</td>'
+            + (A.isAdmin()
+              ? '<td class="num"><button class="btn btn-sm btn-a" data-act="mark-present"'
+              + ' data-event="' + e.id + '" data-dist="' + d.id + '"'
+              + ' data-name="' + esc(d.full_name) + '">' + ico('check', 13) + 'Mark present</button></td>'
+              : '') + '</tr>'),
           { empty: empty('check', 'Everyone eligible came', 'A full house.') })
         + '</div>'
     };
@@ -1175,6 +1213,11 @@
         + '<input class="input" id="p-again" type="password" autocomplete="new-password"></div></div>'
         + '<div class="row" style="justify-content:flex-end">'
         + '<button class="btn btn-p" data-act="pw-save">' + ico('lock', 15) + 'Change password</button></div></div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">How this works</div>'
+        + '<div class="card-s">The short walkthrough you saw the first time you signed in.</div></div>'
+        + '<div class="card-a"><button class="btn btn-sm" data-act="tour-again">'
+        + ico('help', 14) + 'Show it again</button></div></div></div>'
     };
   }
 

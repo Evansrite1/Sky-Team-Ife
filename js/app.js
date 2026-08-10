@@ -20,7 +20,8 @@
     form: {},
     booted: false,
     editRequest: false,  // a waiting account asked to change what it sent
-    moreOpen: false      // the folded half of the sidebar
+    moreOpen: false,     // the folded half of the sidebar
+    tour: -1             // walkthrough step, -1 when it is not running
   };
   window.APP = { state, go, refresh };
 
@@ -49,46 +50,42 @@
         { p: 'guide', l: 'Guide', i: 'info' }
       ]
     },
+    /* A Director works through zones, not through a list of every page.
+       Zones is the way in: a zone opens its report, the report carries
+       the evaluation and the offices, and an office opens from there.
+       Five links, no fold. */
     platform_admin: {
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-        { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
-        { p: 'reports', l: 'Weekly reports', i: 'file' },
-        { p: 'trainings', l: 'Attendance', i: 'qr' },
-        { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' }
-      ],
-      more: [
-        { p: 'rankings', l: 'Office rankings', i: 'crown' },
-        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
-        { p: 'events', l: 'Zone events', i: 'star' },
-        { p: 'distributors', l: 'Distributors', i: 'users' },
-        { p: 'account', l: 'Account', i: 'lock' },
-        { p: 'guide', l: 'Guide', i: 'info' }
-      ]
+        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'account', l: 'Account', i: 'lock' }
+      ],
+      more: []
     },
     office: {
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-        { p: 'reports', l: 'Weekly report', i: 'clipboard' },
+        { p: 'reports', l: 'Weekly reports', i: 'clipboard' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
-        { p: 'center', l: 'Your zone', i: 'layers' }
-      ],
-      more: [
-        { p: 'offices', l: 'Offices in your zone', i: 'building' },
-        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'events', l: 'Zone events', i: 'star' },
+        { p: 'center', l: 'Your zone', i: 'layers' },
         { p: 'subscriptions', l: 'Subscription', i: 'card' },
-        { p: 'account', l: 'Account', i: 'lock' },
-        { p: 'guide', l: 'Guide', i: 'info' }
-      ]
+        { p: 'account', l: 'Account', i: 'lock' }
+      ],
+      more: []
     }
   };
   const ALLOWED = {
     super_admin: null,   // everything
-    platform_admin: ['dashboard', 'evaluation', 'monthly', 'centers', 'offices', 'rankings', 'reports', 'trainings', 'events', 'distributors', 'account', 'guide'],
-    office: ['dashboard', 'reports', 'trainings', 'events', 'distributors', 'center', 'offices', 'monthly', 'subscriptions', 'account', 'guide']
+    /* Reachable, but not in the sidebar: a Director gets to offices,
+       evaluation and rankings by drilling into a zone, and the pages
+       still have to answer when they do. */
+    platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
+      'offices', 'evaluation', 'rankings', 'reports'],
+    office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
+      'subscriptions', 'account', 'offices', 'monthly']
   };
 
   function go(hash) { location.hash = hash; }
@@ -120,11 +117,15 @@
       + '<span class="brand-mk">' + U.logo(22) + '</span>' + esc(brand()) + '</div></div>'
       + '<nav class="sb-nav">'
       + nav.main.map(n => navLink(n, active)).join('')
-      + '<button class="sb-more' + (openMore ? ' on' : '') + '" data-act="more">'
-      + ico('down', 16) + '<span>More</span></button>'
-      + '<div class="sb-sub' + (openMore ? ' open' : '') + '"><div>'
-      + nav.more.map(n => navLink(n, active)).join('')
-      + '</div></div></nav>'
+      /* No fold when there is nothing folded into it. */
+      + (nav.more.length
+        ? '<button class="sb-more' + (openMore ? ' on' : '') + '" data-act="more">'
+        + ico('down', 16) + '<span>More</span></button>'
+        + '<div class="sb-sub' + (openMore ? ' open' : '') + '"><div>'
+        + nav.more.map(n => navLink(n, active)).join('')
+        + '</div></div>'
+        : '')
+      + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
@@ -146,15 +147,15 @@
     ],
     platform_admin: [
       { p: 'dashboard', l: 'Home', i: 'grid' },
-      { p: 'offices', l: 'Offices', i: 'building' },
-      { p: 'rankings', l: 'Ranks', i: 'crown' },
-      { p: 'trainings', l: 'Sessions', i: 'qr' }
+      { p: 'centers', l: 'Zones', i: 'layers' },
+      { p: 'monthly', l: 'Monthly', i: 'calendar' },
+      { p: 'trainings', l: 'Attendance', i: 'qr' }
     ],
     office: [
       { p: 'dashboard', l: 'Home', i: 'grid' },
       { p: 'reports', l: 'Report', i: 'clipboard' },
-      { p: 'trainings', l: 'Sessions', i: 'qr' },
-      { p: 'distributors', l: 'Team', i: 'users' }
+      { p: 'trainings', l: 'Attendance', i: 'qr' },
+      { p: 'center', l: 'Zone', i: 'layers' }
     ]
   };
 
@@ -177,6 +178,12 @@
      page runs in standalone mode and this never renders again. */
   const SNOOZE = 24 * 60 * 60 * 1000;
   function installBar() {
+    /* A phone or a tablet, and nothing else. A laptop cannot add a home
+       screen shortcut in any sense the words mean there, so a Mac, a PC
+       and a Chromebook are never asked. Three things have to agree: no
+       hover, a coarse pointer, and a narrow screen. Touchscreen laptops
+       have hover and a fine pointer, which is what keeps them out. */
+    if (!U.isHandheld()) return '';
     if (U.isStandalone()) return '';
     let until = 0;
     try { until = Number(localStorage.getItem('sti-install-snooze') || 0); } catch (e) { /* ignore */ }
@@ -193,7 +200,84 @@
         ? 'Tap Share, then “Add to Home Screen”.'
         : 'Opens full screen, and works with a weak signal.') + '</span></div>'
       + (ios ? '' : '<button class="btn btn-sm btn-a" data-act="install">Install</button>')
-      + '<button class="inst-x" data-act="install-no" aria-label="Not now">' + ico('x', 16) + '</button></div>';
+      + '<button class="inst-x" data-act="install-no" aria-label="Not now">'
+      + ico('x', 18) + '</button></div>';
+  }
+
+  /* ============================ WALKTHROUGH ==========================
+     Seven cards on first sign-in, next/next/next, each one pointing at
+     the thing in the sidebar it is talking about. Written per role,
+     because a Director and an office use almost none of the same pages.
+     Shown once, then reachable again from Account. */
+  const TOUR = {
+    platform_admin: [
+      { t: 'Welcome to ' , d: 'This is where the week is written down: who turned up, what each office sold, and how the zones compare. Five things in the sidebar, and that is the whole app.' },
+      { p: 'dashboard', t: 'Dashboard', d: 'Everything at a glance — the week\'s orders and amount across every zone, who is leading, and which offices have not filed yet.' },
+      { p: 'centers', t: 'Zones', d: 'Your way into everything. Open a zone to see its offices ranked, its evaluation list, its sessions and its QR poster.' },
+      { p: 'centers', t: 'Inside a zone', d: 'The evaluation list is right there, with orders, amount and headcount for every office. Download it as a PDF to read from on the Wednesday.' },
+      { p: 'centers', t: 'Then into an office', d: 'Tap any office in the ranking to see its own history — every report it has filed, week by week.' },
+      { p: 'trainings', t: 'Attendance', d: 'Open scanning when a session starts and close it at the end. Anyone without a phone, you can mark present by hand from the session page.' },
+      { p: 'monthly', t: 'Monthly summary', d: 'The same numbers over a month instead of a week, for when you want the shape of things rather than the detail.' }
+    ],
+    office: [
+      { t: 'Welcome to ', d: 'This is where your office reports its week and signs its people in. Seven things in the sidebar, and nothing else to learn.' },
+      { p: 'dashboard', t: 'Dashboard', d: 'Your week at a glance, and a reminder at the top whenever a report is still missing.' },
+      { p: 'reports', t: 'Weekly reports', d: 'The one thing you do every week. Orders, amount, who was in the office, which niches the orders came from, and anything that slowed you down.' },
+      { p: 'reports', t: 'You get two weeks', d: 'The week running now and the one behind it. Once a week is two weeks old it locks, because its evaluation has already been read.' },
+      { p: 'trainings', t: 'Attendance', d: 'Every session has a QR code. Open scanning when it starts, and your distributors sign themselves in with a phone camera.' },
+      { p: 'distributors', t: 'Distributors', d: 'Your people. Keep their phone numbers here — the last four digits are what proves it is really them at the door.' },
+      { p: 'center', t: 'Your zone', d: 'How your office is doing against the others in your zone. Same numbers your Director sees.' }
+    ]
+  };
+  TOUR.super_admin = TOUR.platform_admin;
+
+  function tourStep(role, i) {
+    const steps = TOUR[role] || [];
+    const s = steps[i];
+    if (!s) return '';
+    const last = i === steps.length - 1;
+    return '<div class="tour" data-act="tour-bg">'
+      + '<div class="tour-c" role="dialog" aria-modal="true">'
+      + '<div class="tour-top">'
+      + '<span class="tour-mk">' + U.logo(22) + '</span>'
+      + '<button class="tour-x" data-act="tour-end" aria-label="Skip">' + ico('x', 17) + '</button>'
+      + '</div>'
+      + '<div class="tour-n">Step ' + (i + 1) + ' of ' + steps.length + '</div>'
+      + '<h2 class="tour-t">' + esc(s.t) + (i === 0 ? esc(brand()) : '') + '</h2>'
+      + '<p class="tour-d">' + esc(s.d) + '</p>'
+      + '<div class="tour-dots">'
+      + steps.map((_, n) => '<i class="' + (n === i ? 'on' : '') + '"></i>').join('')
+      + '</div>'
+      + '<div class="tour-btm">'
+      + (i > 0 ? '<button class="btn btn-g" data-act="tour-back">Back</button>' : '<span></span>')
+      + '<button class="btn btn-a btn-pop" data-act="' + (last ? 'tour-end' : 'tour-next') + '">'
+      + (last ? 'Start using it' : 'Next') + '</button>'
+      + '</div></div></div>';
+  }
+
+  function paintTour() {
+    const host = $('#modal');
+    if (!host) return;
+    if (state.tour < 0) { host.innerHTML = ''; return; }
+    const me = A.store.me;
+    host.innerHTML = tourStep(me.role, state.tour);
+    /* Light up the sidebar item the current step is about. */
+    U.$$('.sb-a.tour-lit').forEach(a => a.classList.remove('tour-lit'));
+    const s = (TOUR[me.role] || [])[state.tour];
+    if (s && s.p) {
+      const a = $('.sb-a[href="#/' + s.p + '"]');
+      if (a) a.classList.add('tour-lit');
+    }
+  }
+
+  function maybeStartTour() {
+    const me = A.store.me;
+    if (!me || !TOUR[me.role]) return;
+    let seen = false;
+    try { seen = localStorage.getItem('sti-tour-' + me.id) === '1'; } catch (e) { /* ignore */ }
+    if (seen) return;
+    state.tour = 0;
+    paintTour();
   }
 
   function topbar(v) {
@@ -232,16 +316,6 @@
         ? renderWaiting() : renderOnboard();
     }
 
-    /* First time in, the guide opens itself. After that it lives in the
-       nav and only shows when asked for. */
-    if (!parts.length) {
-      let seen = false;
-      try { seen = localStorage.getItem('sti-guide-' + me.id) === '1'; } catch (e) { /* ignore */ }
-      if (!seen) {
-        try { localStorage.setItem('sti-guide-' + me.id, '1'); } catch (e) { /* ignore */ }
-        go('#/guide'); return;
-      }
-    }
 
     let page = parts[0] || 'dashboard';
     const id = parts[1];
@@ -910,6 +984,64 @@
       await A.loadMe(); busy(el, false); toast('Saved.'); route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
+  /* --- the walkthrough --------------------------------------------- */
+  ACT['tour-next'] = () => { state.tour += 1; paintTour(); };
+  ACT['tour-back'] = () => { state.tour = Math.max(0, state.tour - 1); paintTour(); };
+  ACT['tour-bg'] = (el, e) => { if (e.target === el) ACT['tour-end'](); };
+  ACT['tour-end'] = () => {
+    state.tour = -1;
+    try { localStorage.setItem('sti-tour-' + A.store.me.id, '1'); } catch (e) { /* ignore */ }
+    U.$$('.sb-a.tour-lit').forEach(a => a.classList.remove('tour-lit'));
+    const host = $('#modal'); if (host) host.innerHTML = '';
+  };
+  ACT['tour-again'] = () => { state.tour = 0; paintTour(); };
+
+  ACT['mark-present'] = async (el) => {
+    busy(el, true, 'Marking…');
+    try {
+      await A.scans.markPresent(el.dataset.event, el.dataset.dist);
+      toast(el.dataset.name + ' is marked present.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  ACT['eval-pdf'] = async (el) => {
+    const cid = el.dataset.center, ws = el.dataset.week;
+    busy(el, true, 'Building…');
+    try {
+      const zone = A.centerById(cid) || {};
+      const offs = A.officesOf(cid).filter(o => o.active);
+      const reps = await A.reports.list({ week: ws, center: cid });
+      const rows = V.helpers.rankOffices(reps, offs).map(r => {
+        const rep = reps.find(x => x.office_id === r.office_id);
+        return {
+          office: r.office.name,
+          leader: r.office.manager_name || '',
+          filed: !!rep,
+          orders: rep ? rep.orders : null,
+          amount: rep ? U.usdFull(rep.amount) : null,
+          dists: rep ? rep.num_distributors : null,
+          sms: rep ? rep.num_senior_managers : null,
+          newbies: rep ? rep.num_newbies : null,
+          issues: rep ? (rep.issues || '—') : '—'
+        };
+      });
+      const t = V.helpers.totals(reps);
+      const ok = U.printEvaluation({
+        title: zone.name + ' — evaluation',
+        sub: U.weekLabel(ws) + '   ·   read on ' + U.fullDate(U.evalDate(ws)) + ' at 2:45pm'
+          + '   ·   ' + reps.length + ' of ' + offs.length + ' offices filed',
+        brand: brand(),
+        head: ['Office', 'Orders', 'Amount', 'Distributors', 'Senior managers', 'Newbies', 'What slowed them down'],
+        rows: rows,
+        foot: ['Zone total', String(t.orders), U.usdFull(t.amount),
+          String(t.dists), String(t.sms), String(t.newbies), '']
+      });
+      busy(el, false);
+      if (!ok) toast('Your browser blocked the print window. Allow pop-ups for this site and try again.', 'no');
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   ACT['office-move'] = async (el) => {
     const to = val('#mv-zone');
     if (!to) return toast('Pick the zone to move it to.', 'no');
@@ -1091,6 +1223,9 @@
       else A.unwatch();
       state.booted = true;
       if (!silent) await route();
+      /* After the first page is on screen, so the walkthrough has the
+         sidebar behind it to point at. */
+      if (me && me.role !== 'pending') maybeStartTour();
     } catch (err) {
       state.booted = true;
       console.error(err);

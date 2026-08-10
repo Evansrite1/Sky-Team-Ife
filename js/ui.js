@@ -437,6 +437,69 @@
   };
   applyTheme(readTheme());
 
+  /* ------------------------------------------------ evaluation PDF */
+  /* Opens a print-ready page and asks the browser to print it, which is
+     where "Save as PDF" lives on every desktop and phone. No library, no
+     bundle, nothing to deploy, and the output is a real PDF rather than
+     a screenshot of one. */
+  function printEvaluation(o) {
+    const rows = o.rows || [];
+    const cell = (v) => '<td>' + esc(v == null ? '—' : String(v)) + '</td>';
+    const num = (v) => '<td class="n">' + esc(v == null ? '—' : String(v)) + '</td>';
+    const html = '<!doctype html><html><head><meta charset="utf-8">'
+      + '<title>' + esc(o.title) + '</title><style>'
+      + '@page { size: A4 landscape; margin: 14mm; }'
+      + 'body { font: 12px/1.45 "Space Grotesk", system-ui, sans-serif; color: #10182a; margin: 0; }'
+      + 'header { display: flex; align-items: flex-start; justify-content: space-between;'
+      + ' border-bottom: 2px solid #10182a; padding-bottom: 12px; margin-bottom: 18px; }'
+      + 'h1 { font-size: 20px; margin: 0 0 3px; letter-spacing: -.02em; }'
+      + '.sub { color: #5b6478; font-size: 12px; }'
+      + '.mk { width: 34px; height: 34px; }'
+      + 'table { width: 100%; border-collapse: collapse; }'
+      + 'th { text-align: left; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;'
+      + ' color: #5b6478; border-bottom: 1px solid #c9d2e2; padding: 0 8px 7px; }'
+      + 'th.n, td.n { text-align: right; }'
+      + 'td { padding: 9px 8px; border-bottom: 1px solid #e6eaf3; vertical-align: top; }'
+      + 'tbody tr:nth-child(even) { background: #f7f9fd; }'
+      + '.nm { font-weight: 600; }'
+      + '.miss { color: #b3261e; font-weight: 600; }'
+      + 'tfoot td { font-weight: 700; border-top: 2px solid #10182a; border-bottom: 0; padding-top: 10px; }'
+      + 'footer { margin-top: 20px; color: #7c869c; font-size: 10px;'
+      + ' display: flex; justify-content: space-between; }'
+      + '</style></head><body>'
+      + '<header><div><h1>' + esc(o.title) + '</h1>'
+      + '<div class="sub">' + esc(o.sub) + '</div></div>'
+      + '<svg class="mk" viewBox="0 0 120 120"><path fill="#2f6bff" fill-rule="evenodd" d="'
+      + LOGO_PATH + '"/></svg></header>'
+      + '<table><thead><tr>'
+      + o.head.map((h, i) => '<th' + (i > 0 && i < o.head.length - 1 ? ' class="n"' : '') + '>'
+        + esc(h) + '</th>').join('')
+      + '</tr></thead><tbody>'
+      + rows.map(r => '<tr><td class="nm">' + esc(r.office)
+        + (r.leader ? '<br><span class="sub">' + esc(r.leader) + '</span>' : '') + '</td>'
+        + (r.filed
+          ? num(r.orders) + num(r.amount) + num(r.dists) + num(r.sms) + num(r.newbies)
+          : '<td class="n miss" colspan="5">Not filed</td>')
+        + cell(r.issues) + '</tr>').join('')
+      + '</tbody>'
+      + (o.foot ? '<tfoot><tr>' + o.foot.map((f, i) =>
+        '<td' + (i > 0 && i < o.foot.length - 1 ? ' class="n"' : '') + '>' + esc(f) + '</td>').join('')
+        + '</tr></tfoot>' : '')
+      + '</table>'
+      + '<footer><span>' + esc(o.brand || 'Sky Team Ife') + '</span>'
+      + '<span>Printed ' + esc(fullDate(new Date())) + '</span></footer>'
+      + '</body></html>';
+
+    const w = window.open('', '_blank');
+    if (!w) return false;                      // popup blocked
+    w.document.write(html);
+    w.document.close();
+    /* Give the layout a beat to settle before the dialog opens, or the
+       first page comes out half measured. */
+    w.onload = () => setTimeout(() => { w.focus(); w.print(); }, 120);
+    return true;
+  }
+
   /* ------------------------------------------------- installability */
   /* Declared before the block below runs, which calls them. */
   const isStandalone = () =>
@@ -444,6 +507,20 @@
   const isIOS = () =>
     /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  /* A phone or a tablet, as opposed to anything with a keyboard attached.
+     User agent sniffing gets this wrong constantly, so it asks the device
+     about itself instead: no hover, a coarse pointer, a narrow screen and
+     a touch digitiser. A touchscreen laptop answers yes to touch but no
+     to the first two, which is exactly the case that has to be excluded,
+     and a Mac, a PC and a Chromebook fail all four. */
+  const isHandheld = () => {
+    const noHover = window.matchMedia('(hover: none)').matches;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const narrow = Math.min(window.screen.width, window.screen.height) <= 900;
+    const touch = (navigator.maxTouchPoints || 0) > 0;
+    return noHover && coarse && narrow && touch;
+  };
 
   /* Both pages load this file, so both get the service worker and both
      know when the browser is willing to install the app. */
@@ -476,10 +553,10 @@
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed,
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
-    ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS,
+    ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     readTheme, setTheme, toggleTheme,
     kpi, tag, note, empty, bar, change, table,
-    chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster,
+    chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster, printEvaluation,
     toast, modal, closeModal, busy, confirmDialog
   };
 })();
