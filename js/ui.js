@@ -126,8 +126,7 @@
     trash: 'M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6',
     scan: 'M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10',
     menu: 'M3 12h18M3 6h18M3 18h18',
-    sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
-    moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    drop: 'M12 2.6c4 4.7 6 8 6 10.4a6 6 0 0 1-12 0c0-2.4 2-5.7 6-10.4z',
     star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
     cash: 'M2 6h20v12H2zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 10v4M18 10v4',
     card: 'M2 5h20a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM1 10h22M5 15h4',
@@ -410,32 +409,45 @@
      more than it was worth on anything but a fast desktop. */
   const backdrop3d = () => '<div class="bg3d" aria-hidden="true"></div>';
 
-  /* ---------------------------------------------------------- theme */
-  /* Light or dark, remembered, and following the system until the user
-     says otherwise. Set on <html> before first paint by index.html so
-     the page never flashes the wrong one. */
-  const THEME_KEY = 'sti-theme';
-  const systemTheme = () =>
-    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  const readTheme = () => {
-    try { return localStorage.getItem(THEME_KEY) || systemTheme(); }
-    catch (e) { return systemTheme(); }
+  /* ----------------------------------------------------- accent hue */
+  /* The app is dark, full stop. What used to be a light switch is a dice
+     roll on the accent colour instead: one hue on <html>, remembered, and
+     set before first paint by index.html so nothing flashes on the way in.
+     Only the hue is random — saturation and lightness are fixed in the
+     stylesheet, so whatever number comes up is still legible on dark. */
+  const HUE_KEY = 'sti-hue';
+  const DEFAULT_HUE = 224;               /* the blue the app shipped with */
+  const readHue = () => {
+    try {
+      const h = parseInt(localStorage.getItem(HUE_KEY), 10);
+      return isNaN(h) ? DEFAULT_HUE : ((h % 360) + 360) % 360;
+    } catch (e) { return DEFAULT_HUE; }
   };
-  const applyTheme = (t) => {
-    document.documentElement.setAttribute('data-theme', t);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'light' ? '#eef1f7' : '#05091a');
+  const applyHue = (h) => {
+    document.documentElement.style.setProperty('--hue', h);
   };
-  const setTheme = (t) => {
-    try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
-    applyTheme(t);
+  const setHue = (h) => {
+    h = ((Math.round(h) % 360) + 360) % 360;
+    try { localStorage.setItem(HUE_KEY, h); } catch (e) { /* ignore */ }
+    applyHue(h);
+    return h;
   };
-  const toggleTheme = () => {
-    const next = readTheme() === 'light' ? 'dark' : 'light';
-    setTheme(next);
-    return next;
+  /* Anywhere on the wheel, but never so close to where it already is that
+     the change reads as nothing happening. */
+  const randomHue = () => setHue(readHue() + 40 + Math.random() * 280);
+  /* Rough names for the arcs of the wheel, so the toast can say what it
+     just landed on. Each pair is the hue the arc ends at. */
+  const HUE_NAMES = [
+    [15, 'Red'], [40, 'Orange'], [60, 'Amber'], [80, 'Lime'], [150, 'Green'],
+    [175, 'Teal'], [195, 'Cyan'], [225, 'Blue'], [260, 'Indigo'], [290, 'Violet'],
+    [320, 'Magenta'], [345, 'Pink']
+  ];
+  const hueName = (h) => {
+    h = ((Math.round(h) % 360) + 360) % 360;
+    for (let i = 0; i < HUE_NAMES.length; i++) if (h < HUE_NAMES[i][0]) return HUE_NAMES[i][1];
+    return 'Red';                        /* the arc that wraps past 345 */
   };
-  applyTheme(readTheme());
+  applyHue(readHue());
 
   /* ------------------------------------------------ evaluation PDF */
   /* Opens a print-ready page and asks the browser to print it, which is
@@ -554,7 +566,7 @@
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
-    readTheme, setTheme, toggleTheme,
+    readHue, setHue, randomHue, hueName,
     kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster, printEvaluation,
     toast, modal, closeModal, busy, confirmDialog

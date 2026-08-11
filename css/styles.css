@@ -1,17 +1,28 @@
 /* =====================================================================
    Sky Team Ife — design system
-   Dark throughout. Glass panels over a moving field of the logo in 3D,
-   one blue accent, generous radii, Space Grotesk everywhere.
+   Dark throughout. Glass panels over a flat field, one accent colour,
+   generous radii, Space Grotesk everywhere.
 
    --surface is the glass a panel is made of. --white stays literal
    white, for text and marks that sit on top of something dark.
+
+   THE ACCENT
+   ----------
+   Everything accented hangs off a single hue. --hue is the only thing
+   that moves: the button in the sidebar rolls a new number into it and
+   the whole app changes colour in one variable swap. Saturation and
+   lightness stay put so any hue that lands is still readable on the
+   dark base — that is the point of driving it from hue alone rather
+   than from a random hex.
    ===================================================================== */
 
 :root {
-  --blue: #4f83ff;
-  --blue-deep: #2f6bff;
-  --blue-soft: #9dbaff;
-  --blue-tint: rgba(79,131,255,.16);
+  --hue: 224;                 /* the app's blue, as a starting point */
+
+  --blue: hsl(var(--hue) 100% 66%);
+  --blue-deep: hsl(var(--hue) 100% 59%);
+  --blue-soft: hsl(var(--hue) 100% 81%);
+  --blue-tint: hsl(var(--hue) 100% 66% / .16);
 
   --void: #05091a;            /* behind everything, including the 3D field */
   --dark: #0a1024;            /* solid panels: sidebar, dark cards */
@@ -55,57 +66,12 @@
   color-scheme: dark;
 }
 
-/* ============================== LIGHT ================================
-   Same shapes, same spacing, only the palette moves. The sidebar stays
-   dark on purpose: it is chrome rather than content, and keeping it put
-   means every rule written against it still holds. */
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --blue: #2f6bff;
-  --blue-deep: #1e50d8;
-  --blue-soft: #2f6bff;
-  --blue-tint: rgba(47,107,255,.10);
-
-  --void: #eef1f7;
-  --dark: #0a1024;
-  --dark-2: #111a35;
-  --dark-3: rgba(255,255,255,.10);
-
-  --grey: #f4f6fb;
-  --grey-2: #e9edf5;
-  --surface: #ffffff;
-  --surface-2: #f6f8fc;
-  --line: #dde3ee;
-  --hair: #e8ecf4;
-
-  --ink: #0f1729;
-  --muted: #59627a;
-  --faint: #8791a8;
-
-  --ok: #17864b;
-  --ok-bg: #e4f6ec;
-  --warn: #9a6100;
-  --warn-bg: #fdf1d8;
-  --err: #b3261e;
-  --err-bg: #fdeceb;
-
-  --pop: 0 10px 28px rgba(16,28,60,.10);
-  --pop-sm: 0 5px 16px rgba(16,28,60,.08);
-  --panel: rgba(255,255,255,.96);
-}
-
 /* Native dropdowns. The popup is drawn by the OS, so the only reliable
    levers are color-scheme above and an explicit colour on the options —
-   without both, one theme or the other ends up unreadable. */
+   without both, the option list comes back black on black. */
 select option, select optgroup {
   background-color: var(--dark);
   color: #eef1fa;
-}
-:root[data-theme="light"] select option,
-:root[data-theme="light"] select optgroup {
-  background-color: #fff;
-  color: #0f1729;
 }
 
 * { box-sizing: border-box; }
@@ -228,12 +194,16 @@ svg { display: block; flex: none; }
 .sb-btm { padding: 14px; border-top: 1px solid var(--dark-3); }
 .sb-row { display: flex; gap: 8px; align-items: stretch; }
 .sb-row .sb-out { flex: 1; }
-.sb-theme {
+/* Rolls a new accent hue. It wears the colour it is about to change, so
+   the button itself is the preview of what the app currently looks like. */
+.sb-hue {
   flex: none; width: 42px; display: grid; place-items: center; cursor: pointer;
   border: 1px solid var(--dark-3); border-radius: 10px;
-  background: transparent; color: #d3d4dc; transition: background .14s, color .14s;
+  background: transparent; color: var(--blue);
+  transition: background .14s, color .14s, transform .14s;
 }
-.sb-theme:hover { background: var(--dark-3); color: #fff; }
+.sb-hue:hover { background: var(--dark-3); }
+.sb-hue:active { transform: rotate(-25deg) scale(.94); }
 .sb-user { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .av {
   width: 36px; height: 36px; border-radius: 10px; background: var(--blue); color: #fff;
@@ -520,17 +490,13 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
    Nothing animates. Nothing composites. It paints once. */
 .bg3d {
   position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  /* Three washes off the accent hue: the middle one is thrown 40° round
+     the wheel so the field keeps its two-tone depth whatever the hue
+     lands on. */
   background:
-    radial-gradient(70% 55% at 18% 8%,  rgba(79,131,255,.20), transparent 62%),
-    radial-gradient(60% 50% at 88% 12%, rgba(122,84,255,.16), transparent 60%),
-    radial-gradient(75% 60% at 50% 108%, rgba(47,107,255,.14), transparent 66%),
-    var(--void);
-}
-:root[data-theme="light"] .bg3d {
-  background:
-    radial-gradient(70% 55% at 18% 8%,  rgba(79,131,255,.14), transparent 62%),
-    radial-gradient(60% 50% at 88% 12%, rgba(122,84,255,.10), transparent 60%),
-    radial-gradient(75% 60% at 50% 108%, rgba(47,107,255,.10), transparent 66%),
+    radial-gradient(70% 55% at 18% 8%,   hsl(var(--hue) 100% 66% / .20), transparent 62%),
+    radial-gradient(60% 50% at 88% 12%,  hsl(calc(var(--hue) + 40) 100% 66% / .16), transparent 60%),
+    radial-gradient(75% 60% at 50% 108%, hsl(var(--hue) 100% 59% / .14), transparent 66%),
     var(--void);
 }
 .shell > .bg3d { position: fixed; }
@@ -576,16 +542,17 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 }
 .auth-card .input::placeholder { color: rgba(255,255,255,.30); }
 .auth-card .input:focus, .auth-card .select:focus {
-  border-color: rgba(126,163,255,.75); background: rgba(255,255,255,.09);
-  box-shadow: 0 0 0 4px rgba(47,107,255,.20);
+  border-color: hsl(var(--hue) 100% 76% / .75); background: rgba(255,255,255,.09);
+  box-shadow: 0 0 0 4px hsl(var(--hue) 100% 59% / .20);
 }
 .auth-card .select option { background: #0d1b3d; color: #fff; }
 .auth-card .btn-a {
-  background: linear-gradient(135deg, #7ea3ff 0%, #2f6bff 52%, #1e50d8 100%);
+  background: linear-gradient(135deg,
+    hsl(var(--hue) 100% 75%) 0%, hsl(var(--hue) 100% 59%) 52%, hsl(var(--hue) 75% 48%) 100%);
   border: 0; color: #fff; border-radius: 15px; font-size: 15.5px; font-weight: 600;
-  letter-spacing: .04em; box-shadow: 0 12px 30px rgba(47,107,255,.40);
+  letter-spacing: .04em; box-shadow: 0 12px 30px hsl(var(--hue) 100% 59% / .40);
 }
-.auth-card .btn-a:hover { box-shadow: 0 16px 38px rgba(47,107,255,.52); }
+.auth-card .btn-a:hover { box-shadow: 0 16px 38px hsl(var(--hue) 100% 59% / .52); }
 .auth-card .btn:not(.btn-a) {
   background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18);
   color: #fff; border-radius: 14px;
@@ -1014,73 +981,6 @@ html.standalone .inst { display: none; }
 html.standalone .inst { display: none; }
 
 /* =====================================================================
-   LIGHT MODE CORRECTIONS
-   ---------------------------------------------------------------------
-   Everything below was written for a dark base and has to be said again
-   for light: white text, translucent white fills and white hairlines all
-   vanish on a pale background. The sidebar and the install bar stay dark
-   in both themes by design, so they are deliberately left alone.
-   ===================================================================== */
-:root[data-theme="light"] {
-  /* The signed-out screens are a card on a tinted page rather than glass
-     over a dark field, so the card needs a real surface. */
-  --auth-card-bg: #ffffff;
-  --auth-card-line: #dfe5f0;
-  --auth-ink: #0f1729;
-  --auth-muted: #5b6478;
-}
-
-:root[data-theme="light"] .auth-card {
-  background: var(--auth-card-bg);
-  border-color: var(--auth-card-line);
-  color: var(--auth-ink);
-  box-shadow: 0 24px 60px rgba(16,28,60,.12);
-}
-/* The sheen is a white gradient meant to catch light on dark glass. On
-   white it is invisible at best and a smear at worst. */
-:root[data-theme="light"] .auth-card::before { display: none; }
-:root[data-theme="light"] .auth-h { color: var(--auth-ink); }
-:root[data-theme="light"] .auth-s { color: var(--auth-muted); }
-:root[data-theme="light"] .auth-brand { color: var(--auth-muted); }
-:root[data-theme="light"] .auth-brand .mark { color: var(--blue); }
-:root[data-theme="light"] .auth-card label { color: var(--auth-muted); }
-:root[data-theme="light"] .auth-card .input,
-:root[data-theme="light"] .auth-card .select {
-  background: #f7f9fd; border-color: #d9e0ee; color: var(--auth-ink);
-}
-:root[data-theme="light"] .auth-card .input::placeholder { color: #98a1b5; }
-:root[data-theme="light"] .auth-card .input:focus,
-:root[data-theme="light"] .auth-card .select:focus {
-  background: #fff; border-color: var(--blue);
-}
-:root[data-theme="light"] .auth-alt,
-:root[data-theme="light"] .auth-row { color: var(--auth-muted); }
-:root[data-theme="light"] .credit { color: #7c869c; }
-
-/* Chart gridlines were a white wash; on paper they have to be ink. */
-:root[data-theme="light"] .chart .gl { stroke: rgba(15,23,41,.10); }
-:root[data-theme="light"] .chart text { fill: var(--muted); }
-
-/* A ghost button's hover was a white film, which does nothing on white. */
-:root[data-theme="light"] .btn-g:hover { background: rgba(15,23,41,.05); }
-:root[data-theme="light"] .btn-d { background: #fff; }
-
-/* Panels that sat on the dark base and borrowed its translucency. */
-:root[data-theme="light"] .mo-c { background: #fff; border-color: var(--line); }
-:root[data-theme="light"] .mo { background: rgba(15,23,41,.42); }
-:root[data-theme="light"] .toast { background: var(--dark); color: #fff; }
-:root[data-theme="light"] .scan-card { background: #fff; }
-:root[data-theme="light"] .empty-d { color: var(--muted); }
-
-/* The rank pills and the zone table on the scan receipt. */
-:root[data-theme="light"] .rank li { background: #f6f8fc; }
-:root[data-theme="light"] .rank-n { background: #e7ecf6; color: var(--muted); }
-
-/* The one on the picker that turns white text onto a white field. */
-:root[data-theme="light"] .wk select { background: #fff; color: var(--ink); border-color: var(--line); }
-:root[data-theme="light"] .tb { background: rgba(255,255,255,.92); }
-
-/* =====================================================================
    THE WALKTHROUGH
    ---------------------------------------------------------------------
    Seven cards on first sign-in. It sits over the app rather than
@@ -1093,7 +993,6 @@ html.standalone .inst { display: none; }
   background: rgba(5,9,26,.72);
   animation: fade .2s ease;
 }
-:root[data-theme="light"] .tour { background: rgba(15,23,41,.5); }
 .tour-c {
   width: 100%; max-width: 430px;
   background: var(--surface); color: var(--ink);
@@ -1101,7 +1000,6 @@ html.standalone .inst { display: none; }
   padding: 22px 24px 20px; box-shadow: var(--pop);
   animation: rise .34s cubic-bezier(.22,.9,.3,1) both;
 }
-:root[data-theme="light"] .tour-c { background: #fff; }
 .tour-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .tour-mk { color: var(--blue); display: grid; place-items: center; }
 .tour-x {
@@ -1128,7 +1026,7 @@ html.standalone .inst { display: none; }
 /* The sidebar item the current step is talking about. */
 .sb-a.tour-lit {
   background: var(--blue); color: #fff; font-weight: 500;
-  box-shadow: 0 0 0 3px rgba(79,131,255,.35);
+  box-shadow: 0 0 0 3px hsl(var(--hue) 100% 66% / .35);
 }
 
 @media (max-width: 560px) {
@@ -1138,8 +1036,3 @@ html.standalone .inst { display: none; }
     padding-bottom: calc(20px + var(--safe-b, 0px));
   }
 }
-
-/* The credit line under the sign-in card, and its bold half, were both
-   white-on-dark literals. Light needs its own pair. */
-:root[data-theme="light"] .credit { color: #6f7a91; }
-:root[data-theme="light"] .credit b { color: #3b4557; }

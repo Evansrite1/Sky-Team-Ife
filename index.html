@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sky Team Ife</title>
 <meta name="description" content="Attendance, weekly reports, office rankings and center analytics for Sky Team Ife.">
-<meta name="theme-color" content="#0d1b3d">
-<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#05091a">
+<meta name="color-scheme" content="dark">
 
 <!-- Installed to a home screen it runs with no browser chrome at all. -->
 <link rel="manifest" href="manifest.webmanifest">
@@ -23,15 +23,12 @@
 <link rel="stylesheet" href="css/styles.css">
 <script>
 /* Before the stylesheet paints anything, so the app never flashes the
-   wrong theme on the way in. ui.js reads the same key afterwards. */
+   old accent on the way in. ui.js reads the same key afterwards. */
 (function () {
   try {
-    var t = localStorage.getItem('sti-theme');
-    if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', t);
-    var m = document.querySelector('meta[name="theme-color"]');
-    if (m) m.setAttribute('content', t === 'light' ? '#eef1f7' : '#05091a');
-  } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    var h = parseInt(localStorage.getItem('sti-hue'), 10);
+    if (!isNaN(h)) document.documentElement.style.setProperty('--hue', ((h % 360) + 360) % 360);
+  } catch (e) { /* the stylesheet's own default stands */ }
 })();
 </script>
 </head>

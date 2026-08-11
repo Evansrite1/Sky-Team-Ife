@@ -92,12 +92,10 @@
   const brand = () => (A.store.settings.organisation || window.CONFIG.organisation || 'Sky Team Ife');
 
   /* ============================== CHROME ============================= */
-  const themeBtn = () => {
-    const light = U.readTheme() === 'light';
-    return '<button class="sb-theme" data-act="theme" title="'
-      + (light ? 'Switch to dark' : 'Switch to light') + '" aria-label="Switch theme">'
-      + ico(light ? 'moon' : 'sun', 16) + '</button>';
-  };
+  /* Not a light switch — a dice roll on the accent colour. */
+  const hueBtn = () => '<button class="sb-hue" data-act="hue" title="Change the accent colour'
+    + ' (now ' + U.hueName(U.readHue()) + ')" aria-label="Change the accent colour">'
+    + ico('drop', 16) + '</button>';
 
   const navLink = (n, active) => {
     const cnt = n.c ? n.c() : '';
@@ -131,7 +129,7 @@
       + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
       + '<div class="sb-row">'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
-      + themeBtn()
+      + hueBtn()
       + '</div>'
       + '<div class="sb-credit">Site developed by <b>Large Technologies</b></div></div></aside>';
   }
@@ -667,13 +665,15 @@
   /* --- chrome ------------------------------------------------------ */
   ACT['nav'] = () => document.body.classList.toggle('nav-open');
 
-  /* Repaint only the button, not the page: switching theme is a variable
-     swap, so everything else is already correct by the time this runs. */
-  ACT['theme'] = (el) => {
-    U.toggleTheme();
+  /* Repaint only the button, not the page: the accent is one variable, so
+     everything else is already the new colour by the time this runs. The
+     button is only redrawn to refresh its own tooltip. */
+  ACT['hue'] = (el) => {
+    const h = U.randomHue();
     const holder = el.parentElement;
-    el.outerHTML = themeBtn();
+    el.outerHTML = hueBtn();
     if (holder) void holder.offsetHeight;
+    U.toast(U.hueName(h) + ' it is.');
   };
   ACT['more'] = (el) => {
     state.moreOpen = !state.moreOpen;
