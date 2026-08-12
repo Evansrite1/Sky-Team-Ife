@@ -8,21 +8,28 @@
 
    THE ACCENT
    ----------
-   Everything accented hangs off a single hue. --hue is the only thing
-   that moves: the button in the sidebar rolls a new number into it and
-   the whole app changes colour in one variable swap. Saturation and
-   lightness stay put so any hue that lands is still readable on the
-   dark base — that is the point of driving it from hue alone rather
-   than from a random hex.
+   Everything accented hangs off --hue, --sat and --l, and js/look.js
+   rolls a fresh set on every open — so the app is a different colour
+   each time you come to it, and the button in the sidebar rolls again
+   on demand.
+
+   --l is not random and not fixed either: look.js solves it per hue so
+   every accent lands at the same brightness as the blue the app was
+   drawn around. Write lightness as an offset from it, never as a
+   number, or that guarantee is lost. --on-accent is the colour of text
+   sitting on an accent fill; never hard-code #fff there.
    ===================================================================== */
 
 :root {
   --hue: 224;                 /* the app's blue, as a starting point */
+  --sat: 100%;
+  --l: 66%;                   /* look.js solves this per hue */
+  --on-accent: #fff;
 
-  --blue: hsl(var(--hue) 100% 66%);
-  --blue-deep: hsl(var(--hue) 100% 59%);
-  --blue-soft: hsl(var(--hue) 100% 81%);
-  --blue-tint: hsl(var(--hue) 100% 66% / .16);
+  --blue: hsl(var(--hue) var(--sat) var(--l));
+  --blue-deep: hsl(var(--hue) var(--sat) calc(var(--l) - 7%));
+  --blue-soft: hsl(var(--hue) var(--sat) calc(var(--l) + 15%));
+  --blue-tint: hsl(var(--hue) var(--sat) var(--l) / .16);
 
   --void: #05091a;            /* behind everything, including the 3D field */
   --dark: #0a1024;            /* solid panels: sidebar, dark cards */
@@ -93,12 +100,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.14; }
 p { margin: 0; }
 svg { display: block; flex: none; }
-::selection { background: var(--blue); color: #fff; }
+::selection { background: var(--blue); color: var(--on-accent); }
 
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
 
 /* Lime marker behind a word, the way a highlighter would leave it */
-.hl { background: var(--blue); color: #fff; border-radius: 7px; padding: 0 8px; display: inline-block; }
+.hl { background: var(--blue); color: var(--on-accent); border-radius: 7px; padding: 0 8px; display: inline-block; }
 .hl-dark { background: var(--dark); color: var(--white); border-radius: 7px; padding: 0 8px; display: inline-block; }
 
 /* ============================== BUTTONS ============================== */
@@ -114,19 +121,19 @@ svg { display: block; flex: none; }
 .btn:active { transform: translateY(2px); }
 .btn-p { background: var(--dark); color: var(--white); }
 .btn-p:hover { background: var(--dark-3); }
-.btn-a { background: var(--blue); color: #fff; }
+.btn-a { background: var(--blue); color: var(--on-accent); }
 .btn-a:hover { background: var(--blue-deep); }
 .btn-g { background: transparent; }
 .btn-g:hover { background: rgba(255,255,255,.09); }
 .btn-d { background: var(--surface); color: var(--err); border-color: var(--err); }
 .btn-d:hover { background: var(--err-bg); }
-.btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 10px; }
+.btn-sm { padding: 7px 13px; font-size: 13px; border-radius: var(--r-sm); }
 .btn-lg { padding: 15px 28px; font-size: 15.5px; border-radius: var(--r); }
 .btn-block { width: 100%; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
 .btn-pop { box-shadow: var(--pop-sm); }
 .btn-pop:active { box-shadow: none; }
-.btn-icon { padding: 8px; border-radius: 10px; }
+.btn-icon { padding: 8px; border-radius: var(--r-sm); }
 .btn-round { border-radius: var(--r-pill); }
 
 /* ================================ SHELL ============================== */
@@ -144,7 +151,7 @@ svg { display: block; flex: none; }
 .sb-top { padding: 22px 20px 16px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
 .brand-mk {
-  width: 30px; height: 30px; border-radius: 9px; color: var(--blue);
+  width: 30px; height: 30px; border-radius: var(--r-sm); color: var(--blue);
   display: grid; place-items: center; font-weight: 700; font-size: 15px; flex: none;
 }
 /* The mark sits on the navy sidebar, so it goes white there. */
@@ -158,24 +165,24 @@ svg { display: block; flex: none; }
   color: var(--faint); font-weight: 600; padding: 16px 10px 7px;
 }
 .sb-a {
-  display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: 10px;
+  display: flex; align-items: center; gap: 11px; padding: 9px 12px; border-radius: var(--r-sm);
   font-size: 14px; color: #d3d4dc; margin-bottom: 2px; transition: background .14s, color .14s;
 }
 .sb-a:hover { background: var(--dark-3); color: var(--white); }
-.sb-a.on { background: var(--blue); color: #fff; font-weight: 500; }
+.sb-a.on { background: var(--blue); color: var(--on-accent); font-weight: 500; }
 .sb-a span { flex: 1; }
 .sb-a .cnt {
   flex: none; font-size: 11.5px; font-weight: 600; background: rgba(255,255,255,.11);
   padding: 1px 7px; border-radius: var(--r-pill); color: #d3d4dc;
 }
-.sb-a.on .cnt { background: rgba(255,255,255,.22); color: #fff; }
+.sb-a.on .cnt { background: rgba(255,255,255,.22); color: var(--on-accent); }
 /* Accounts waiting to be approved — this one should catch the eye. */
-.sb-a .cnt-a { background: var(--blue); color: #fff; }
-.sb-a.on .cnt-a { background: #fff; color: var(--blue); }
+.sb-a .cnt-a { background: var(--blue); color: var(--on-accent); }
+.sb-a.on .cnt-a { background: var(--on-accent); color: var(--blue); }
 /* The folded half of the sidebar. */
 .sb-more {
   display: flex; align-items: center; gap: 11px; width: 100%; margin-top: 10px;
-  padding: 9px 12px; border: 0; border-radius: 10px; background: transparent;
+  padding: 9px 12px; border: 0; border-radius: var(--r-sm); background: transparent;
   color: var(--faint); font-size: 12px; font-weight: 600; letter-spacing: .1em;
   text-transform: uppercase; cursor: pointer; transition: color .15s ease;
 }
@@ -198,7 +205,7 @@ svg { display: block; flex: none; }
    the button itself is the preview of what the app currently looks like. */
 .sb-hue {
   flex: none; width: 42px; display: grid; place-items: center; cursor: pointer;
-  border: 1px solid var(--dark-3); border-radius: 10px;
+  border: 1px solid var(--dark-3); border-radius: var(--r-sm);
   background: transparent; color: var(--blue);
   transition: background .14s, color .14s, transform .14s;
 }
@@ -206,14 +213,14 @@ svg { display: block; flex: none; }
 .sb-hue:active { transform: rotate(-25deg) scale(.94); }
 .sb-user { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
 .av {
-  width: 36px; height: 36px; border-radius: 10px; background: var(--blue); color: #fff;
+  width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--blue); color: var(--on-accent);
   display: grid; place-items: center; font-weight: 600; font-size: 13px; flex: none;
 }
 .sb-user-nm { font-size: 13.5px; font-weight: 500; }
 .sb-user-em { font-size: 11.5px; color: #8b8c99; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 168px; }
 .sb-out {
   display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px;
-  background: transparent; border: 1px solid var(--dark-3); border-radius: 10px;
+  background: transparent; border: 1px solid var(--dark-3); border-radius: var(--r-sm);
   color: #d3d4dc; font-size: 13.5px; cursor: pointer; transition: background .14s;
 }
 .sb-out:hover { background: var(--dark-3); color: var(--white); }
@@ -227,11 +234,11 @@ svg { display: block; flex: none; }
 .crumb { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
 .tb-t { font-size: 21px; font-weight: 600; letter-spacing: -.025em; }
 .tb-r { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.burger { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; cursor: pointer; }
+.burger { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px; cursor: pointer; }
 .wk { display: flex; align-items: center; gap: 8px; }
 .wk-l { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
 .wk select {
-  border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; background: var(--surface);
   font-size: 13.5px; cursor: pointer; max-width: 260px;
 }
 .page { padding: 26px; max-width: 1360px; width: 100%; }
@@ -248,10 +255,10 @@ svg { display: block; flex: none; }
 .card + .card { margin-top: 18px; }
 .card-flat { box-shadow: none; }
 .card-grey { background: var(--grey); }
-.card-blue { background: var(--blue); color: #fff; }
+.card-blue { background: var(--blue); color: var(--on-accent); }
 .card-dark { background: var(--dark); color: var(--white); border-color: var(--line); }
 .card-dark .card-s, .card-dark .kpi-l, .card-dark .kpi-m { color: #a9aab6; }
-.card-dark .hl { color: #fff; }
+.card-dark .hl { color: var(--on-accent); }
 .card-h { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
 .card-h .card-t { flex: 1; }
 .card-t { font-size: 16.5px; font-weight: 600; letter-spacing: -.02em; }
@@ -279,7 +286,7 @@ svg { display: block; flex: none; }
   padding: 18px 18px 16px; box-shadow: var(--pop);
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
 }
-.kpi-blue { background: var(--blue); color: #fff; }
+.kpi-blue { background: var(--blue); color: var(--on-accent); }
 .kpi-blue .kpi-l, .kpi-blue .kpi-m { color: rgba(255,255,255,.78); }
 .kpi-blue .up { color: #b7f5cd; } .kpi-blue .down { color: #ffc4bd; }
 .kpi-dark { background: var(--dark); color: var(--white); }
@@ -299,7 +306,7 @@ svg { display: block; flex: none; }
   padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--line);
   background: var(--surface); white-space: nowrap;
 }
-.t-ok { background: var(--blue); color: #fff; }
+.t-ok { background: var(--blue); color: var(--on-accent); }
 .t-b { background: var(--surface); }
 .t-warn { background: var(--warn-bg); border-color: rgba(243,194,107,.42); color: var(--warn); }
 .t-err { background: var(--err-bg); border-color: rgba(255,143,134,.42); color: var(--err); }
@@ -323,10 +330,10 @@ tbody tr.click:hover { background: var(--blue-tint); }
 .nm { font-weight: 500; }
 .sub { font-size: 12px; color: var(--faint); margin-top: 2px; }
 .rk {
-  width: 26px; height: 26px; border-radius: 8px; background: var(--grey); border: 1px solid var(--hair);
+  width: 26px; height: 26px; border-radius: var(--r-sm); background: var(--grey); border: 1px solid var(--hair);
   display: grid; place-items: center; font-size: 12px; font-weight: 600;
 }
-.rk-1 { background: var(--blue); border-color: var(--line); color: #fff; }
+.rk-1 { background: var(--blue); border-color: var(--line); color: var(--on-accent); }
 .rk-2, .rk-3 { background: var(--blue-tint); border-color: var(--line); }
 
 /* ================================ BARS =============================== */
@@ -344,13 +351,13 @@ tbody tr.click:hover { background: var(--blue-tint); }
 .chart .dt { fill: var(--white); stroke: var(--dark); stroke-width: 2.5; }
 .chart .lb { fill: var(--faint); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; }
 .chart .vl { fill: var(--ink); font-size: 11px; font-weight: 600; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
 .seg button {
   border: 0; background: transparent; padding: 6px 11px; font-size: 12.5px; cursor: pointer;
   display: flex; align-items: center; gap: 6px; color: var(--muted);
 }
 .seg button + button { border-left: 1px solid var(--hair); }
-.seg button.on { background: var(--blue); color: #fff; font-weight: 500; }
+.seg button.on { background: var(--blue); color: var(--on-accent); font-weight: 500; }
 
 /* =============================== FORMS =============================== */
 .field { margin-bottom: 15px; }
@@ -363,7 +370,7 @@ tbody tr.click:hover { background: var(--blue-tint); }
   width: 100%; border: 1px solid var(--line); border-radius: var(--r); padding: 11px 14px;
   background: var(--surface); font-size: 14px; transition: box-shadow .14s;
 }
-.input:focus, .select:focus, textarea.input:focus { outline: none; box-shadow: 0 0 0 3px rgba(79,131,255,.30); border-color: var(--blue); background: var(--surface-2); }
+.input:focus, .select:focus, textarea.input:focus { outline: none; box-shadow: 0 0 0 3px hsl(var(--hue) var(--sat) var(--l) / .30); border-color: var(--blue); background: var(--surface-2); }
 textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .input.bad { border-color: var(--err); }
 .err-t { font-size: 12.5px; color: var(--err); margin-top: 6px; }
@@ -373,7 +380,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; font-size: 13px;
   border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--surface); cursor: pointer;
 }
-.chip.on { background: var(--blue); color: #fff; font-weight: 500; }
+.chip.on { background: var(--blue); color: var(--on-accent); font-weight: 500; }
 .chip.new { background: var(--dark); color: var(--white); }
 .chip button { background: none; border: 0; cursor: pointer; padding: 0; display: grid; opacity: .6; }
 .chip button:hover { opacity: 1; }
@@ -387,7 +394,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 }
 .menu button {
   display: flex; width: 100%; align-items: center; gap: 8px; text-align: left; border: 0;
-  background: none; padding: 9px 11px; border-radius: 9px; font-size: 13.5px; cursor: pointer;
+  background: none; padding: 9px 11px; border-radius: var(--r-sm); font-size: 13.5px; cursor: pointer;
 }
 .menu button:hover, .menu button.on { background: var(--blue-tint); }
 .menu .empty-row { padding: 10px 11px; font-size: 13px; color: var(--faint); }
@@ -414,7 +421,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .empty { text-align: center; padding: 42px 20px; }
 .empty-ic {
   width: 54px; height: 54px; border-radius: var(--r); border: 1px solid var(--line);
-  background: var(--blue); color: #fff; display: grid; place-items: center; margin: 0 auto 14px;
+  background: var(--blue); color: var(--on-accent); display: grid; place-items: center; margin: 0 auto 14px;
 }
 .empty-t { font-size: 16px; font-weight: 600; }
 .empty-d { font-size: 13.5px; color: var(--muted); margin: 6px auto 16px; max-width: 380px; line-height: 1.55; }
@@ -434,7 +441,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 @keyframes pop { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 .mo-h { display: flex; align-items: flex-start; gap: 12px; padding: 20px 20px 0; }
 .mo-t { font-size: 17.5px; font-weight: 600; letter-spacing: -.02em; }
-.mo-x { margin-left: auto; background: none; border: 0; cursor: pointer; padding: 4px; border-radius: 8px; color: var(--muted); }
+.mo-x { margin-left: auto; background: none; border: 0; cursor: pointer; padding: 4px; border-radius: var(--r-sm); color: var(--muted); }
 .mo-x:hover { background: var(--grey); color: var(--ink); }
 .mo-b { padding: 18px 20px; overflow-y: auto; }
 .mo-f { display: flex; gap: 10px; justify-content: flex-end; padding: 0 20px 20px; align-items: center; flex-wrap: wrap; }
@@ -466,7 +473,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; font-weight: 600;
   letter-spacing: .12em; background: var(--blue-tint); border: 1px solid var(--line);
-  border-radius: 9px; padding: 5px 11px; display: inline-block;
+  border-radius: var(--r-sm); padding: 5px 11px; display: inline-block;
 }
 
 /* =============================== AUTH ================================ */
@@ -494,9 +501,9 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
      the wheel so the field keeps its two-tone depth whatever the hue
      lands on. */
   background:
-    radial-gradient(70% 55% at 18% 8%,   hsl(var(--hue) 100% 66% / .20), transparent 62%),
-    radial-gradient(60% 50% at 88% 12%,  hsl(calc(var(--hue) + 40) 100% 66% / .16), transparent 60%),
-    radial-gradient(75% 60% at 50% 108%, hsl(var(--hue) 100% 59% / .14), transparent 66%),
+    radial-gradient(70% 55% at 18% 8%,   hsl(var(--hue) var(--sat) var(--l) / .20), transparent 62%),
+    radial-gradient(60% 50% at 88% 12%,  hsl(calc(var(--hue) + 40) var(--sat) var(--l) / .16), transparent 60%),
+    radial-gradient(75% 60% at 50% 108%, hsl(var(--hue) var(--sat) calc(var(--l) - 7%) / .14), transparent 66%),
     var(--void);
 }
 .shell > .bg3d { position: fixed; }
@@ -506,7 +513,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   position: relative; z-index: 3; width: 100%;
   background: rgba(255,255,255,.055);
   border: 1px solid rgba(255,255,255,.15);
-  border-radius: 30px; padding: 36px 30px 30px; color: #fff;
+  border-radius: var(--r-xl); padding: 36px 30px 30px; color: #fff;
   /* Nothing behind it to blur now the field is flat, so the filter
      would be pure cost for no picture. */
   box-shadow: 0 34px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.20);
@@ -538,24 +545,24 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .auth-card label { color: rgba(255,255,255,.66); font-weight: 500; }
 .auth-card .input, .auth-card .select, .auth-card textarea.input {
   background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.16);
-  color: #fff; border-radius: 14px; padding: 13px 15px;
+  color: #fff; border-radius: var(--r); padding: 13px 15px;
 }
 .auth-card .input::placeholder { color: rgba(255,255,255,.30); }
 .auth-card .input:focus, .auth-card .select:focus {
-  border-color: hsl(var(--hue) 100% 76% / .75); background: rgba(255,255,255,.09);
-  box-shadow: 0 0 0 4px hsl(var(--hue) 100% 59% / .20);
+  border-color: hsl(var(--hue) var(--sat) calc(var(--l) + 10%) / .75); background: rgba(255,255,255,.09);
+  box-shadow: 0 0 0 4px hsl(var(--hue) var(--sat) calc(var(--l) - 7%) / .20);
 }
 .auth-card .select option { background: #0d1b3d; color: #fff; }
 .auth-card .btn-a {
   background: linear-gradient(135deg,
-    hsl(var(--hue) 100% 75%) 0%, hsl(var(--hue) 100% 59%) 52%, hsl(var(--hue) 75% 48%) 100%);
-  border: 0; color: #fff; border-radius: 15px; font-size: 15.5px; font-weight: 600;
-  letter-spacing: .04em; box-shadow: 0 12px 30px hsl(var(--hue) 100% 59% / .40);
+    hsl(var(--hue) var(--sat) calc(var(--l) + 9%)) 0%, hsl(var(--hue) var(--sat) calc(var(--l) - 7%)) 52%, hsl(var(--hue) calc(var(--sat) - 25%) calc(var(--l) - 18%)) 100%);
+  border: 0; color: var(--on-accent); border-radius: var(--r); font-size: 15.5px; font-weight: 600;
+  letter-spacing: .04em; box-shadow: 0 12px 30px hsl(var(--hue) var(--sat) calc(var(--l) - 7%) / .40);
 }
-.auth-card .btn-a:hover { box-shadow: 0 16px 38px hsl(var(--hue) 100% 59% / .52); }
+.auth-card .btn-a:hover { box-shadow: 0 16px 38px hsl(var(--hue) var(--sat) calc(var(--l) - 7%) / .52); }
 .auth-card .btn:not(.btn-a) {
   background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18);
-  color: #fff; border-radius: 14px;
+  color: #fff; border-radius: var(--r);
 }
 .auth-card .btn:not(.btn-a):hover { background: rgba(255,255,255,.12); }
 .auth-card .note { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); color: rgba(255,255,255,.76); }
@@ -588,10 +595,10 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 /* The role fork sits on glass too. */
 .auth-card .pick-o {
   background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.16); color: #fff;
-  border-radius: 18px;
+  border-radius: var(--r-lg);
 }
 .auth-card .pick-o:hover { background: rgba(255,255,255,.11); }
-.auth-card .pick-o.on { background: rgba(47,107,255,.30); border-color: rgba(126,163,255,.6); }
+.auth-card .pick-o.on { background: hsl(var(--hue) var(--sat) calc(var(--l) - 7%) / .30); border-color: hsl(var(--hue) var(--sat) calc(var(--l) + 10%) / .6); }
 .auth-card .pick-o .pick-d { color: rgba(255,255,255,.55); }
 .auth-card .pick-o.on .pick-d { color: rgba(255,255,255,.78); }
 
@@ -600,7 +607,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
 .scan-card { width: 100%; max-width: 430px; }
 .scan-foot { font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
 .big-ok {
-  width: 74px; height: 74px; border-radius: 50%; background: var(--blue); color: #fff; border: 1px solid var(--line);
+  width: 74px; height: 74px; border-radius: 50%; background: var(--blue); color: var(--on-accent); border: 1px solid var(--line);
   display: grid; place-items: center; margin: 6px auto 16px;
 }
 .big-no { background: var(--err-bg); border-color: var(--err); color: var(--err); }
@@ -697,7 +704,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   .tab.on .tab-i { transform: translateY(-1px); }
   .tab-b {
     position: absolute; top: -5px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px;
-    border-radius: 9px; background: var(--blue); color: #fff;
+    border-radius: var(--r-sm); background: var(--blue); color: var(--on-accent);
     font-size: 10px; font-style: normal; font-weight: 700; line-height: 16px; text-align: center;
   }
   .tab:active { color: var(--blue); }
@@ -837,7 +844,7 @@ html.standalone .inst { display: none; }
 
 /* On the sign-in card it is smaller, and folded behind a heading. */
 .does {
-  margin: -6px 0 24px; padding: 16px 16px 15px; border-radius: 18px;
+  margin: -6px 0 24px; padding: 16px 16px 15px; border-radius: var(--r-lg);
   background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.10);
   position: relative; z-index: 1;
 }
@@ -852,13 +859,13 @@ html.standalone .inst { display: none; }
 .steps { display: flex; flex-direction: column; gap: 18px; }
 .step { display: flex; gap: 14px; align-items: flex-start; }
 .step-n {
-  position: relative; width: 42px; height: 42px; flex: none; border-radius: 13px;
+  position: relative; width: 42px; height: 42px; flex: none; border-radius: var(--r);
   background: var(--blue-tint); border: 1px solid var(--line); color: var(--blue-soft);
   display: grid; place-items: center;
 }
 .step-n i {
   position: absolute; right: -6px; bottom: -6px; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--blue); color: #fff; font-style: normal; font-size: 11px; font-weight: 700;
+  background: var(--blue); color: var(--on-accent); font-style: normal; font-size: 11px; font-weight: 700;
   display: grid; place-items: center;
 }
 .step-t { font-weight: 600; font-size: 15px; margin-bottom: 3px; }
@@ -884,7 +891,7 @@ html.standalone .inst { display: none; }
   flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2);
   color: var(--muted); font-size: 11.5px; font-weight: 700; display: grid; place-items: center;
 }
-.rank li.me .rank-n { background: var(--blue); color: #fff; }
+.rank li.me .rank-n { background: var(--blue); color: var(--on-accent); }
 .rank-o { flex: 1; font-size: 13.5px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
 .rank-o i { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--blue); margin-left: 7px; }
 .rank-v { flex: none; text-align: right; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
@@ -893,7 +900,7 @@ html.standalone .inst { display: none; }
 /* ================= SCAN — CONFIRMING IT IS YOU ======================= */
 .who { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
 .who-av {
-  width: 46px; height: 46px; border-radius: 50%; flex: none; background: var(--blue); color: #fff;
+  width: 46px; height: 46px; border-radius: 50%; flex: none; background: var(--blue); color: var(--on-accent);
   display: grid; place-items: center; font-weight: 600; font-size: 15px; letter-spacing: .02em;
 }
 .who-n { font-weight: 600; font-size: 17px; line-height: 1.25; }
@@ -917,7 +924,7 @@ html.standalone .inst { display: none; }
 .pick-o:hover { transform: translateY(-2px); box-shadow: var(--pop-sm); background: var(--blue-tint); }
 .pick-o.on { background: var(--dark); color: #fff; box-shadow: var(--pop-sm); }
 .pick-o .pick-ic {
-  width: 40px; height: 40px; border-radius: 12px; background: var(--blue); color: #fff;
+  width: 40px; height: 40px; border-radius: var(--r); background: var(--blue); color: var(--on-accent);
   display: grid; place-items: center;
 }
 .pick-o .pick-t { font-weight: 600; font-size: 15px; }
@@ -926,7 +933,7 @@ html.standalone .inst { display: none; }
 .pick-sm { margin: 0; }
 @media (max-width: 560px) {
   .pick { grid-template-columns: 1fr; }
-  .auth-card { padding: 30px 22px 26px; border-radius: 26px; }
+  .auth-card { padding: 30px 22px 26px; border-radius: var(--r-xl); }
   .auth-h { font-size: 24px; }
   /* Fewer, larger shapes read better on a small screen. */
   .bm-5, .bm-6 { display: none; }
@@ -1025,8 +1032,8 @@ html.standalone .inst { display: none; }
 
 /* The sidebar item the current step is talking about. */
 .sb-a.tour-lit {
-  background: var(--blue); color: #fff; font-weight: 500;
-  box-shadow: 0 0 0 3px hsl(var(--hue) 100% 66% / .35);
+  background: var(--blue); color: var(--on-accent); font-weight: 500;
+  box-shadow: 0 0 0 3px hsl(var(--hue) var(--sat) var(--l) / .35);
 }
 
 @media (max-width: 560px) {

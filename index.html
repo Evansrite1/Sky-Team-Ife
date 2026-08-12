@@ -20,17 +20,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- Rolls this visit's colour and corners before the stylesheet paints
+     anything, so the look is settled by the first frame. -->
+<script src="js/look.js"></script>
 <link rel="stylesheet" href="css/styles.css">
-<script>
-/* Before the stylesheet paints anything, so the app never flashes the
-   old accent on the way in. ui.js reads the same key afterwards. */
-(function () {
-  try {
-    var h = parseInt(localStorage.getItem('sti-hue'), 10);
-    if (!isNaN(h)) document.documentElement.style.setProperty('--hue', ((h % 360) + 360) % 360);
-  } catch (e) { /* the stylesheet's own default stands */ }
-})();
-</script>
 </head>
 <body>
 <div id="root"><div class="loading"><div class="spinner"></div></div></div>

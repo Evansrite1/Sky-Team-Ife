@@ -12,16 +12,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Same as the app: the look is rolled before the first paint. -->
+<script src="js/look.js"></script>
 <link rel="stylesheet" href="css/styles.css">
-<script>
-/* Same guard as the app: set the accent before the first paint. */
-(function () {
-  try {
-    var h = parseInt(localStorage.getItem('sti-hue'), 10);
-    if (!isNaN(h)) document.documentElement.style.setProperty('--hue', ((h % 360) + 360) % 360);
-  } catch (e) { /* the stylesheet's own default stands */ }
-})();
-</script>
 </head>
 <body>
 <div id="root"><div class="loading"><div class="spinner"></div></div></div>

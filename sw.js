@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v14';
+const CACHE = 'sti-shell-v15';
 
 const SHELL = [
   './',
@@ -16,6 +16,7 @@ const SHELL = [
   './scan.html',
   './config.js',
   './css/styles.css',
+  './js/look.js',
   './js/ui.js',
   './js/api.js',
   './js/views.js',

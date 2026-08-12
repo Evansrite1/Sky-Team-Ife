@@ -409,45 +409,19 @@
      more than it was worth on anything but a fast desktop. */
   const backdrop3d = () => '<div class="bg3d" aria-hidden="true"></div>';
 
-  /* ----------------------------------------------------- accent hue */
-  /* The app is dark, full stop. What used to be a light switch is a dice
-     roll on the accent colour instead: one hue on <html>, remembered, and
-     set before first paint by index.html so nothing flashes on the way in.
-     Only the hue is random — saturation and lightness are fixed in the
-     stylesheet, so whatever number comes up is still legible on dark. */
-  const HUE_KEY = 'sti-hue';
-  const DEFAULT_HUE = 224;               /* the blue the app shipped with */
-  const readHue = () => {
-    try {
-      const h = parseInt(localStorage.getItem(HUE_KEY), 10);
-      return isNaN(h) ? DEFAULT_HUE : ((h % 360) + 360) % 360;
-    } catch (e) { return DEFAULT_HUE; }
+  /* ---------------------------------------------------------- the look */
+  /* The colour and the corners live in js/look.js, which runs in <head>
+     before the stylesheet so the roll is settled before the first paint.
+     These are the handles the app uses; the fallbacks are only there so a
+     page that forgets to load look.js still renders rather than throwing. */
+  const LOOK = window.LOOK || {
+    roll: () => ({ hue: 224, sat: 100, shape: 'round' }),
+    read: () => ({ hue: 224, sat: 100, shape: 'round' }),
+    describe: () => 'Blue, round corners'
   };
-  const applyHue = (h) => {
-    document.documentElement.style.setProperty('--hue', h);
-  };
-  const setHue = (h) => {
-    h = ((Math.round(h) % 360) + 360) % 360;
-    try { localStorage.setItem(HUE_KEY, h); } catch (e) { /* ignore */ }
-    applyHue(h);
-    return h;
-  };
-  /* Anywhere on the wheel, but never so close to where it already is that
-     the change reads as nothing happening. */
-  const randomHue = () => setHue(readHue() + 40 + Math.random() * 280);
-  /* Rough names for the arcs of the wheel, so the toast can say what it
-     just landed on. Each pair is the hue the arc ends at. */
-  const HUE_NAMES = [
-    [15, 'Red'], [40, 'Orange'], [60, 'Amber'], [80, 'Lime'], [150, 'Green'],
-    [175, 'Teal'], [195, 'Cyan'], [225, 'Blue'], [260, 'Indigo'], [290, 'Violet'],
-    [320, 'Magenta'], [345, 'Pink']
-  ];
-  const hueName = (h) => {
-    h = ((Math.round(h) % 360) + 360) % 360;
-    for (let i = 0; i < HUE_NAMES.length; i++) if (h < HUE_NAMES[i][0]) return HUE_NAMES[i][1];
-    return 'Red';                        /* the arc that wraps past 345 */
-  };
-  applyHue(readHue());
+  const rollLook = () => LOOK.roll();
+  const readLook = () => LOOK.read();
+  const describeLook = (l) => LOOK.describe(l);
 
   /* ------------------------------------------------ evaluation PDF */
   /* Opens a print-ready page and asks the browser to print it, which is
@@ -566,7 +540,7 @@
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
-    readHue, setHue, randomHue, hueName,
+    rollLook, readLook, describeLook,
     kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster, printEvaluation,
     toast, modal, closeModal, busy, confirmDialog

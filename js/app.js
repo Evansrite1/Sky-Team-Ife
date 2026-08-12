@@ -92,9 +92,10 @@
   const brand = () => (A.store.settings.organisation || window.CONFIG.organisation || 'Sky Team Ife');
 
   /* ============================== CHROME ============================= */
-  /* Not a light switch — a dice roll on the accent colour. */
-  const hueBtn = () => '<button class="sb-hue" data-act="hue" title="Change the accent colour'
-    + ' (now ' + U.hueName(U.readHue()) + ')" aria-label="Change the accent colour">'
+  /* Not a light switch — a dice roll on the whole look. The app rolls one
+     for itself on every open; this is for rolling again on the spot. */
+  const hueBtn = () => '<button class="sb-hue" data-act="hue" title="Roll a new look'
+    + ' (now ' + esc(U.describeLook()) + ')" aria-label="Roll a new look">'
     + ico('drop', 16) + '</button>';
 
   const navLink = (n, active) => {
@@ -669,11 +670,11 @@
      everything else is already the new colour by the time this runs. The
      button is only redrawn to refresh its own tooltip. */
   ACT['hue'] = (el) => {
-    const h = U.randomHue();
+    const look = U.rollLook();
     const holder = el.parentElement;
     el.outerHTML = hueBtn();
     if (holder) void holder.offsetHeight;
-    U.toast(U.hueName(h) + ' it is.');
+    U.toast(U.describeLook(look) + '.');
   };
   ACT['more'] = (el) => {
     state.moreOpen = !state.moreOpen;
