@@ -31,18 +31,55 @@
         + '<div class="room-l">' + c[0] + '</div></div></div>').join('')
     + '</div>';
 
+  /* ---------------------------------------------------------- ranking */
+  /* What makes an office the best office.
+     Amount alone used to decide it, which flattered a small office that
+     happened to land one big order. Three things count now, in the order
+     they matter: how many orders were written, how many people were in
+     the room to write them, and what the orders came to.
+
+     Each is scored against the best office in the same group rather than
+     against a fixed target, so a score is "how close to the leader" and
+     the weights below are the whole of the policy. Change them here and
+     every ranking in the app moves together. */
+  const RANK_W = { orders: 0.45, people: 0.30, amount: 0.25 };
+  const RANK_BASIS = 'Orders, room size and amount.';
+
+  const peopleIn = r => (Number(r.num_distributors) || 0)
+    + (Number(r.num_senior_managers) || 0) + (Number(r.num_newbies) || 0);
+
   function rankOffices(reps, offices) {
     const by = {};
     reps.forEach(r => {
-      by[r.office_id] = by[r.office_id] || { office_id: r.office_id, orders: 0, amount: 0 };
-      by[r.office_id].orders += Number(r.orders) || 0;
-      by[r.office_id].amount += Number(r.amount) || 0;
+      const b = by[r.office_id] = by[r.office_id]
+        || { office_id: r.office_id, orders: 0, amount: 0, people: 0, weeks: 0 };
+      b.orders += Number(r.orders) || 0;
+      b.amount += Number(r.amount) || 0;
+      /* Orders and money accumulate over the weeks in view. The room does
+         not — the same people come back — so it is the largest week, not
+         the sum of them. */
+      b.people = Math.max(b.people, peopleIn(r));
+      b.weeks += 1;
     });
-    offices.forEach(o => { by[o.id] = by[o.id] || { office_id: o.id, orders: 0, amount: 0, missing: true }; });
-    return Object.values(by)
+    offices.forEach(o => {
+      by[o.id] = by[o.id] || { office_id: o.id, orders: 0, amount: 0, people: 0, weeks: 0, missing: true };
+    });
+    const rows = Object.values(by)
       .map(r => Object.assign(r, { office: A.officeById(r.office_id) }))
-      .filter(r => r.office)
-      .sort((a, b) => b.amount - a.amount || b.orders - a.orders)
+      .filter(r => r.office);
+
+    /* Divide by the leader in each column. The || 1 is what stops a group
+       where nobody sold anything from dividing by zero. */
+    const top = k => rows.reduce((m, r) => Math.max(m, r[k]), 0) || 1;
+    const bestOrders = top('orders'), bestPeople = top('people'), bestAmount = top('amount');
+    rows.forEach(r => {
+      r.score = Math.round(100 * (
+        RANK_W.orders * (r.orders / bestOrders)
+        + RANK_W.people * (r.people / bestPeople)
+        + RANK_W.amount * (r.amount / bestAmount)));
+    });
+    return rows
+      .sort((a, b) => b.score - a.score || b.orders - a.orders || b.amount - a.amount)
       .map((r, i) => Object.assign(r, { rank: i + 1 }));
   }
 
@@ -108,7 +145,7 @@
 
     return {
       title: 'Dashboard', picker: 'week',
-      crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · open until Tuesday'),
+      crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · ' + U.weekClosesLabel(ws)),
       html:
         (!A.store.centers.length ? note('gold', 'info',
           '<b>No zones yet.</b> Create your first zone under <a href="' + link('admin') + '" style="text-decoration:underline">Zones &amp; admins</a>, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
@@ -132,7 +169,7 @@
         + chart(series, series.length - 1, S().chartType) + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Zones this week</div>'
-        + '<div class="card-s">Ranked by amount.</div></div></div>'
+        + '<div class="card-s">' + RANK_BASIS + '</div></div></div>'
         + (centerRows.length ? centerRows.map(r =>
           '<a href="' + link('centers', r.c.id) + '" style="display:block;padding:11px 0;border-bottom:1px solid #edf0f7">'
           + '<div class="spread"><div class="nm">' + esc(r.c.name) + '</div>'
@@ -211,6 +248,18 @@
           '<b>Your ' + esc(U.weekName(ws)) + ' report is not in.</b> ' + evalLine(ws)
           + ' <a href="' + link('reports') + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
           + '<div style="height:18px"></div>' : '')
+        /* The room, against the names on file. A distributor with no
+           record cannot scan in, so a gap here is a gap in attendance. */
+        + ((() => {
+          const named = dists.filter(d => d.active !== false).length;
+          const claimed = mine ? peopleIn(mine) : 0;
+          if (claimed <= named) return '';
+          return note('warn', 'users',
+            '<b>' + (claimed - named) + ' of your ' + claimed + ' are not on the list by name.</b> '
+            + 'Only the ' + named + ' on file can scan in at a training. '
+            + '<a href="' + link('distributors') + '" style="text-decoration:underline;font-weight:600">Add them now</a>.')
+            + '<div style="height:18px"></div>';
+        })())
         + '<div class="grid g4">'
         + kpi('Your orders', mine ? Number(mine.orders).toLocaleString() : '—',
           mine ? U.change(mine.orders, prevMine ? prevMine.orders : 0) : 'No report for this week', 'trend')
@@ -230,7 +279,7 @@
 
         + '<div class="stack">'
         + '<div class="card"><div class="card-h"><div><div class="card-t">This week in your zone</div>'
-        + '<div class="card-s">Ranked by amount.</div></div></div>'
+        + '<div class="card-s">' + RANK_BASIS + '</div></div></div>'
         + (ranked.length ? ranked.slice(0, 6).map(r =>
           '<div class="spread" style="padding:9px 0;border-bottom:1px solid #edf0f7">'
           + '<div class="row" style="gap:9px"><span class="rk rk-' + r.rank + '">' + r.rank + '</span>'
@@ -360,7 +409,7 @@
 
         + (mine ? '' : '<div class="card" style="margin-top:18px">'
           + '<div class="card-h"><div><div class="card-t">Offices this month</div>'
-          + '<div class="card-s">Ranked by amount across ' + weeks.length + ' weeks.</div></div></div>'
+          + '<div class="card-s">' + RANK_BASIS.replace('.', ',') + ' across ' + weeks.length + ' weeks.</div></div></div>'
           + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Reports', num: true },
           { label: 'Orders', num: true }, { label: 'Amount', num: true }],
             ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
@@ -619,20 +668,21 @@
     const ws = S().week;
     const reps = await A.reports.list({ week: ws });
     const ranked = rankOffices(reps, A.store.offices.filter(o => o.active));
-    const max = Math.max.apply(null, ranked.map(r => r.amount).concat([1]));
     return {
       title: 'Office rankings', picker: 'week', crumbs: esc(U.weekLabel(ws)),
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Ranked by amount</div>'
-        + '<div class="card-s">Every office across every zone. ' + evalLine(ws) + '</div></div></div>'
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Office rankings</div>'
+        + '<div class="card-s">Every office across every zone. ' + RANK_BASIS + ' ' + evalLine(ws) + '</div></div></div>'
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Orders', num: true },
-        { label: 'Amount', num: true }, { label: '' }],
+        { label: 'People', num: true }, { label: 'Amount', num: true }, { label: 'Score', num: true }, { label: '' }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
             + '<td class="nm">' + esc(r.office.name) + '</td>'
             + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
             + '<td class="num">' + (r.missing ? '—' : r.orders) + '</td>'
+            + '<td class="num">' + (r.missing ? '—' : r.people) + '</td>'
             + '<td class="num nm">' + (r.missing ? tag('Not filed', 't-warn') : usdFull(r.amount)) + '</td>'
-            + '<td style="width:180px">' + bar(r.amount, max, r.rank === 1) + '</td></tr>'),
+            + '<td class="num nm">' + (r.missing ? '—' : r.score) + '</td>'
+            + '<td style="width:150px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
           { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file for this week.') })
         + '</div>'
     };
@@ -674,8 +724,12 @@
 
   async function officeReports() {
     const off = A.store.me.office, ws = S().week;
-    const [mine, all] = await Promise.all([A.reports.get(off.id, ws), A.reports.list({ office: off.id })]);
-    const dists = await A.distributors.list({ office: off.id });
+    /* Three independent queries, so all three go at once. */
+    const [mine, all, dists] = await Promise.all([
+      A.reports.get(off.id, ws),
+      A.reports.list({ office: off.id }),
+      A.distributors.list({ office: off.id })
+    ]);
     const f = S().form || {};
     const niches = f.niches || (mine ? (mine.niches || []).slice() : []);
     const newNiches = f.newNiches || (mine ? (mine.new_niches || []).slice() : []);
@@ -792,10 +846,16 @@
     const filter = { week: ws, kind };
     if (A.isOffice()) filter.center = A.store.me.center_id;
     else if (S().center) filter.center = S().center;
+    /* The distributors do not depend on the events, so they are fetched
+       alongside rather than after — this page used to make four round
+       trips one behind the other. */
+    const distsP = A.distributors.list(A.isOffice() ? { center: A.store.me.center_id } : {});
     if (kind === 'training') await A.events.ensureWeek(ws);
     const evs = await A.events.list(filter);
-    const scans = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
-    const dists = await A.distributors.list(A.isOffice() ? { center: A.store.me.center_id } : {});
+    const [scans, dists] = await Promise.all([
+      evs.length ? A.scans.forEvents(evs.map(e => e.id)) : Promise.resolve([]),
+      distsP
+    ]);
 
     const eligible = e => dists.filter(d => d.center_id === e.center_id
       && (e.elig === 'sm' ? SM_PLUS.includes(d.status) : true)).length;
@@ -1023,7 +1083,10 @@
         : 'Your subscription is live') + '</div>'
       + '<div class="card-s">'
       + (sub.status === 'trial'
-        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days.'
+        ? (plan.firstChargeOn
+          ? 'Billing starts ' + U.fullDate(plan.firstChargeOn) + ' — ' + U.ngn(plan.amountNgn)
+          + ' every ' + plan.days + ' days, the same for every office.'
+          : 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days.')
         : 'Next charge ' + (sub.next_charge ? U.fullDate(sub.next_charge) : 'not set')
         + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div>'
       + (warn || sub.status !== 'trial' ? '<div class="card-a">' + pay + '</div>' : '') + '</div>'
@@ -1052,7 +1115,8 @@
           + '<div style="height:18px"></div>' : '')
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
-        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' per office every ' + plan.days + ' days.</div></div></div>'
+        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' per office every ' + plan.days + ' days'
+        + (plan.firstChargeOn ? ', from ' + U.fullDate(plan.firstChargeOn) : '') + '.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Status' }, { label: 'Trial ends' }, { label: 'Next charge' }, { label: 'Amount', num: true }],
           subs.filter(s => !own || s.office_id === A.store.me.office_id).map(s => {
             const o = A.officeById(s.office_id) || {};
@@ -1280,7 +1344,7 @@
         + '<div class="steps">'
         + '<div class="step"><div class="step-n">' + ico('calendar', 18) + '<i>W</i></div>'
         + '<div><div class="step-t">Wednesday to Tuesday</div>'
-        + '<div class="step-d">A week opens on Wednesday and closes the following Tuesday. Reports belong to the week they cover, not the day they are filed.</div></div></div>'
+        + '<div class="step-d">A week opens on Thursday and stays open all the way through the following Wednesday. Reports belong to the week they cover, not the day they are filed.</div></div></div>'
         + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>1</i></div>'
         + '<div><div class="step-t">Senior Manager Training, Wednesday 2:45pm</div>'
         + '<div class="step-d">Senior Managers and above. Creates itself for every zone.</div></div></div>'

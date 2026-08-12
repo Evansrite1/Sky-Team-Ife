@@ -26,7 +26,17 @@ window.CONFIG = {
      once the two Edge Functions are deployed, or offices will be locked
      out with a button that cannot reach Paystack. */
   billingEnabled: true,
-  plan: { amountNgn: 6500, days: 30, trialDays: 16, name: 'Office plan' }
+
+  /* One plan, the same for every office: ₦6,500 every 30 days. Nobody is
+     charged before firstChargeOn — every office runs free until that day
+     whenever it joined, so the whole estate falls due together. Moving
+     the date here only changes what the app says; the dates the charges
+     actually run from live in the subscriptions table, which
+     supabase/2026-08-fixes.sql sets to match. */
+  plan: {
+    amountNgn: 6500, days: 30, trialDays: 16, name: 'Office plan',
+    firstChargeOn: '2026-09-03'
+  }
 };
 
 /* The app checks this before it tries to talk to the database, so a site

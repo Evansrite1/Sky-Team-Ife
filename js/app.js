@@ -21,7 +21,8 @@
     booted: false,
     editRequest: false,  // a waiting account asked to change what it sent
     moreOpen: false,     // the folded half of the sidebar
-    tour: -1             // walkthrough step, -1 when it is not running
+    tour: -1,            // walkthrough step, -1 when it is not running
+    ranks: null          // the Director's rail standing, cached per week
   };
   window.APP = { state, go, refresh };
 
@@ -124,6 +125,7 @@
         + nav.more.map(n => navLink(n, active)).join('')
         + '</div></div>'
         : '')
+      + (me.role === 'platform_admin' ? sbRanksHtml() : '')
       + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
@@ -133,6 +135,54 @@
       + hueBtn()
       + '</div>'
       + '<div class="sb-credit">Site developed by <b>Large Technologies</b></div></div></aside>';
+  }
+
+  /* ------------------------------------------------- ranks in the rail */
+  /* A Director's whole job is which office is ahead, so the standing for
+     the week on screen sits in the sidebar rather than a page they have
+     to go to. It is painted from a cache and filled in behind the render:
+     the rail must never wait on a query to appear. */
+  function sbRanksHtml() {
+    const r = state.ranks;
+    if (!r || !r.rows) return '<div class="sb-ranks" id="sb-ranks"></div>';
+    return '<div class="sb-ranks" id="sb-ranks">'
+      + '<div class="sb-grp">Offices · ' + esc(U.weekName(r.week)) + '</div>'
+      + (r.rows.length
+        ? r.rows.map(o => '<a class="sb-rk" href="#/offices/' + o.id + '">'
+          + '<span class="rk rk-' + o.rank + '">' + o.rank + '</span>'
+          + '<span class="sb-rk-n">' + esc(o.name) + '</span>'
+          + '<span class="sb-rk-s">' + o.score + '</span></a>').join('')
+        : '<div class="sb-rk-none">Nothing filed yet.</div>')
+      + '</div>';
+  }
+
+  /* Fetches once per week and remembers it, so flipping between pages
+     does not re-query what has not changed. */
+  async function loadSbRanks() {
+    const me = A.store.me;
+    if (!me || me.role !== 'platform_admin') return;
+    const wk = state.week;
+    if (state.ranks && state.ranks.week === wk) return paintSbRanks();
+    try {
+      const filter = { week: wk };
+      if (me.center_id) filter.center = me.center_id;
+      const reps = await A.reports.list(filter);
+      const offs = A.store.offices.filter(o => o.active
+        && (!me.center_id || o.center_id === me.center_id));
+      const ranked = V.helpers.rankOffices(reps, offs).filter(r => !r.missing);
+      state.ranks = {
+        week: wk,
+        rows: ranked.slice(0, 8).map(r => ({ id: r.office_id, name: r.office.name, rank: r.rank, score: r.score }))
+      };
+    } catch (e) {
+      state.ranks = { week: wk, rows: [] };
+    }
+    paintSbRanks();
+  }
+
+  function paintSbRanks() {
+    const host = $('#sb-ranks');
+    if (host) host.outerHTML = sbRanksHtml();
   }
 
   /* On a phone the sidebar is the wrong shape entirely. These are the
@@ -333,30 +383,122 @@
 
     if (routing) return;
     routing = true;
-    $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
-      + '<main class="main"><div class="loading"><div class="spinner"></div>'
-      + '<div class="card-s">Loading…</div></div></main></div>';
+    const main = ensureShell(page);
+    main.innerHTML = '<div class="loading"><div class="spinner"></div>'
+      + '<div class="card-s">Loading…</div></div>';
     try {
       const v = await V[page](id);
-      $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<div class="scrim" data-act="nav"></div>'
-        + '<main class="main">' + topbar(v) + '<div class="page enter">' + v.html + '</div></main>'
-        + installBar() + tabbar(page) + '</div>';
+      /* The rail carries the credit too, but the rail is behind a menu on
+         a phone — which is where most of this is read. */
+      main.innerHTML = topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
       console.error(e);
-      $('#root').innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page) + '<main class="main">'
-        + topbar({ title: 'Something went wrong' }) + '<div class="page">'
+      main.innerHTML = topbar({ title: 'Something went wrong' }) + '<div class="page">'
         + U.note('err', 'alert', '<b>' + esc(e.message || 'The database refused that request.') + '</b>'
           + '<div style="margin-top:8px">If this is the first run, check that supabase/schema.sql has been run in your Supabase project.</div>')
         + '<div class="row" style="margin-top:16px"><button class="btn btn-p" data-act="reload">'
-        + ico('refresh', 15) + 'Try again</button></div></div></main></div>';
+        + ico('refresh', 15) + 'Try again</button></div></div>';
     }
     routing = false;
+    /* After the page is up, never before it. */
+    loadSbRanks();
+    askForNames();
+  }
+
+  /* ------------------------------------------------- the names nudge */
+  /* An office is asked for its distributors by name on the three days
+     the week actually turns over — Thursday it opens, Friday is the
+     Distributor Training, Saturday is the last chance before the week
+     runs away — and on any day at all when the number of people it says
+     are in the room is more than the number of names on file.
+
+     Once a day, never twice: being nagged on every click is how a prompt
+     gets dismissed without being read. */
+  const NAMES_KEY = 'sti-names-asked';
+  const NUDGE_DAYS = [4, 5, 6];          // Thursday, Friday, Saturday
+  let namesChecked = false;              // the two queries run once a visit
+
+  async function askForNames() {
+    const me = A.store.me;
+    if (!me || me.role !== 'office' || !me.office || A.store.locked) return;
+    if (state.page === 'distributors') return;      // they are already there
+    if (namesChecked) return;
+
+    const today = U.iso(new Date());
+    let asked = '';
+    try { asked = localStorage.getItem(NAMES_KEY) || ''; } catch (e) { /* ignore */ }
+    if (asked === today) { namesChecked = true; return; }
+    namesChecked = true;
+
+    let dists = [];
+    try { dists = await A.distributors.list({ office: me.office.id }); }
+    catch (e) { return; }
+    const named = dists.filter(d => d.active !== false).length;
+
+    /* What the office last said the room holds, against the names on it. */
+    let claimed = 0;
+    try {
+      const last = (await A.reports.list({ office: me.office.id }))[0];
+      if (last) claimed = (Number(last.num_distributors) || 0)
+        + (Number(last.num_senior_managers) || 0) + (Number(last.num_newbies) || 0);
+    } catch (e) { /* the day rule still applies */ }
+
+    const short = claimed > named;
+    const isNudgeDay = NUDGE_DAYS.indexOf(new Date().getDay()) !== -1;
+    if (!short && !isNudgeDay) return;
+
+    try { localStorage.setItem(NAMES_KEY, today); } catch (e) { /* ignore */ }
+
+    modal('Who is in your office?',
+      short
+        ? 'Your last report counted <b>' + claimed + '</b> in the room, but only <b>' + named
+        + '</b> ' + (named === 1 ? 'name is' : 'names are') + ' on file. The ones missing cannot scan in.'
+        : 'Everyone who scans in at a training has to be on this list first.',
+      U.note('info', 'users', named
+        ? '<b>' + named + ' ' + (named === 1 ? 'name' : 'names') + ' on file.</b> '
+        + 'Add anyone who has joined, and take off anyone who has left.'
+        : '<b>No names on file yet.</b> Add your distributors and they can scan in at the next training.'),
+      '<button class="btn btn-g" data-act="modal-close">Later</button>'
+      + '<button class="btn btn-a" data-act="go-names">' + ico('users', 16) + 'Add the names</button>');
+  }
+
+
+  /* The shell — backdrop, rail, tab bar — is built once and then left in
+     place. Only <main> is swapped from page to page.
+
+     It used to rebuild the whole of #root twice for every navigation:
+     once to show the spinner and again with the content, each time
+     re-parsing the sidebar and re-creating the backdrop. That is what
+     made moving around feel heavy on a phone. The rail and the tab bar
+     are still refreshed, because the active link and the badges move,
+     but the backdrop is now created exactly once per sign-in. */
+  function ensureShell(page) {
+    const root = $('#root');
+    const shell = root.querySelector('.shell');
+    if (!shell) {
+      root.innerHTML = '<div class="shell">' + U.backdrop3d() + sidebar(page)
+        + '<div class="scrim" data-act="nav"></div><main class="main"></main>'
+        + installBar() + tabbar(page) + '</div>';
+      return root.querySelector('main.main');
+    }
+    const sb = shell.querySelector('.sb');
+    if (sb) sb.outerHTML = sidebar(page);
+    /* Both live after <main> and both can come and go — the install bar
+       when it is snoozed, the badges on the tab bar as counts change —
+       so they are dropped and re-laid in that order rather than patched. */
+    const old = shell.querySelector('.inst');
+    if (old) old.remove();
+    const tabs = shell.querySelector('.tabs');
+    if (tabs) tabs.remove();
+    shell.insertAdjacentHTML('beforeend', installBar() + tabbar(page));
+    return shell.querySelector('main.main');
   }
   async function refresh() { await route(); }
 
   /* =============================== AUTH ============================= */
   const CREDIT = '<div class="credit">Site developed by <b>Large Technologies</b></div>';
+  const PAGE_CREDIT = '<footer class="pg-credit">Developed by <b>Large Technologies</b></footer>';
 
   /* The mark on the card is deliberately still. Everything that moves is
      behind the glass, so the brand itself stays steady to read against. */
@@ -467,7 +609,7 @@
     const zones = kind === 'office' ? await A.join.publicCenters() : [];
 
     const mine = '<div class="field"><label for="ob-you">Your full name</label>'
-      + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Femi Ademilua" value="'
+      + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Evans Large" value="'
       + esc(me.full_name || '') + '"></div>'
       + '<div class="field"><label for="ob-phone">Phone number</label>'
       + '<input class="input" id="ob-phone" type="tel" required autocomplete="tel" placeholder="0803 000 0000" value="'
@@ -599,6 +741,7 @@
   ACT['signout'] = async () => {
     A.unwatch();
     await A.auth.signOut();
+    state.ranks = null;
     state.booted = true; go('#/login'); await route();
   };
 
@@ -669,6 +812,8 @@
   /* Repaint only the button, not the page: the accent is one variable, so
      everything else is already the new colour by the time this runs. The
      button is only redrawn to refresh its own tooltip. */
+  ACT['go-names'] = () => { closeModal(); go('#/distributors'); };
+
   ACT['hue'] = (el) => {
     const look = U.rollLook();
     const holder = el.parentElement;
@@ -772,7 +917,7 @@
 
   /* --- distributors ------------------------------------------------ */
   const distForm = (d) => '<div class="field"><label for="d-name">Full name</label>'
-    + '<input class="input" id="d-name" value="' + esc(d.full_name || '') + '" placeholder="Their name"></div>'
+    + '<input class="input" id="d-name" value="' + esc(d.full_name || '') + '" placeholder="Evans Large"></div>'
     + '<div class="two"><div class="field"><label for="d-status">Status</label>'
     + '<select class="select" id="d-status">' + V.helpers.STATUSES.map(s =>
       '<option ' + (d.status === s ? 'selected' : '') + '>' + s + '</option>').join('') + '</select></div>'
@@ -858,7 +1003,10 @@
 
     busy(el, true, 'Filing…');
     try {
-      for (const n of niches) await A.niches.add(n);
+      /* One round trip, not one per niche. Filing with eight products on
+         the report used to mean eight sequential inserts before the
+         report itself was even sent. */
+      await Promise.all(niches.map(n => A.niches.add(n)));
       await A.reports.save({
         office_id: A.store.me.office_id,
         center_id: A.store.me.center_id,
@@ -879,6 +1027,7 @@
         submitted_at: new Date().toISOString()
       });
       state.form = {};
+      state.ranks = null;          /* the standing just moved */
       toast('Report filed. It will be read at the evaluation.');
       route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }

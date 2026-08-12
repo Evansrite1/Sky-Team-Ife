@@ -61,7 +61,16 @@
   const weekRange = ws => dayLabel(ws) + ' – ' + dayLabel(addDays(ws, 6));
   const weekName = ws => 'Week ' + isoWeekNo(ws);
   const weekLabel = ws => weekName(ws) + ' · ' + weekRange(ws);
+  /* A week is only closed once its last day is fully behind us. The
+     comparison is on whole dates, never on the clock, so the Wednesday
+     that ends the week counts as open all the way through: it turns over
+     at midnight, not at some hour of the afternoon. */
   const weekClosed = ws => iso(addDays(ws, 6)) < iso(new Date());
+  /* The last day a week can still be worked on, for anything that needs
+     to say so in words. */
+  const weekEndsOn = ws => addDays(ws, 6);
+  const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const weekClosesLabel = ws => 'open until the end of ' + DAY[toDate(addDays(ws, 6)).getDay()];
   /* The evaluation sits on the Wednesday that closes the week it reads,
      so it always looks back over the seven days ending that day. */
   const evalDate = ws => addDays(ws, 6);
@@ -537,6 +546,7 @@
   window.UI = {
     $, $$, esc, val, usd, usdFull, ngn, pct, initials,
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed,
+    weekEndsOn, weekClosesLabel,
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
     isoWeekNo, timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,

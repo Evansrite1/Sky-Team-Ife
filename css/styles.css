@@ -198,6 +198,19 @@ svg { display: block; flex: none; }
 .sb-sub > div { min-height: 0; overflow: hidden; }
 .sb-sub .sb-a:first-child { margin-top: 2px; }
 
+/* The standing, in the Director's rail. Narrow by design: a position, a
+   name and a score, because anything more belongs on the page. */
+.sb-ranks { margin-top: 6px; }
+.sb-rk {
+  display: flex; align-items: center; gap: 9px; padding: 6px 12px;
+  border-radius: var(--r-sm); font-size: 13px; color: #d3d4dc;
+  transition: background .14s, color .14s;
+}
+.sb-rk:hover { background: var(--dark-3); color: var(--white); }
+.sb-rk-n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-rk-s { font-size: 11.5px; font-weight: 600; color: var(--blue-soft); flex: none; }
+.sb-rk-none { padding: 4px 12px 8px; font-size: 12px; color: var(--faint); }
+
 .sb-btm { padding: 14px; border-top: 1px solid var(--dark-3); }
 .sb-row { display: flex; gap: 8px; align-items: stretch; }
 .sb-row .sb-out { flex: 1; }
@@ -783,6 +796,14 @@ html.standalone .inst { display: none; }
 .chart .dt { animation: pip .4s ease both .25s; }
 @keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes pip { from { opacity: 0; } to { opacity: 1; } }
+
+/* The same credit at the foot of every page, for the phone, where the
+   rail it normally lives in is behind a menu. */
+.pg-credit {
+  margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--hair);
+  font-size: 11.5px; color: var(--faint); text-align: center;
+}
+.pg-credit b { font-weight: 600; color: var(--muted); }
 
 /* The credit line, once you are inside the app. */
 .sb-credit {
