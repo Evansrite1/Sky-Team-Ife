@@ -50,16 +50,19 @@
     t.setDate(t.getDate() - ((t.getDay() - WEEK_ANCHOR + 7) % 7));
     return iso(t);
   };
-  const isoWeekNo = ws => {
-    const t = toDate(ws);
-    const th = addDays(t, 3 - ((t.getDay() + 6) % 7));  // Thursday of that ISO week
-    const jan1 = new Date(th.getFullYear(), 0, 1);
-    return 1 + Math.round(((th - jan1) / 86400000 - 3 + ((jan1.getDay() + 6) % 7)) / 7);
-  };
+  /* Weeks are numbered from a fixed start rather than the calendar's ISO
+     week — the record itself begins on 30 July 2026, so that Thursday is
+     Week 1 regardless of what the ISO calendar would call it. Week 2 is
+     6–12 Aug, Week 3 is 13–19 Aug, and it counts up from there forever.
+     Nothing before EPOCH_WEEK is part of the tracked history: it is the
+     edge every picker and every chart is clipped to. */
+  const EPOCH_WEEK = '2026-07-30';
+  const weekNo = ws => Math.round((toDate(ws) - toDate(EPOCH_WEEK)) / 604800000) + 1;
+  const beforeEpoch = ws => toDate(ws) < toDate(EPOCH_WEEK);
   const dayLabel = d => { const t = toDate(d); return t.getDate() + ' ' + MON[t.getMonth()]; };
   const fullDate = d => { const t = toDate(d); return t.getDate() + ' ' + MON[t.getMonth()] + ' ' + t.getFullYear(); };
   const weekRange = ws => dayLabel(ws) + ' – ' + dayLabel(addDays(ws, 6));
-  const weekName = ws => 'Week ' + isoWeekNo(ws);
+  const weekName = ws => 'Week ' + weekNo(ws);
   const weekLabel = ws => weekName(ws) + ' · ' + weekRange(ws);
   /* A week is only closed once its last day is fully behind us. The
      comparison is on whole dates, never on the clock, so the Wednesday
@@ -79,17 +82,24 @@
     const [y, m] = String(key).split('-');
     return MON_FULL[Number(m) - 1] + ' ' + y;
   };
+  /* Newest first, and it stops the moment it would step before the
+     record began — a picker asking for 12 weeks gets 3 once only 3 exist,
+     rather than padding the list with weeks nothing was ever filed
+     against. */
   const recentWeeks = (n) => {
     const out = [];
     let ws = weekStart();
-    for (let i = 0; i < n; i++) { out.push(ws); ws = iso(addDays(ws, -7)); }
+    for (let i = 0; i < n && !beforeEpoch(ws); i++) { out.push(ws); ws = iso(addDays(ws, -7)); }
     return out;               // newest first
   };
+  const EPOCH_MONTH = monthKey(EPOCH_WEEK);
   const recentMonths = (n) => {
     const out = [], t = new Date();
     t.setDate(1);
     for (let i = 0; i < n; i++) {
-      out.push(t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0'));
+      const key = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0');
+      if (key < EPOCH_MONTH) break;
+      out.push(key);
       t.setMonth(t.getMonth() - 1);
     }
     return out;
@@ -566,10 +576,10 @@
   /* ------------------------------------------------------------ export */
   window.UI = {
     $, $$, esc, val, usd, usdFull, ngn, pct, initials,
-    iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed,
+    iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed, weekNo, EPOCH_WEEK,
     weekEndsOn, weekClosesLabel,
     evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
-    isoWeekNo, timeAgo, clock, MON, MON_FULL,
+    timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     rollLook, readLook, describeLook,
     kpi, tag, note, empty, bar, change, table,

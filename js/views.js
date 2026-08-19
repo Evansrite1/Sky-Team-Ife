@@ -110,8 +110,18 @@
     return Object.entries(t).sort((a, b) => b[1] - a[1]);
   }
 
+  /* The score decides the order — it does not have to be read as a
+     number to do that. Four bands turn it into a word instead, which is
+     what the evaluation list shows: the grade an office earned, not the
+     arithmetic behind it. */
+  const GRADE_BANDS = [[80, 'Excellent', 't-ok'], [60, 'Good', 't-gold'],
+    [40, 'Fair', 't-warn'], [0, 'Starting', 't-mute']];
+  const grade = score => (GRADE_BANDS.find(b => score >= b[0]) || GRADE_BANDS[GRADE_BANDS.length - 1]);
+
   /* The standing, as a card. Used on the evaluation list and anywhere
-     else a ranking has to be read rather than worked through. */
+     else a ranking has to be read rather than worked through — graded,
+     not scored: the rank and the grade are shown, the number behind
+     them is not. */
   function rankCard(ranked, title, sub) {
     const rows = ranked.filter(r => !r.missing);
     return '<div class="card"><div class="card-h"><div>'
@@ -119,15 +129,14 @@
       + '<div class="card-s">' + esc(sub) + '</div></div></div>'
       + table([{ label: '#' }, { label: 'Office' }, { label: 'Amount', num: true },
       { label: 'Per pro', num: true }, { label: 'People', num: true },
-      { label: 'Score', num: true }, { label: '' }],
-        rows.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
+      { label: 'Grade' }],
+        rows.map(r => { const g = grade(r.score); return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
           + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
           + '<td class="nm">' + esc(r.office.name) + '</td>'
           + '<td class="num nm">' + usdFull(r.amount) + '<div class="sub">' + r.orders + ' orders</div></td>'
           + '<td class="num">' + usdFull(r.perPro) + '<div class="sub">' + r.pros + ' pros</div></td>'
           + '<td class="num">' + r.people + '</td>'
-          + '<td class="num nm">' + r.score + '</td>'
-          + '<td style="width:130px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
+          + '<td>' + tag(g[1], g[2]) + '</td></tr>'; }),
         { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file.') })
       + '</div>';
   }
@@ -175,7 +184,7 @@
       : [];
 
     const series = hist.map(w => ({
-      l: 'W' + U.isoWeekNo(w),
+      l: 'W' + U.weekNo(w),
       v: sumBy(histReps.filter(r => r.week_start === w), r => r.amount)
     }));
 
@@ -266,7 +275,7 @@
     const meRank = ranked.find(r => r.office_id === off.id) || {};
     const series = hist.map(w => {
       const r = histReps.find(x => x.week_start === w);
-      return { l: 'W' + U.isoWeekNo(w), v: r ? Number(r.amount) : 0 };
+      return { l: 'W' + U.weekNo(w), v: r ? Number(r.amount) : 0 };
     });
     const scanCounts = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
     const mineScans = scanCounts.filter(s => s.office_id === off.id && s.status === 'accepted');
@@ -422,7 +431,7 @@
     const ranked = rankOffices(reps, mine ? [] : offices).filter(r => !r.missing);
     const tally = nicheTally(reps);
     const series = weeks.map(w => ({
-      l: 'W' + U.isoWeekNo(w), v: sumBy(reps.filter(r => r.week_start === w), r => r.amount)
+      l: 'W' + U.weekNo(w), v: sumBy(reps.filter(r => r.week_start === w), r => r.amount)
     }));
 
     return {
@@ -659,7 +668,7 @@
     const thisWeek = reps.find(r => r.week_start === ws);
     const series = hist.map(w => {
       const r = reps.find(x => x.week_start === w);
-      return { l: 'W' + U.isoWeekNo(w), v: r ? Number(r.amount) : 0 };
+      return { l: 'W' + U.weekNo(w), v: r ? Number(r.amount) : 0 };
     });
     const t = totals(reps);
     return {
@@ -800,6 +809,64 @@
                 + '<td style="width:180px">' + bar(n[1], max, i === 0) + '</td></tr>'))
             + '</div>';
         }).join('')
+    };
+  }
+
+  /* ===================================================================
+     FIX A WEEK
+     ---------------------------------------------------------------
+     A report filed on the Thursday a week opens, for the seven days that
+     just ended, lands on the new week unless the picker is changed
+     first -- the one click that puts an office a week out. This is how
+     it is put right: pick the office and the two weeks, and their
+     reports trade places. Nothing is deleted or re-typed.
+     =================================================================== */
+  async function weekfix() {
+    const scoped = A.isSuper() ? A.store.offices.filter(o => o.active)
+      : (A.store.me.center_id ? A.officesOf(A.store.me.center_id) : A.store.offices).filter(o => o.active);
+    if (!scoped.length) return { title: 'Fix a week', html: empty('building', 'No offices yet', 'Nothing to fix until an office exists.') };
+
+    const wf = S().weekfix = S().weekfix || {};
+    const office = wf.office && scoped.find(o => o.id === wf.office) ? wf.office : scoped[0].id;
+    const weeks = U.recentWeeks(window.CONFIG.weeksShown || 12);
+    const weekA = wf.weekA && weeks.includes(wf.weekA) ? wf.weekA : (weeks[1] || weeks[0]);
+    const weekB = wf.weekB && weeks.includes(wf.weekB) ? wf.weekB : weeks[0];
+    wf.office = office; wf.weekA = weekA; wf.weekB = weekB;
+
+    const [repA, repB] = await Promise.all([
+      A.reports.get(office, weekA), A.reports.get(office, weekB)
+    ]);
+    const o = A.officeById(office);
+
+    const officeSelect = '<select class="select" data-act="wf-office" style="max-width:260px">'
+      + scoped.map(x => '<option value="' + x.id + '"' + (x.id === office ? ' selected' : '') + '>'
+        + esc(x.name) + '</option>').join('') + '</select>';
+    const weekSelect = (sel, act) => '<select class="select" data-act="' + act + '" style="max-width:220px">'
+      + weeks.map(w => '<option value="' + w + '"' + (w === sel ? ' selected' : '') + '>'
+        + esc(U.weekLabel(w)) + '</option>').join('') + '</select>';
+
+    const side = (rep, wk) => rep
+      ? '<div class="kpi kpi-dark"><div class="kpi-l">' + ico('file', 13) + esc(U.weekName(wk)) + '</div>'
+        + '<div class="kpi-v">' + usdFull(rep.amount) + '</div>'
+        + '<div class="kpi-m">' + rep.orders + ' orders · filed ' + esc(U.timeAgo(rep.submitted_at)) + '</div></div>'
+      : '<div class="kpi"><div class="kpi-l">' + ico('file', 13) + esc(U.weekName(wk)) + '</div>'
+        + '<div class="kpi-v">—</div><div class="kpi-m">No report on this week</div></div>';
+
+    return {
+      title: 'Fix a week',
+      crumbs: 'A report on the wrong week, put right',
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Which office, which two weeks</div>'
+        + '<div class="card-s">Swapping trades whatever each week already holds for this office. '
+        + 'If only one side has a report, it simply moves to the other week.</div></div></div>'
+        + '<div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:16px">'
+        + officeSelect + weekSelect(weekA, 'wf-week-a') + weekSelect(weekB, 'wf-week-b') + '</div>'
+        + '<div class="grid g2">' + side(repA, weekA) + side(repB, weekB) + '</div>'
+        + (!repA && !repB ? '<div style="height:16px"></div>'
+          + note('info', 'info', 'Neither week has a report for ' + esc(o.name) + ' yet -- there is nothing to swap.') : '')
+        + '<div class="row" style="justify-content:flex-end;margin-top:18px">'
+        + '<button class="btn btn-a btn-pop" data-act="week-swap"' + (!repA && !repB ? ' disabled' : '') + '>'
+        + ico('refresh', 15) + 'Swap these two weeks</button></div>'
+        + '</div>'
     };
   }
 
@@ -1511,7 +1578,7 @@
   window.VIEWS = {
     guide,
     dashboard: () => A.isOffice() ? officeDash() : adminDash(),
-    evaluation, monthly, centers, offices, rankings, niches,
+    evaluation, monthly, centers, offices, rankings, niches, weekfix,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),

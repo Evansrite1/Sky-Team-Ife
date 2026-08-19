@@ -48,6 +48,7 @@
         { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
+        { p: 'weekfix', l: 'Fix a week', i: 'refresh' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
       ]
@@ -68,6 +69,7 @@
       more: [
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'offices', l: 'Offices', i: 'building' },
+        { p: 'weekfix', l: 'Fix a week', i: 'refresh' },
         { p: 'account', l: 'Account', i: 'lock' }
       ]
     },
@@ -90,7 +92,7 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports', 'niches'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'weekfix'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
       'subscriptions', 'account', 'offices', 'monthly', 'niches']
   };
@@ -820,6 +822,29 @@
      button is only redrawn to refresh its own tooltip. */
   ACT['go-names'] = () => { closeModal(); go('#/distributors'); };
 
+  /* --- fix a week ---------------------------------------------------- */
+  ACT['week-swap'] = () => {
+    const wf = state.weekfix || {};
+    const o = A.officeById(wf.office);
+    if (!o || !wf.weekA || !wf.weekB) return;
+    U.confirmDialog('Swap ' + U.weekName(wf.weekA) + ' and ' + U.weekName(wf.weekB) + '?',
+      'For <b>' + esc(o.name) + '</b>, whatever ' + esc(U.weekName(wf.weekA)) + ' holds trades places with '
+      + 'whatever ' + esc(U.weekName(wf.weekB)) + ' holds. Nothing is deleted, and swapping again puts it back.',
+      'Swap the weeks', 'week-swap-yes');
+  };
+
+  ACT['week-swap-yes'] = async (el) => {
+    const wf = state.weekfix || {};
+    busy(el, true, 'Swapping…');
+    try {
+      await A.swapReportWeeks(wf.office, wf.weekA, wf.weekB);
+      state.ranks = null;
+      closeModal();
+      toast('Swapped ' + U.weekName(wf.weekA) + ' and ' + U.weekName(wf.weekB) + '.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   ACT['hue'] = (el) => {
     const look = U.rollLook();
     const holder = el.parentElement;
@@ -1278,6 +1303,9 @@
     if (el.dataset.act === 'evalweek') { state.evalWeek = el.value; route(); }
     if (el.dataset.act === 'month') { state.month = el.value; route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
+    if (el.dataset.act === 'wf-office') { state.weekfix = state.weekfix || {}; state.weekfix.office = el.value; route(); }
+    if (el.dataset.act === 'wf-week-a') { state.weekfix = state.weekfix || {}; state.weekfix.weekA = el.value; route(); }
+    if (el.dataset.act === 'wf-week-b') { state.weekfix = state.weekfix || {}; state.weekfix.weekB = el.value; route(); }
   });
 
   /* Jump the week picker straight to a given week. */

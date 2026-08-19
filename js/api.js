@@ -227,6 +227,46 @@
     async remove(id) { guard(await sb.from('reports').delete().eq('id', id)); }
   };
 
+  /* -------------------------------------------------- week correction */
+  /* Moves one office's report from one week onto another. Filing on the
+     Thursday a week opens, for the seven days that just ended, is the
+     one click that lands a report a week out -- this is how it is put
+     right afterwards, without deleting and re-typing it.
+
+     If both weeks already hold a report, a straight two-step move would
+     collide with the office_id/week_start constraint the moment the
+     first update runs, so the first row is parked on a sentinel date no
+     real report will ever use, then the second row takes its place, then
+     the parked row settles onto the second week. Three updates, and the
+     constraint is never violated at any point in between. */
+  const SWAP_SENTINEL = '1900-01-01';
+  async function swapReportWeeks(officeId, weekA, weekB) {
+    if (weekA === weekB) throw new Error('Pick two different weeks.');
+    const [a, b] = await Promise.all([
+      sb.from('reports').select('id').eq('office_id', officeId).eq('week_start', weekA).maybeSingle(),
+      sb.from('reports').select('id').eq('office_id', officeId).eq('week_start', weekB).maybeSingle()
+    ]);
+    if (a.error) throw a.error;
+    if (b.error) throw b.error;
+    const ra = a.data, rb = b.data;
+    if (!ra && !rb) throw new Error('Neither week has a report for this office.');
+
+    if (ra && rb) {
+      const parked = await sb.from('reports').update({ week_start: SWAP_SENTINEL }).eq('id', ra.id);
+      if (parked.error) throw parked.error;
+      const moved = await sb.from('reports').update({ week_start: weekA }).eq('id', rb.id);
+      if (moved.error) throw moved.error;
+      const settled = await sb.from('reports').update({ week_start: weekB }).eq('id', ra.id);
+      if (settled.error) throw settled.error;
+    } else if (ra) {
+      const r = await sb.from('reports').update({ week_start: weekB }).eq('id', ra.id);
+      if (r.error) throw r.error;
+    } else {
+      const r = await sb.from('reports').update({ week_start: weekA }).eq('id', rb.id);
+      if (r.error) throw r.error;
+    }
+  }
+
   /* ----------------------------------------------------------- events */
   const events = {
     async ensureWeek(week) {
@@ -415,6 +455,6 @@
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
-    people, settings, billing, join, watch, unwatch
+    people, settings, billing, join, watch, unwatch, swapReportWeeks
   };
 })();
