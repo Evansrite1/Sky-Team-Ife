@@ -42,44 +42,65 @@
      against a fixed target, so a score is "how close to the leader" and
      the weights below are the whole of the policy. Change them here and
      every ranking in the app moves together. */
-  const RANK_W = { orders: 0.45, people: 0.30, amount: 0.25 };
-  const RANK_BASIS = 'Orders, room size and amount.';
+  /* Three quests, and the ranking is the sum of how far an office is
+     along each of them:
+
+       money       what the orders came to
+       productive  what each earner brought in — amount over the pros
+       numbers     how many people the office has in the room
+
+     "Pros" are the people who actually write orders: distributors and
+     senior managers. Newbies count towards the room but not towards
+     productivity, or an office would be punished for training people.
+
+     Each is scored against the best office in the same group, so a score
+     is "how close to the leader" rather than a raw figure. The weights
+     below are the whole of the policy — change them here and every
+     ranking in the app moves together. */
+  const RANK_W = { amount: 0.35, perPro: 0.35, people: 0.30 };
+  const RANK_BASIS = 'Money, output per pro, and size of the room.';
 
   const peopleIn = r => (Number(r.num_distributors) || 0)
     + (Number(r.num_senior_managers) || 0) + (Number(r.num_newbies) || 0);
+  const prosIn = r => (Number(r.num_distributors) || 0) + (Number(r.num_senior_managers) || 0);
 
   function rankOffices(reps, offices) {
     const by = {};
     reps.forEach(r => {
       const b = by[r.office_id] = by[r.office_id]
-        || { office_id: r.office_id, orders: 0, amount: 0, people: 0, weeks: 0 };
+        || { office_id: r.office_id, orders: 0, amount: 0, people: 0, pros: 0, weeks: 0 };
       b.orders += Number(r.orders) || 0;
       b.amount += Number(r.amount) || 0;
       /* Orders and money accumulate over the weeks in view. The room does
          not — the same people come back — so it is the largest week, not
          the sum of them. */
       b.people = Math.max(b.people, peopleIn(r));
+      b.pros = Math.max(b.pros, prosIn(r));
       b.weeks += 1;
     });
     offices.forEach(o => {
-      by[o.id] = by[o.id] || { office_id: o.id, orders: 0, amount: 0, people: 0, weeks: 0, missing: true };
+      by[o.id] = by[o.id] || { office_id: o.id, orders: 0, amount: 0, people: 0, pros: 0, weeks: 0, missing: true };
     });
     const rows = Object.values(by)
       .map(r => Object.assign(r, { office: A.officeById(r.office_id) }))
       .filter(r => r.office);
 
+    /* What each earner brought in. An office that has filed but put no
+       pros in the room scores zero here rather than dividing by nothing. */
+    rows.forEach(r => { r.perPro = r.pros ? r.amount / r.pros : 0; });
+
     /* Divide by the leader in each column. The || 1 is what stops a group
        where nobody sold anything from dividing by zero. */
     const top = k => rows.reduce((m, r) => Math.max(m, r[k]), 0) || 1;
-    const bestOrders = top('orders'), bestPeople = top('people'), bestAmount = top('amount');
+    const bestAmount = top('amount'), bestPerPro = top('perPro'), bestPeople = top('people');
     rows.forEach(r => {
       r.score = Math.round(100 * (
-        RANK_W.orders * (r.orders / bestOrders)
-        + RANK_W.people * (r.people / bestPeople)
-        + RANK_W.amount * (r.amount / bestAmount)));
+        RANK_W.amount * (r.amount / bestAmount)
+        + RANK_W.perPro * (r.perPro / bestPerPro)
+        + RANK_W.people * (r.people / bestPeople)));
     });
     return rows
-      .sort((a, b) => b.score - a.score || b.orders - a.orders || b.amount - a.amount)
+      .sort((a, b) => b.score - a.score || b.amount - a.amount || b.orders - a.orders)
       .map((r, i) => Object.assign(r, { rank: i + 1 }));
   }
 
@@ -87,6 +108,28 @@
     const t = {};
     reps.forEach(r => (r.niches || []).forEach(n => { t[n] = (t[n] || 0) + 1; }));
     return Object.entries(t).sort((a, b) => b[1] - a[1]);
+  }
+
+  /* The standing, as a card. Used on the evaluation list and anywhere
+     else a ranking has to be read rather than worked through. */
+  function rankCard(ranked, title, sub) {
+    const rows = ranked.filter(r => !r.missing);
+    return '<div class="card"><div class="card-h"><div>'
+      + '<div class="card-t">' + esc(title) + '</div>'
+      + '<div class="card-s">' + esc(sub) + '</div></div></div>'
+      + table([{ label: '#' }, { label: 'Office' }, { label: 'Amount', num: true },
+      { label: 'Per pro', num: true }, { label: 'People', num: true },
+      { label: 'Score', num: true }, { label: '' }],
+        rows.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
+          + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
+          + '<td class="nm">' + esc(r.office.name) + '</td>'
+          + '<td class="num nm">' + usdFull(r.amount) + '<div class="sub">' + r.orders + ' orders</div></td>'
+          + '<td class="num">' + usdFull(r.perPro) + '<div class="sub">' + r.pros + ' pros</div></td>'
+          + '<td class="num">' + r.people + '</td>'
+          + '<td class="num nm">' + r.score + '</td>'
+          + '<td style="width:130px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
+        { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file.') })
+      + '</div>';
   }
 
   const link = (page, id) => '#/' + page + (id ? '/' + id : '');
@@ -335,6 +378,8 @@
         + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-dark')
         + '</div>' + roomRow(t) + '</div>'
 
+        + rankCard(ranked, 'How the zone ranks', RANK_BASIS)
+
         + '<div class="card">' + table(
           [{ label: '#' }, { label: 'Office' }, { label: 'Last week', num: true }, { label: 'This week', num: true },
           { label: 'Move', num: true }, { label: 'Niches' }, { label: 'New' }, { label: 'Issues raised' }],
@@ -344,14 +389,14 @@
             if (!rep) {
               return '<tr><td><span class="rk">—</span></td>'
                 + '<td class="nm">' + esc(r.office.name) + '</td>'
-                + '<td class="num">' + (pr ? usdFull(pr.amount) : '—') + '</td>'
+                + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
                 + '<td class="num" colspan="6">' + tag('No report filed', 't-warn') + '</td></tr>';
             }
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
               + '<td><div class="nm">' + esc(r.office.name) + '</div>'
               + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
-              + '<td class="num">' + (pr ? usdFull(pr.amount) : '—') + '</td>'
+              + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
               + '<td class="num nm">' + usdFull(rep.amount) + '<div class="sub">' + rep.orders + ' orders</div></td>'
               + '<td class="num">' + (pr ? U.change(rep.amount, pr.amount) : '<span class="sub">first week</span>') + '</td>'
               + '<td>' + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">—</span>') + '</td>'
@@ -601,9 +646,17 @@
     const o = A.officeById(id);
     if (!o) return { title: 'Office', html: empty('building', 'Office not found', 'It may have been removed.') };
     const hist = U.recentWeeks(10).reverse();
-    const [reps, dists] = await Promise.all([
-      A.reports.list({ office: id }), A.distributors.list({ office: id })
+    const ws = S().week;
+    /* The zone's week, so the office can be read against the offices it
+       is actually ranked with rather than in isolation. */
+    const [reps, dists, zoneReps] = await Promise.all([
+      A.reports.list({ office: id }),
+      A.distributors.list({ office: id }),
+      A.reports.list({ week: ws, center: o.center_id })
     ]);
+    const zoneRanked = rankOffices(zoneReps, A.officesOf(o.center_id).filter(x => x.active));
+    const me = zoneRanked.find(r => r.office_id === id);
+    const thisWeek = reps.find(r => r.week_start === ws);
     const series = hist.map(w => {
       const r = reps.find(x => x.week_start === w);
       return { l: 'W' + U.isoWeekNo(w), v: r ? Number(r.amount) : 0 };
@@ -634,6 +687,24 @@
         + kpi('Distributors', dists.length, dists.filter(d => LEADER.includes(d.status)).length + ' at Director level', 'users', 'kpi-dark')
         + '</div>'
 
+        /* How it is doing right now, and why it sits where it sits. The
+           three numbers here are the three the ranking is built from. */
+        + (me && !me.missing
+          ? '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+          + '<div class="card-t">Performance · ' + esc(U.weekName(ws)) + '</div>'
+          + '<div class="card-s">' + esc(RANK_BASIS) + ' Against '
+          + zoneRanked.filter(r => !r.missing).length + ' filed in '
+          + esc((A.centerById(o.center_id) || {}).name || 'the zone') + '.</div></div>'
+          + '<div class="card-a"><span class="rk rk-' + me.rank + '">' + me.rank + '</span></div></div>'
+          + '<div class="grid g4">'
+          + kpi('Score', me.score, 'of 100', 'crown', 'kpi-blue')
+          + kpi('Money', usdFull(me.amount), (thisWeek ? thisWeek.orders : me.orders) + ' orders', 'cash')
+          + kpi('Per pro', usdFull(me.perPro), me.pros + ' writing orders', 'trend')
+          + kpi('People', me.people, 'in the room', 'users', 'kpi-dark')
+          + '</div></div>'
+          : (thisWeek ? '' : note('info', 'file', '<b>Nothing filed for ' + esc(U.weekName(ws)) + ' yet.</b> '
+            + 'The performance panel appears once this office files.') + '<div style="height:18px"></div>'))
+
         + '<div class="card" style="margin-top:18px"><div class="card-h"><div><div class="card-t">Amount by week</div>'
         + '<div class="card-s">The last ten weeks.</div></div><div class="card-a">' + chartToggle(S().chartType) + '</div></div>'
         + chart(series, -1, S().chartType) + '</div>'
@@ -662,6 +733,77 @@
   }
 
   /* ===================================================================
+     NICHES
+     ---------------------------------------------------------------
+     What is actually selling, across everything and then zone by zone.
+     Counted by the number of reports a product appears on rather than
+     by money, because a niche is a thing offices are working on — the
+     question is how many of them are working on it.
+     =================================================================== */
+  async function niches() {
+    const weeks = U.recentWeeks(window.CONFIG.weeksShown || 12);
+    const reps = await A.reports.list({ weeks });
+    const overall = nicheTally(reps);
+    const maxAll = overall.length ? overall[0][1] : 1;
+
+    /* Same tally, cut by zone. Zones with nothing filed are left out
+       rather than shown as an empty table. */
+    const zones = A.store.centers.map(c => {
+      const rs = reps.filter(r => r.center_id === c.id);
+      return { c, rs, tally: nicheTally(rs) };
+    }).filter(z => z.tally.length);
+
+    const brandNew = {};
+    reps.forEach(r => (r.new_niches || []).forEach(n => {
+      brandNew[n] = brandNew[n] || { n, weeks: new Set() };
+      brandNew[n].weeks.add(r.week_start);
+    }));
+    const fresh = Object.values(brandNew).sort((a, b) => b.weeks.size - a.weeks.size).slice(0, 12);
+
+    return {
+      title: 'Niches',
+      crumbs: 'The last ' + weeks.length + ' weeks',
+      html: '<div class="card"><div class="card-h"><div>'
+        + '<div class="card-t">Most popular across every zone</div>'
+        + '<div class="card-s">' + overall.length + ' product'
+        + (overall.length === 1 ? '' : 's') + ' on ' + reps.length + ' report'
+        + (reps.length === 1 ? '' : 's') + ', counted by how many reports each appears on.</div></div></div>'
+        + table([{ label: '#' }, { label: 'Niche' }, { label: 'Reports', num: true }, { label: '' }],
+          overall.map((n, i) => '<tr>'
+            + '<td><span class="rk rk-' + (i + 1) + '">' + (i + 1) + '</span></td>'
+            + '<td class="nm">' + esc(n[0]) + '</td>'
+            + '<td class="num nm">' + n[1] + '</td>'
+            + '<td style="width:200px">' + bar(n[1], maxAll, i === 0) + '</td></tr>'),
+          { empty: empty('layers', 'Nothing yet', 'Niches appear here as offices file their reports.') })
+        + '</div>'
+
+        + (fresh.length
+          ? '<div class="card"><div class="card-h"><div><div class="card-t">Sold for the first time</div>'
+          + '<div class="card-s">Products an office marked as brand new, newest interest first.</div></div></div>'
+          + '<div class="chips">' + fresh.map(x => '<span class="chip on">' + esc(x.n)
+            + '<b style="margin-left:7px;opacity:.7">' + x.weeks.size + '</b></span>').join('')
+          + '</div></div>'
+          : '')
+
+        + zones.map(z => {
+          const max = z.tally[0][1];
+          return '<div class="card"><div class="card-h"><div>'
+            + '<div class="card-t">' + esc(z.c.name) + '</div>'
+            + '<div class="card-s">' + z.tally.length + ' product'
+            + (z.tally.length === 1 ? '' : 's') + ' across ' + z.rs.length + ' report'
+            + (z.rs.length === 1 ? '' : 's') + '.</div></div></div>'
+            + table([{ label: '#' }, { label: 'Niche' }, { label: 'Reports', num: true }, { label: '' }],
+              z.tally.slice(0, 10).map((n, i) => '<tr>'
+                + '<td><span class="rk rk-' + (i + 1) + '">' + (i + 1) + '</span></td>'
+                + '<td class="nm">' + esc(n[0]) + '</td>'
+                + '<td class="num nm">' + n[1] + '</td>'
+                + '<td style="width:180px">' + bar(n[1], max, i === 0) + '</td></tr>'))
+            + '</div>';
+        }).join('')
+    };
+  }
+
+  /* ===================================================================
      RANKINGS
      =================================================================== */
   async function rankings() {
@@ -673,16 +815,19 @@
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Office rankings</div>'
         + '<div class="card-s">Every office across every zone. ' + RANK_BASIS + ' ' + evalLine(ws) + '</div></div></div>'
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Orders', num: true },
-        { label: 'People', num: true }, { label: 'Amount', num: true }, { label: 'Score', num: true }, { label: '' }],
+        { label: 'Amount', num: true }, { label: 'Pros', num: true }, { label: 'Per pro', num: true },
+        { label: 'People', num: true }, { label: 'Score', num: true }, { label: '' }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
             + '<td class="nm">' + esc(r.office.name) + '</td>'
             + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
             + '<td class="num">' + (r.missing ? '—' : r.orders) + '</td>'
-            + '<td class="num">' + (r.missing ? '—' : r.people) + '</td>'
             + '<td class="num nm">' + (r.missing ? tag('Not filed', 't-warn') : usdFull(r.amount)) + '</td>'
+            + '<td class="num">' + (r.missing ? '—' : r.pros) + '</td>'
+            + '<td class="num">' + (r.missing ? '—' : usdFull(r.perPro)) + '</td>'
+            + '<td class="num">' + (r.missing ? '—' : r.people) + '</td>'
             + '<td class="num nm">' + (r.missing ? '—' : r.score) + '</td>'
-            + '<td style="width:150px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
+            + '<td style="width:130px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
           { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file for this week.') })
         + '</div>'
     };
@@ -793,9 +938,9 @@
 
         + '<div class="field"><label>Niches and keywords the orders came from</label>'
         + '<div class="chips" id="niche-chips">' + nicheChips(niches) + '</div>'
-        + '<div class="combo" style="margin-top:9px"><input class="input" id="niche-input" placeholder="Type a product and press Enter to add it" autocomplete="off">'
+        + '<div class="combo" style="margin-top:9px"><input class="input" id="niche-input" placeholder="Type a product, or several separated by commas, then press Enter" autocomplete="off">'
         + '<div id="niche-menu"></div></div>'
-        + '<div class="hint">Press Enter to add what you typed. Anything that is not already on the list '
+        + '<div class="hint">Press Enter to add what you typed, and separate several with commas to add them one by one. Anything not already on the list '
         + 'joins the catalogue for every office.</div></div>'
 
         + '<div class="field"><label>Anything brand new this week?</label>'
@@ -812,8 +957,13 @@
 
         + (openToFile
           ? '<div class="row" style="justify-content:flex-end">'
+          /* The week is named on the button as well as at the top of the
+             form. The picker opens on the week running now, so filing on
+             a Thursday for the seven days that just ended goes to the
+             wrong week unless it is changed first — and that is exactly
+             how a report ends up one week out. */
           + '<button type="submit" class="btn btn-a btn-pop btn-lg" data-act="report-save">'
-          + ico('check', 16) + (mine ? 'Update the report' : 'File the report') + '</button></div>'
+          + ico('check', 16) + (mine ? 'Update ' : 'File ') + esc(U.weekName(ws)) + '</button></div>'
           + '</form>'
           : '</div>')
         + '</div>'
@@ -1361,7 +1511,7 @@
   window.VIEWS = {
     guide,
     dashboard: () => A.isOffice() ? officeDash() : adminDash(),
-    evaluation, monthly, centers, offices, rankings,
+    evaluation, monthly, centers, offices, rankings, niches,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),

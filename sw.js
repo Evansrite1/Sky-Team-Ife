@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v16';
+const CACHE = 'sti-shell-v17';
 
 const SHELL = [
   './',
@@ -71,8 +71,34 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  /* Everything else in the shell: cache first, refresh in the background
-     so the next load has the new file. */
+  /* The app's own code — its scripts, its stylesheet — goes to the
+     network first, with the cache as the fallback when there is no
+     signal. Cache-first meant a deploy did not reach anyone until their
+     second visit: they would run yesterday's JavaScript once, and only
+     pick up the fix on the load after. Correctness beats a few
+     milliseconds for four small files.
+
+     Everything else — the vendored libraries and the icons, which only
+     change when their name changes — stays cache first. */
+  const p = url.pathname;
+  const ours = (p.indexOf('/js/') > -1 || p.indexOf('/css/') > -1)
+    && p.indexOf('/vendor/') === -1;
+
+  if (ours) {
+    e.respondWith(
+      fetch(req)
+        .then(res => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then(c => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(req).then(hit => {
       const net = fetch(req)

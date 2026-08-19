@@ -523,7 +523,28 @@
     const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || local)) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => { /* fine without it */ });
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          if (!reg) return;
+          /* Installed to a home screen, an app can sit on the same tab
+             for days. Ask whether a new version has been deployed every
+             time it is opened or come back to, so a fix reaches people
+             on their next glance rather than their next cold start. */
+          const check = () => { if (document.visibilityState === 'visible') reg.update(); };
+          document.addEventListener('visibilitychange', check);
+          window.addEventListener('focus', check);
+          setInterval(check, 15 * 60 * 1000);
+        }).catch(() => { /* fine without it */ });
+
+        /* A new worker took over, which means the files behind this page
+           have just changed underneath it. Reload once, and only once,
+           so the app is never running half of one version and half of
+           another. */
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloading) return;
+          reloading = true;
+          location.reload();
+        });
       });
     }
     /* Chrome fires this the moment the app qualifies. Holding on to the

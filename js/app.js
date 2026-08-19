@@ -42,6 +42,7 @@
       more: [
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
+        { p: 'niches', l: 'Niches', i: 'layers' },
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
         { p: 'events', l: 'Zone events', i: 'star' },
@@ -59,11 +60,16 @@
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
-        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'trainings', l: 'Attendance', i: 'qr' },
-        { p: 'account', l: 'Account', i: 'lock' }
+        { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
+        { p: 'rankings', l: 'Office rankings', i: 'crown' },
+        { p: 'niches', l: 'Niches', i: 'star' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' }
       ],
-      more: []
+      more: [
+        { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
+        { p: 'offices', l: 'Offices', i: 'building' },
+        { p: 'account', l: 'Account', i: 'lock' }
+      ]
     },
     office: {
       main: [
@@ -84,9 +90,9 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
-      'subscriptions', 'account', 'offices', 'monthly']
+      'subscriptions', 'account', 'offices', 'monthly', 'niches']
   };
 
   function go(hash) { location.hash = hash; }
@@ -1316,16 +1322,25 @@
     const t = e.target;
 
     /* Enter adds the product you typed — the closest match if there is
-       one, otherwise the words themselves as a brand new niche. */
+       one, otherwise the words themselves as a brand new niche.
+
+       Commas separate products, so a whole list can be typed in one go
+       and lands as separate niches rather than as one run-on entry.
+       When several are given, only an exact name counts as a match: the
+       loose "contains" match is a convenience for one word at a time,
+       and applying it down a list is how you get the wrong product. */
     if (t.id === 'niche-input') {
       e.preventDefault();
-      const v = t.value.trim();
-      if (!v) return;
-      const q = v.toLowerCase();
-      const picked = state.form.niches || [];
-      const hit = A.store.niches.find(n => n.toLowerCase() === q)
-        || A.store.niches.find(n => n.toLowerCase().includes(q) && !picked.includes(n));
-      addNiche(hit || v);
+      const parts = t.value.split(',').map(x => x.trim()).filter(Boolean);
+      if (!parts.length) return;
+      const many = parts.length > 1;
+      parts.forEach(part => {
+        const q = part.toLowerCase();
+        const picked = state.form.niches || [];
+        const hit = A.store.niches.find(n => n.toLowerCase() === q)
+          || (many ? null : A.store.niches.find(n => n.toLowerCase().includes(q) && !picked.includes(n)));
+        addNiche(hit || part);
+      });
       return;
     }
     if (t.id === 'new-niche-input') { e.preventDefault(); ACT['new-niche-add'](); return; }
@@ -1345,24 +1360,57 @@
 
      Anything the lookups hold (offices, zones, counts) is refetched
      first; everything else the view will pull for itself on render. */
-  let liveTimer = null, liveNeedsLookups = false;
+  let liveTimer = null, liveNeedsLookups = false, livePending = false;
   const LOOKUP_TABLES = ['offices', 'centers', 'profiles', 'subscriptions'];
+
+  /* Short enough that a report filed in one office is on the Director's
+     screen while they are still looking at it, long enough that one
+     action moving several rows is still a single repaint. */
+  const LIVE_DELAY = 140;
+
+  function applyLive() {
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(async () => {
+      /* Never yank the page out from under someone mid-edit — but hold
+         the update rather than dropping it, and lay it down as soon as
+         they are done. This used to lose the refresh entirely. */
+      const el = document.activeElement;
+      if ($('#modal').innerHTML || (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) {
+        livePending = true;
+        return;
+      }
+      livePending = false;
+      try {
+        if (liveNeedsLookups) { await A.loadLookups(); liveNeedsLookups = false; }
+        await route();
+      } catch (e) { /* a failed refresh must not break the page */ }
+    }, LIVE_DELAY);
+  }
 
   function startLive() {
     A.watch((table) => {
       if (LOOKUP_TABLES.indexOf(table) > -1) liveNeedsLookups = true;
-      clearTimeout(liveTimer);
-      liveTimer = setTimeout(async () => {
-        /* Never yank the page out from under someone mid-edit. */
-        if ($('#modal').innerHTML) return;
-        const el = document.activeElement;
-        if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-        try {
-          if (liveNeedsLookups) { await A.loadLookups(); liveNeedsLookups = false; }
-          await route();
-        } catch (e) { /* a failed refresh must not break the page */ }
-      }, 450);
+      /* A report moved, so the standing in the rail is out of date. */
+      if (table === 'reports') state.ranks = null;
+      applyLive();
     });
+
+    /* A held update goes down the moment the field is left. */
+    document.addEventListener('focusout', () => { if (livePending) applyLive(); });
+
+    /* Coming back to the tab, or back onto the network, is the other way
+       to be out of date: a phone that slept has missed every message the
+       socket sent while it was away, so the page is rebuilt on return
+       rather than trusted. */
+    const catchUp = () => {
+      if (document.visibilityState !== 'visible' || !A.store.me) return;
+      liveNeedsLookups = true;
+      state.ranks = null;
+      applyLive();
+    };
+    document.addEventListener('visibilitychange', catchUp);
+    window.addEventListener('online', catchUp);
+    window.addEventListener('focus', catchUp);
   }
 
   async function boot(silent) {
