@@ -69,6 +69,10 @@
      that ends the week counts as open all the way through: it turns over
      at midnight, not at some hour of the afternoon. */
   const weekClosed = ws => iso(addDays(ws, 6)) < iso(new Date());
+  /* Whether a week has opened yet at all — the fourth week of a month
+     that is only in its third does not exist to query or show a column
+     for. Both edges use the same whole-date comparison as weekClosed. */
+  const weekStarted = ws => iso(ws) <= iso(new Date());
   /* The last day a week can still be worked on, for anything that needs
      to say so in words. */
   const weekEndsOn = ws => addDays(ws, 6);
@@ -77,11 +81,6 @@
   /* The evaluation sits on the Wednesday that closes the week it reads,
      so it always looks back over the seven days ending that day. */
   const evalDate = ws => addDays(ws, 6);
-  const monthKey = ws => { const t = toDate(ws); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0'); };
-  const monthLabel = key => {
-    const [y, m] = String(key).split('-');
-    return MON_FULL[Number(m) - 1] + ' ' + y;
-  };
   /* Newest first, and it stops the moment it would step before the
      record began — a picker asking for 12 weeks gets 3 once only 3 exist,
      rather than padding the list with weeks nothing was ever filed
@@ -92,16 +91,36 @@
     for (let i = 0; i < n && !beforeEpoch(ws); i++) { out.push(ws); ws = iso(addDays(ws, -7)); }
     return out;               // newest first
   };
-  const EPOCH_MONTH = monthKey(EPOCH_WEEK);
-  const recentMonths = (n) => {
-    const out = [], t = new Date();
-    t.setDate(1);
-    for (let i = 0; i < n; i++) {
-      const key = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0');
-      if (key < EPOCH_MONTH) break;
-      out.push(key);
-      t.setMonth(t.getMonth() - 1);
+
+  /* A "month" here is four tracked weeks, not the calendar's. Week 1 to
+     4 is Month 1, which is called August because that is the month the
+     record actually began in — the calendar's own July/August line falls
+     in the middle of Week 1 and would otherwise split it in two. Month 2
+     picks up wherever Week 5 lands, and is called September, and so on:
+     the tracking calendar and the real calendar drift in step but never
+     have to agree on where a week starts. */
+  const WEEKS_PER_MONTH = 4;
+  const MONTH1 = { y: 2026, m: 7 };           // August 2026, 0-indexed
+  const trackingMonthNo = ws => Math.ceil(weekNo(ws) / WEEKS_PER_MONTH);
+  const weekOfMonth = ws => ((weekNo(ws) - 1) % WEEKS_PER_MONTH) + 1;
+  const monthLabel = n => {
+    const d = new Date(MONTH1.y, MONTH1.m + (n - 1), 1);
+    return MON_FULL[d.getMonth()] + ' ' + d.getFullYear();
+  };
+  /* The four week-starts that belong to tracking month n, oldest first,
+     whether or not they have opened yet. */
+  const weeksOfMonth = n => {
+    const out = [];
+    for (let i = 0; i < WEEKS_PER_MONTH; i++) {
+      out.push(iso(addDays(EPOCH_WEEK, ((n - 1) * WEEKS_PER_MONTH + i) * 7)));
     }
+    return out;
+  };
+  const currentMonthNo = () => trackingMonthNo(weekStart());
+  /* Newest first, same contract recentWeeks keeps. */
+  const recentMonths = (n) => {
+    const out = [];
+    for (let m = currentMonthNo(); m >= 1 && out.length < n; m--) out.push(m);
     return out;
   };
   const timeAgo = ts => {
@@ -577,8 +596,9 @@
   window.UI = {
     $, $$, esc, val, usd, usdFull, ngn, pct, initials,
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed, weekNo, EPOCH_WEEK,
-    weekEndsOn, weekClosesLabel,
-    evalDate, monthKey, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
+    weekEndsOn, weekClosesLabel, weekStarted,
+    evalDate, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
+    trackingMonthNo, weekOfMonth, weeksOfMonth, currentMonthNo, WEEKS_PER_MONTH,
     timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     rollLook, readLook, describeLook,

@@ -5,7 +5,7 @@
   'use strict';
 
   const U = window.UI, A = window.API, V = window.VIEWS;
-  const { $, esc, ico, toast, modal, closeModal, busy, val } = U;
+  const { $, esc, ico, toast, modal, closeModal, busy, val, kpi, tag, usdFull } = U;
 
   const state = {
     page: 'dashboard',
@@ -13,7 +13,7 @@
     /* The week ends on the Wednesday the evaluation is held, so the
        evaluation reads the week it is standing in. */
     evalWeek: U.weekStart(),
-    month: U.monthKey(U.weekStart()),
+    month: U.currentMonthNo(),          // 1 = August 2026, four weeks each
     center: null,
     chartType: 'bar',
     q: '',
@@ -48,7 +48,6 @@
         { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
-        { p: 'weekfix', l: 'Fix a week', i: 'refresh' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
       ]
@@ -68,8 +67,6 @@
       ],
       more: [
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
-        { p: 'offices', l: 'Offices', i: 'building' },
-        { p: 'weekfix', l: 'Fix a week', i: 'refresh' },
         { p: 'account', l: 'Account', i: 'lock' }
       ]
     },
@@ -92,7 +89,7 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'weekfix'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
       'subscriptions', 'account', 'offices', 'monthly', 'niches']
   };
@@ -337,23 +334,33 @@
     paintTour();
   }
 
+  /* A row of buttons, not a dropdown: every week that has opened in the
+     picked week's own month, at most four of them, so which one is
+     current is something you see rather than something you open a menu
+     to check. This is also what keeps a report from landing on the
+     wrong week — the week you are filing against is the one lit up in
+     front of you, not whatever a dropdown happened to remember. */
+  const weekButtons = (sel, act) => {
+    const weeks = U.weeksOfMonth(U.trackingMonthNo(sel)).filter(U.weekStarted);
+    return '<div class="seg wk-seg">' + weeks.map(w =>
+      '<button type="button" class="' + (w === sel ? 'on' : '') + (U.weekClosed(w) ? '' : ' open')
+      + '" data-act="' + act + '" data-v="' + w + '" title="' + esc(U.weekRange(w))
+      + (U.weekClosed(w) ? '' : ' — ' + U.weekClosesLabel(w)) + '">Week ' + U.weekOfMonth(w) + '</button>'
+    ).join('') + '</div>';
+  };
+
   function topbar(v) {
     const picker = v.picker === 'month'
       ? '<div class="wk"><span class="wk-l">Month</span><select data-act="month">' + monthOptions() + '</select></div>'
       : v.picker === 'evalweek'
-        ? '<div class="wk"><span class="wk-l">Evaluating</span><select data-act="evalweek">'
-        + weekOptions(state.evalWeek) + '</select></div>'
+        ? '<div class="wk"><span class="wk-l">Evaluating</span>' + weekButtons(state.evalWeek, 'evalweek-pick') + '</div>'
         : v.picker === 'week'
-          ? '<div class="wk"><span class="wk-l">Week</span><select data-act="week">'
-          + weekOptions(state.week) + '</select></div>' : '';
+          ? '<div class="wk"><span class="wk-l">Week</span>' + weekButtons(state.week, 'week-pick') + '</div>' : '';
     return '<header class="tb"><button class="burger" data-act="nav" aria-label="Menu">' + ico('menu', 18) + '</button>'
       + '<div>' + (v.crumbs ? '<div class="crumb">' + v.crumbs + '</div>' : '')
       + '<div class="tb-t">' + esc(v.title) + '</div></div>'
       + '<div class="tb-r">' + picker + '</div></header>';
   }
-  const weekOptions = (sel) => U.recentWeeks(window.CONFIG.weeksShown || 12)
-    .map(w => '<option value="' + w + '" ' + (w === sel ? 'selected' : '') + '>'
-      + esc(U.weekRange(w)) + (U.weekClosed(w) ? '' : ' (open)') + '</option>').join('');
   const monthOptions = () => U.recentMonths(12)
     .map(m => '<option value="' + m + '" ' + (m === state.month ? 'selected' : '') + '>'
       + esc(U.monthLabel(m)) + '</option>').join('');
@@ -822,29 +829,6 @@
      button is only redrawn to refresh its own tooltip. */
   ACT['go-names'] = () => { closeModal(); go('#/distributors'); };
 
-  /* --- fix a week ---------------------------------------------------- */
-  ACT['week-swap'] = () => {
-    const wf = state.weekfix || {};
-    const o = A.officeById(wf.office);
-    if (!o || !wf.weekA || !wf.weekB) return;
-    U.confirmDialog('Swap ' + U.weekName(wf.weekA) + ' and ' + U.weekName(wf.weekB) + '?',
-      'For <b>' + esc(o.name) + '</b>, whatever ' + esc(U.weekName(wf.weekA)) + ' holds trades places with '
-      + 'whatever ' + esc(U.weekName(wf.weekB)) + ' holds. Nothing is deleted, and swapping again puts it back.',
-      'Swap the weeks', 'week-swap-yes');
-  };
-
-  ACT['week-swap-yes'] = async (el) => {
-    const wf = state.weekfix || {};
-    busy(el, true, 'Swapping…');
-    try {
-      await A.swapReportWeeks(wf.office, wf.weekA, wf.weekB);
-      state.ranks = null;
-      closeModal();
-      toast('Swapped ' + U.weekName(wf.weekA) + ' and ' + U.weekName(wf.weekB) + '.');
-      route();
-    } catch (err) { busy(el, false); toast(err.message, 'no'); }
-  };
-
   ACT['hue'] = (el) => {
     const look = U.rollLook();
     const holder = el.parentElement;
@@ -900,9 +884,7 @@
   /* --- zones ----------------------------------------------------- */
   const centerForm = (c) => '<div class="field"><label for="c-name">Zone name</label>'
     + '<input class="input" id="c-name" value="' + esc(c.name || '') + '" placeholder="Lagere Zone"></div>'
-    + '<div class="field"><label for="c-address">Address</label>'
-    + '<input class="input" id="c-address" value="' + esc(c.address || '') + '" placeholder="14 Ondo Road, Ile-Ife"></div>'
-    + '<div class="two"><div class="field"><label for="c-leader">Director</label>'
+    + '<div class="two"><div class="field"><label for="c-leader">Zone leader</label>'
     + '<input class="input" id="c-leader" value="' + esc(c.leader_name || '') + '"></div>'
     + '<div class="field"><label for="c-assistant">Assistant</label>'
     + '<input class="input" id="c-assistant" value="' + esc(c.assistant_name || '') + '"></div></div>';
@@ -921,7 +903,7 @@
 
   ACT['center-save'] = async (el) => {
     const row = {
-      name: val('#c-name'), address: val('#c-address'),
+      name: val('#c-name'),
       leader_name: val('#c-leader'), assistant_name: val('#c-assistant')
     };
     if (!row.name) return toast('A zone needs a name.', 'no');
@@ -1017,12 +999,39 @@
   function addNiche(v) {
     if (!v) return;
     state.form.niches = state.form.niches || [];
-    if (!state.form.niches.includes(v)) state.form.niches.push(v);
+    /* Case-insensitive: "ai video" and "AI video" are the same product,
+       whichever one is already on the list keeps its spelling. */
+    const q = v.toLowerCase();
+    if (!state.form.niches.some(x => x.toLowerCase() === q)) state.form.niches.push(v);
     const inp = $('#niche-input'); if (inp) inp.value = '';
     const menu = $('#niche-menu'); if (menu) menu.innerHTML = '';
     $('#niche-chips').innerHTML = V.helpers.nicheChips(state.form.niches);
   }
   ACT['niche-pick'] = (el) => addNiche(el.dataset.v);
+
+  /* Splits whatever is sitting in the niche box on commas and adds each
+     one — a whole typed list becomes separate products rather than one
+     run-on entry, which is the mistake that had to be untangled in the
+     database once already. Shared by Enter and by leaving the field, so
+     it also catches someone who pastes a list and clicks away without
+     pressing Enter. Only an exact catalogue name counts as a match when
+     several are given at once: the loose "contains" match is a
+     convenience for one word at a time, and applying it down a list is
+     how you get the wrong product. */
+  function commitNicheInput() {
+    const inp = $('#niche-input');
+    if (!inp) return;
+    const parts = inp.value.split(',').map(x => x.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const many = parts.length > 1;
+    parts.forEach(part => {
+      const q = part.toLowerCase();
+      const picked = state.form.niches || [];
+      const hit = A.store.niches.find(n => n.toLowerCase() === q)
+        || (many ? null : A.store.niches.find(n => n.toLowerCase().includes(q) && !picked.includes(n)));
+      addNiche(hit || part);
+    });
+  }
 
   ACT['report-save'] = async (el, e) => {
     e.preventDefault();
@@ -1254,6 +1263,36 @@
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  /* Tapping a week on an office's performance list — the full report for
+     that one week, fetched fresh rather than kept around from the page
+     that led here. */
+  ACT['week-detail'] = async (el) => {
+    const office = el.dataset.office, wk = el.dataset.week;
+    const o = A.officeById(office);
+    let rep;
+    try { rep = await A.reports.get(office, wk); }
+    catch (err) { return toast(err.message, 'no'); }
+    if (!rep) return toast('Nothing filed for that week.', 'no');
+
+    const room = V.helpers.peopleIn(rep);
+    modal(esc(U.weekName(wk)) + ' · ' + esc(o.name), esc(U.weekRange(wk)),
+      '<div class="grid g2" style="margin-bottom:14px">'
+      + kpi('Orders', rep.orders, '', 'trend')
+      + kpi('Amount', usdFull(rep.amount), '', 'cash', 'kpi-blue')
+      + kpi('Room', room, rep.num_distributors + ' dist · ' + rep.num_senior_managers
+        + ' SM · ' + rep.num_newbies + ' new', 'users')
+      + kpi('Filed', U.timeAgo(rep.submitted_at), U.clock(rep.submitted_at), 'clock')
+      + '</div>'
+      + '<div class="field"><label>Niches</label><div class="chips">'
+      + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">None recorded.</span>') + '</div></div>'
+      + (rep.new_niches && rep.new_niches.length
+        ? '<div class="field"><label>Sold for the first time</label><div class="chips">'
+        + rep.new_niches.map(n => tag(n, 't-dark')).join(' ') + '</div></div>' : '')
+      + '<div class="field"><label>What slowed them down</label>'
+      + '<p style="font-size:14px;line-height:1.6;color:var(--muted);margin:0">' + esc(rep.issues || '—') + '</p></div>',
+      '<button class="btn btn-g" data-act="modal-close">Close</button>');
+  };
+
   ACT['office-save'] = async (el) => {
     busy(el, true, 'Saving…');
     try {
@@ -1299,19 +1338,20 @@
   document.addEventListener('change', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el) return;
-    if (el.dataset.act === 'week') { state.week = el.value; route(); }
-    if (el.dataset.act === 'evalweek') { state.evalWeek = el.value; route(); }
-    if (el.dataset.act === 'month') { state.month = el.value; route(); }
+    if (el.dataset.act === 'month') { state.month = Number(el.value); route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
-    if (el.dataset.act === 'wf-office') { state.weekfix = state.weekfix || {}; state.weekfix.office = el.value; route(); }
-    if (el.dataset.act === 'wf-week-a') { state.weekfix = state.weekfix || {}; state.weekfix.weekA = el.value; route(); }
-    if (el.dataset.act === 'wf-week-b') { state.weekfix = state.weekfix || {}; state.weekfix.weekB = el.value; route(); }
   });
+
+  /* The week buttons in the topbar — click, not change, since they are
+     buttons now rather than a select. */
+  ACT['week-pick'] = (el) => { state.week = el.dataset.v; state.month = U.trackingMonthNo(el.dataset.v); route(); };
+  ACT['evalweek-pick'] = (el) => { state.evalWeek = el.dataset.v; route(); };
 
   /* Jump the week picker straight to a given week. */
   ACT['go-week'] = (el, e) => {
     e.preventDefault();
     state.week = el.dataset.v;
+    state.month = U.trackingMonthNo(el.dataset.v);
     state.form = {};
     go('#/reports');
     route();
@@ -1349,33 +1389,32 @@
     if (e.key !== 'Enter' || e.shiftKey) return;
     const t = e.target;
 
-    /* Enter adds the product you typed — the closest match if there is
-       one, otherwise the words themselves as a brand new niche.
-
-       Commas separate products, so a whole list can be typed in one go
-       and lands as separate niches rather than as one run-on entry.
-       When several are given, only an exact name counts as a match: the
-       loose "contains" match is a convenience for one word at a time,
-       and applying it down a list is how you get the wrong product. */
-    if (t.id === 'niche-input') {
-      e.preventDefault();
-      const parts = t.value.split(',').map(x => x.trim()).filter(Boolean);
-      if (!parts.length) return;
-      const many = parts.length > 1;
-      parts.forEach(part => {
-        const q = part.toLowerCase();
-        const picked = state.form.niches || [];
-        const hit = A.store.niches.find(n => n.toLowerCase() === q)
-          || (many ? null : A.store.niches.find(n => n.toLowerCase().includes(q) && !picked.includes(n)));
-        addNiche(hit || part);
-      });
-      return;
-    }
+    /* Enter adds whatever is typed — split on commas, matched against
+       the catalogue case-insensitively. See commitNicheInput. */
+    if (t.id === 'niche-input') { e.preventDefault(); commitNicheInput(); return; }
     if (t.id === 'new-niche-input') { e.preventDefault(); ACT['new-niche-add'](); return; }
 
     /* The weekly report is long and easy to send by accident. Enter never
        files it — the button is the only way. */
     if (t.form && t.form.id === 'report-form' && t.tagName !== 'TEXTAREA') e.preventDefault();
+  });
+
+  /* Leaving the box commits it too, the same way Enter does — so a list
+     that was pasted in and clicked away from still lands as separate
+     niches instead of sitting there as one unsplit run of text.
+
+     Clicking a suggestion in the menu also blurs the input, and
+     mousedown always fires before that blur — so a suggestion click
+     raises this flag first and the blur below stands down, leaving the
+     pick to add exactly what was clicked rather than the raw text too. */
+  let suppressNicheBlur = false;
+  document.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#niche-menu')) suppressNicheBlur = true;
+  });
+  document.addEventListener('focusout', (e) => {
+    if (e.target.id !== 'niche-input') return;
+    if (suppressNicheBlur) { suppressNicheBlur = false; return; }
+    if (e.target.value.trim()) commitNicheInput();
   });
 
   window.addEventListener('hashchange', route);

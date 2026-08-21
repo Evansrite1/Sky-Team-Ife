@@ -119,13 +119,26 @@ Both trainings create themselves for every zone, once per week, the first time a
 opens the Trainings page. Anything else — a rally, a launch, a directors' meeting — is a
 zone event you create by hand.
 
+**Weeks are numbered from when the record began, not from the calendar.** Week 1 is the
+Thursday the app started tracking — 30 Jul 2026 — regardless of what the ISO calendar
+would call that week; Week 2 follows it, and so on, counting up forever. Nothing before
+Week 1 is part of the tracked history.
+
+**A month is four of those weeks**, not a calendar month. Month 1 is called August
+because that is the month the record began in, Month 2 is September, and so on — the
+tracking calendar and the real calendar drift in step but do not have to agree on where
+a week starts. This is what the Monthly summary, Office rankings and an office's own
+Performance list are all scoped to.
+
 ---
 
 ## Attendance
 
-Every **center has one permanent QR** (`scan.html?center=<id>`) you can download as a
-printable poster from the center page. A per-session QR points at `scan.html?c=<CODE>`.
-No account is needed at any point. The walk through is:
+`scan.html` itself is unchanged and still works exactly as below — but the zone page's
+own "download the permanent QR as a poster" button is off for now, showing *Coming soon*
+in its place while attendance is reworked. The permanent URL still functions
+(`scan.html?center=<id>`) even without a button that prints it; a per-session QR points
+at `scan.html?c=<CODE>`. No account is needed at any point. The walk through is:
 
 1. **Scan** the poster with a phone camera.
 2. **Pick the session** happening now — the page lists this week's for that center.

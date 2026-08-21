@@ -248,7 +248,7 @@ svg { display: block; flex: none; }
 .tb-t { font-size: 21px; font-weight: 600; letter-spacing: -.025em; }
 .tb-r { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .burger { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px; cursor: pointer; }
-.wk { display: flex; align-items: center; gap: 8px; }
+.wk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wk-l { font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
 .wk select {
   border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; background: var(--surface);
@@ -371,6 +371,16 @@ tbody tr.click:hover { background: var(--blue-tint); }
 }
 .seg button + button { border-left: 1px solid var(--hair); }
 .seg button.on { background: var(--blue); color: var(--on-accent); font-weight: 500; }
+
+/* The week picker: at most four buttons, since a month is at most four
+   weeks. The dot marks the one still open for filing, whether or not it
+   is the one currently on screen. */
+.wk-seg button { padding: 7px 13px; font-size: 13px; position: relative; }
+.wk-seg button.open::after {
+  content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--ok);
+}
+.wk-seg button.open.on::after { background: var(--on-accent); }
 
 /* =============================== FORMS =============================== */
 .field { margin-bottom: 15px; }
@@ -841,6 +851,24 @@ html.standalone .inst { display: none; }
 
 /* The scan page is opened on a phone, always. Give it the notch too. */
 .scan-brand { display: grid; place-items: center; color: var(--blue); margin-bottom: 14px; }
+
+/* ============ AN OFFICE'S WEEKS, ONE ROW EACH, TAP FOR MORE ========== */
+.perf-wk {
+  display: flex; align-items: center; gap: 16px; padding: 14px 4px;
+  border-bottom: 1px solid var(--hair);
+}
+.perf-wk:last-child { border-bottom: 0; }
+.perf-wk.click { cursor: pointer; }
+.perf-wk.click:hover { background: var(--grey); border-radius: var(--r-sm); }
+.perf-wk > svg { flex: none; color: var(--faint); }
+.perf-wk-t { flex: none; width: 92px; }
+.perf-wk-m { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.perf-v { font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+.perf-l { font-size: 11px; color: var(--muted); margin-top: 1px; }
+@media (max-width: 640px) {
+  .perf-wk { flex-wrap: wrap; }
+  .perf-wk-m { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+}
 
 /* ================== WHO WAS IN THE ROOM THIS WEEK ==================== */
 .room { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

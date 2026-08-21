@@ -32,18 +32,8 @@
     + '</div>';
 
   /* ---------------------------------------------------------- ranking */
-  /* What makes an office the best office.
-     Amount alone used to decide it, which flattered a small office that
-     happened to land one big order. Three things count now, in the order
-     they matter: how many orders were written, how many people were in
-     the room to write them, and what the orders came to.
-
-     Each is scored against the best office in the same group rather than
-     against a fixed target, so a score is "how close to the leader" and
-     the weights below are the whole of the policy. Change them here and
-     every ranking in the app moves together. */
-  /* Three quests, and the ranking is the sum of how far an office is
-     along each of them:
+  /* What makes an office the best office. Three quests, and the ranking
+     is the sum of how far an office is along each of them:
 
        money       what the orders came to
        productive  what each earner brought in — amount over the pros
@@ -104,10 +94,27 @@
       .map((r, i) => Object.assign(r, { rank: i + 1 }));
   }
 
+  /* Grouped by lower-case, so "AI video" and "ai video" are one product
+     rather than two, whatever mix of casing the database happens to
+     hold. Displayed under whichever spelling was written most often —
+     the label a count like this is read against should be the one
+     people actually typed, not just the first one that happened to be
+     seen. */
   function nicheTally(reps) {
-    const t = {};
-    reps.forEach(r => (r.niches || []).forEach(n => { t[n] = (t[n] || 0) + 1; }));
-    return Object.entries(t).sort((a, b) => b[1] - a[1]);
+    const counts = {}, labels = {};
+    reps.forEach(r => (r.niches || []).forEach(n => {
+      const key = String(n).trim().toLowerCase();
+      if (!key) return;
+      counts[key] = (counts[key] || 0) + 1;
+      labels[key] = labels[key] || {};
+      labels[key][n] = (labels[key][n] || 0) + 1;
+    }));
+    return Object.keys(counts)
+      .map(key => {
+        const spellings = Object.entries(labels[key]).sort((a, b) => b[1] - a[1]);
+        return [spellings[0][0], counts[key]];
+      })
+      .sort((a, b) => b[1] - a[1]);
   }
 
   /* The score decides the order — it does not have to be read as a
@@ -142,11 +149,6 @@
   }
 
   const link = (page, id) => '#/' + page + (id ? '/' + id : '');
-  const weekOpts = (sel) => U.recentWeeks(window.CONFIG.weeksShown || 12)
-    .map(w => '<option value="' + w + '" ' + (w === sel ? 'selected' : '') + '>'
-      + esc(U.weekLabel(w)) + (U.weekClosed(w) ? '' : ' (open)') + '</option>').join('');
-  const monthOpts = (sel) => U.recentMonths(12)
-    .map(m => '<option value="' + m + '" ' + (m === sel ? 'selected' : '') + '>' + esc(U.monthLabel(m)) + '</option>').join('');
 
   const centerPick = (sel, act) => '<select class="select" data-act="' + act + '" style="max-width:230px">'
     + A.store.centers.map(c => '<option value="' + c.id + '" ' + (c.id === sel ? 'selected' : '') + '>'
@@ -173,15 +175,6 @@
     const ranked = rankOffices(reps, offices);
     const top = ranked.find(r => !r.missing);
     const missing = ranked.filter(r => r.missing);
-
-    /* Who never filed the week behind this one. Only worth showing while
-       standing in the current week — scrolling back through history, the
-       answer is always "everyone" and it means nothing. */
-    const lastWk = U.iso(U.addDays(U.weekStart(), -7));
-    const lastReps = ws === U.weekStart() ? await A.reports.list({ week: lastWk }) : [];
-    const lastMissing = ws === U.weekStart()
-      ? offices.filter(o => !lastReps.some(r => r.office_id === o.id))
-      : [];
 
     const series = hist.map(w => ({
       l: 'W' + U.weekNo(w),
@@ -230,32 +223,69 @@
           + '<div class="sub">' + r.count + ' of ' + r.os.length + ' offices filed · ' + r.orders + ' orders</div></a>').join('')
           : empty('layers', 'No zones yet', 'Create a zone and its offices can start filing.'))
         + '</div></div>'
+    };
+  }
 
-        + (missing.length ? '<div class="card" style="margin-top:18px">'
-          + '<div class="card-h"><div><div class="card-t">Still to file · ' + missing.length + '</div>'
-          + '<div class="card-s">' + evalLine(ws) + '</div></div></div>'
-          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Phone' }, { label: '' }],
-            missing.map(r => '<tr class="click" data-href="' + link('offices', r.office.id) + '">'
-              + '<td class="nm">' + esc(r.office.name) + '</td>'
-              + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
-              + '<td>' + esc(r.office.manager_name || '—') + '</td>'
-              + '<td class="sub">' + esc(r.office.phone || '—') + '</td>'
-              + '<td class="num">' + tag('Not filed', 't-warn') + '</td></tr>'))
-          + '</div>' : '')
+  /* ===================================================================
+     DIRECTOR DASHBOARD
+     ---------------------------------------------------------------
+     Opening it should read like a status board, not a form to fill in
+     for one week: what has this zone made this month, who is carrying
+     it, what is it selling. Scoped to the Director's own zone — a
+     Director without one yet (brand new, not assigned) falls back to
+     the first zone that exists so the page still has something to show.
+     =================================================================== */
+  async function directorDash() {
+    const cid = A.store.me.center_id || (A.store.centers[0] || {}).id;
+    const c = cid ? A.centerById(cid) : null;
+    if (!c) return { title: 'Dashboard', html: empty('layers', 'No zone yet', 'This account is not attached to a zone.') };
 
-        /* Last week matters more than this one: it is about to be locked
-           and after that nobody can put it right. */
-        + (lastMissing.length ? '<div class="card">'
-          + '<div class="card-h"><div><div class="card-t">Last week never came in · ' + lastMissing.length + '</div>'
-          + '<div class="card-s">' + esc(U.weekRange(lastWk)) + '. These offices can still file it '
-          + 'until the week now running closes, and not after.</div></div></div>'
-          + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Phone' }],
-            lastMissing.map(o => '<tr class="click" data-href="' + link('offices', o.id) + '">'
-              + '<td class="nm">' + esc(o.name) + '</td>'
-              + '<td>' + esc((A.centerById(o.center_id) || {}).name || '—') + '</td>'
-              + '<td>' + esc(o.manager_name || '—') + '</td>'
-              + '<td class="sub">' + esc(o.phone || '—') + '</td></tr>'))
-          + '</div>' : '')
+    const mn = U.currentMonthNo();
+    const weeks = U.weeksOfMonth(mn).filter(U.weekStarted);
+    const reps = await A.reports.list({ weeks, center: cid });
+    const t = totals(reps);
+    const offs = A.officesOf(cid).filter(o => o.active);
+    const ranked = rankOffices(reps, offs).filter(r => !r.missing);
+    const best = ranked[0];
+    const tally = nicheTally(reps).slice(0, 5);
+    const maxTally = tally.length ? tally[0][1] : 1;
+
+    const perWeek = weeks.map(w => {
+      const rs = reps.filter(r => r.week_start === w);
+      return { w, ...totals(rs) };
+    });
+    const maxWeek = Math.max.apply(null, perWeek.map(r => r.amount).concat([1]));
+
+    return {
+      title: 'Dashboard', crumbs: esc(c.name) + ' · ' + esc(U.monthLabel(mn)),
+      html: '<div class="grid g4">'
+        + kpi('Orders this month', t.orders.toLocaleString(), esc(weeks.length + ' of ' + U.WEEKS_PER_MONTH + ' weeks'), 'trend')
+        + kpi('Amount this month', usd(t.amount), '', 'cash', 'kpi-blue')
+        + kpi('Best office so far', best ? esc(best.office.name) : '—',
+          best ? usdFull(best.amount) + ' · ' + best.orders + ' orders' : 'Nobody has filed yet', 'crown', 'kpi-dark')
+        + kpi('Offices filed', t.count + ' of ' + offs.length, '', 'building')
+        + '</div>'
+
+        + '<div class="grid g-2-1" style="margin-top:18px">'
+        + '<div class="card"><div class="card-h"><div><div class="card-t">The zone, week by week</div>'
+        + '<div class="card-s">' + esc(U.monthLabel(mn)) + ' so far.</div></div></div>'
+        + (perWeek.length ? table([{ label: 'Week' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }, { label: '' }],
+          perWeek.map(r => '<tr class="click" data-href="' + link('rankings') + '">'
+            + '<td class="nm">Week ' + U.weekOfMonth(r.w) + '<div class="sub">' + esc(U.weekRange(r.w)) + '</div></td>'
+            + '<td class="num">' + r.orders + '</td>'
+            + '<td class="num nm">' + usdFull(r.amount) + '</td>'
+            + '<td style="width:150px">' + bar(r.amount, maxWeek, r.amount === maxWeek) + '</td></tr>'))
+          : empty('calendar', 'Nothing filed yet', 'The week-by-week view fills in as offices file.'))
+        + '</div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Top niches</div>'
+        + '<div class="card-s">' + esc(c.name) + ', this month.</div></div></div>'
+        + (tally.length ? tally.map(([n, cnt]) =>
+          '<div class="spread" style="padding:8px 0;border-bottom:1px solid #edf0f7">'
+          + '<div>' + esc(n) + '</div><div class="row" style="width:110px">' + bar(cnt, maxTally, true)
+          + '<span class="num nm" style="width:22px">' + cnt + '</span></div></div>').join('')
+          : empty('star', 'No niches yet', 'They come from the weekly reports.'))
+        + '</div></div>'
     };
   }
 
@@ -379,7 +409,9 @@
         + '<div><div class="card-t">' + esc(c.name) + '</div>'
         + '<div class="card-s">The seven days from <b>' + esc(U.weekRange(ws)) + '</b>, '
         + 'read at the evaluation on ' + esc(U.fullDate(U.evalDate(ws))) + '.</div></div>'
-        + '<div class="card-a">' + centerPick(cid, 'center') + '</div></div>'
+        + '<div class="card-a row" style="gap:8px">' + centerPick(cid, 'center')
+        + '<button class="btn btn-sm btn-a" data-act="eval-pdf" data-center="' + cid + '" data-week="' + ws + '">'
+        + ico('file', 14) + 'Download as PDF</button></div></div>'
         + '<div class="grid g4" style="margin-bottom:4px">'
         + kpi('Offices', offs.length, '', 'building')
         + kpi('Filed', t.count + ' of ' + offs.length, '', 'file', t.count === offs.length ? 'kpi-blue' : '')
@@ -389,17 +421,22 @@
 
         + rankCard(ranked, 'How the zone ranks', RANK_BASIS)
 
+        /* Everything about an office's week, in one row: the two amounts
+           either side of it, the room it filed with, and what it is
+           working on. This is what gets read out on the Wednesday, so
+           nothing that matters should be a click away from it. */
         + '<div class="card">' + table(
           [{ label: '#' }, { label: 'Office' }, { label: 'Last week', num: true }, { label: 'This week', num: true },
-          { label: 'Move', num: true }, { label: 'Niches' }, { label: 'New' }, { label: 'Issues raised' }],
+          { label: 'Move', num: true }, { label: 'Room' }, { label: 'Niches' }, { label: 'New' }, { label: 'Issues raised' }],
           ranked.map(r => {
             const rep = reps.find(x => x.office_id === r.office_id);
             const pr = prevReps.find(x => x.office_id === r.office_id);
             if (!rep) {
               return '<tr><td><span class="rk">—</span></td>'
-                + '<td class="nm">' + esc(r.office.name) + '</td>'
+                + '<td class="nm">' + esc(r.office.name)
+                + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
                 + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
-                + '<td class="num" colspan="6">' + tag('No report filed', 't-warn') + '</td></tr>';
+                + '<td class="num" colspan="7">' + tag('No report filed', 't-warn') + '</td></tr>';
             }
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
@@ -408,9 +445,11 @@
               + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
               + '<td class="num nm">' + usdFull(rep.amount) + '<div class="sub">' + rep.orders + ' orders</div></td>'
               + '<td class="num">' + (pr ? U.change(rep.amount, pr.amount) : '<span class="sub">first week</span>') + '</td>'
+              + '<td class="sub">' + peopleIn(rep) + ' people<div class="sub">'
+              + rep.num_distributors + ' dist · ' + rep.num_senior_managers + ' SM · ' + rep.num_newbies + ' new</div></td>'
               + '<td>' + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">—</span>') + '</td>'
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
-              + '<td style="max-width:280px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
+              + '<td style="max-width:260px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
           }),
           { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here once they sign up and you approve them.') })
         + '</div>'
@@ -421,8 +460,8 @@
      MONTHLY SUMMARY
      =================================================================== */
   async function monthly() {
-    const key = S().month;
-    const weeks = U.recentWeeks(30).filter(w => U.monthKey(w) === key).reverse();
+    const key = S().month || U.currentMonthNo();
+    const weeks = U.weeksOfMonth(key).filter(U.weekStarted);   // oldest first, already
     if (!weeks.length) return { title: 'Monthly summary', picker: 'month', html: empty('calendar', 'Nothing for this month', 'Pick another month.') };
     const mine = A.isOffice() ? A.store.me.office_id : null;
     const reps = await A.reports.list(mine ? { weeks, office: mine } : { weeks });
@@ -491,7 +530,6 @@
       const t = totals(rs);
       return '<tr class="click" data-href="' + link('centers', c.id) + '">'
         + '<td class="nm">' + esc(c.name) + '</td>'
-        + '<td>' + esc(c.address || '—') + '</td>'
         + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
         + '<td class="num">' + os.length + '</td>'
         + '<td class="num">' + t.count + ' of ' + os.length + '</td>'
@@ -503,7 +541,7 @@
         + '<div class="card-s">Numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">'
           + ico('plus', 15) + 'New zone</button></div>' : '') + '</div>'
-        + table([{ label: 'Zone' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true },
+        + table([{ label: 'Zone' }, { label: 'Zone leader' }, { label: 'Offices', num: true },
         { label: 'Filed', num: true }, { label: 'Amount', num: true }], rowsHtml,
           { empty: empty('layers', 'No zones yet', 'A zone holds its own offices and runs its own Wednesday evaluation.',
             A.isSuper() ? '<button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'Create the first zone</button>' : '') })
@@ -514,99 +552,57 @@
   async function centerDetail(id) {
     const c = A.centerById(id);
     if (!c) return { title: 'Zone', html: empty('layers', 'Zone not found', 'It may have been removed.') };
-    const ws = S().week;
     const offs = A.officesOf(id).filter(o => o.active);
-    const [reps, evs, dists] = await Promise.all([
-      A.reports.list({ week: ws, center: id }),
-      A.events.list({ week: ws, center: id }),
-      A.distributors.list({ center: id })
-    ]);
+    const mn = U.currentMonthNo();
+    const weeks = U.weeksOfMonth(mn).filter(U.weekStarted);
+    const reps = await A.reports.list({ weeks, center: id });
     const ranked = rankOffices(reps, offs);
     const t = totals(reps);
-    const scans = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
 
-    const centerUrl = window.CONFIG.appUrl + '/scan.html?center=' + encodeURIComponent(c.id);
+    const perWeek = weeks.map(w => {
+      const rs = reps.filter(r => r.week_start === w);
+      return { w, ...totals(rs) };
+    });
+    const maxWeek = Math.max.apply(null, perWeek.map(r => r.amount).concat([1]));
+
     return {
-      title: c.name, crumbs: '<a href="' + link('centers') + '">Zones</a>', picker: 'week',
+      title: c.name, crumbs: '<a href="' + link('centers') + '">Zones</a> · ' + esc(U.monthLabel(mn)),
       html: '<div class="grid g4">'
         + kpi('Offices', offs.length, '', 'building')
-        + kpi('Distributors', dists.length, dists.filter(d => SM_PLUS.includes(d.status)).length + ' SM and above', 'users')
-        + kpi('Amount this week', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-blue')
-        + kpi('Director', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
-        + '</div>'
-
-        + '<div style="margin-top:18px;max-width:660px">'
-        + '<div class="ticket tilt"><div class="ticket-h">'
-        + '<div class="t-n">Zone QR, one code for every session</div>'
-        + '<div class="t-m">' + esc(c.name) + '</div></div>'
-        + '<div class="ticket-b"><div class="qr-box">' + U.qrSvg(centerUrl) + '</div>'
-        + '<div><div class="card-s" style="margin:0 0 10px">Print this once and keep it at the door. '
-        + 'A distributor scans it, picks today\'s session, and is signed in. The QR never changes.</div>'
-        + '<div class="row">'
-        + '<button class="btn btn-a btn-pop btn-sm" data-act="qr-download"'
-        + ' data-url="' + esc(centerUrl) + '"'
-        + ' data-title="' + esc(c.name) + '"'
-        + ' data-sub="' + esc('Training sign-in') + '"'
-        + ' data-lines="' + esc((c.address || '') + '|' + (c.leader_name ? 'Director: ' + c.leader_name : '')) + '"'
-        + ' data-file="' + esc('qr-' + c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) + '">'
-        + ico('qr', 14) + 'Download poster</button>'
-        + '<button class="btn btn-sm" data-act="copy" data-v="' + esc(centerUrl) + '">' + ico('copy', 14) + 'Copy link</button>'
-        + '<a class="btn btn-sm" href="' + esc(centerUrl) + '" target="_blank" rel="noopener">' + ico('scan', 14) + 'Open</a>'
-        + '</div></div></div></div>'
+        + kpi('Zone leader', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
+        + kpi('Orders this month', t.orders.toLocaleString(), '', 'trend')
+        + kpi('Amount this month', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-blue')
         + '</div>'
 
         + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
-        + '<div class="card-t">Offices ranked</div><div class="card-s">' + esc(U.weekLabel(ws)) + '</div></div>'
+        + '<div class="card-t">The zone, week by week</div>'
+        + '<div class="card-s">' + esc(U.monthLabel(mn)) + ' so far.</div></div></div>'
+        + (perWeek.length ? table([{ label: 'Week' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }, { label: '' }],
+          perWeek.map(r => '<tr><td class="nm">Week ' + U.weekOfMonth(r.w)
+            + '<div class="sub">' + esc(U.weekRange(r.w)) + '</div></td>'
+            + '<td class="num">' + r.orders + '</td>'
+            + '<td class="num nm">' + usdFull(r.amount) + '</td>'
+            + '<td style="width:150px">' + bar(r.amount, maxWeek, r.amount === maxWeek) + '</td></tr>'))
+          : empty('calendar', 'Nothing filed yet', 'The week-by-week view fills in as offices file.'))
+        + '</div>'
+
+        + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+        + '<div class="card-t">Offices ranked</div><div class="card-s">' + esc(U.monthLabel(mn)) + '.</div></div>'
         + (A.isSuper() ? '<div class="card-a"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
           + ico('edit', 14) + 'Edit zone</button></div>' : '') + '</div>'
-        + table([{ label: '#' }, { label: 'Office' }, { label: 'Team leader' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
+        + table([{ label: '#' }, { label: 'Office' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
-            + '<td class="nm">' + esc(r.office.name) + '</td>'
-            + '<td>' + esc(r.office.manager_name || '—') + '</td>'
+            + '<td class="nm">' + esc(r.office.name)
+            + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
             + '<td class="num">' + (r.missing ? tag('Not filed', 't-warn') : r.orders) + '</td>'
             + '<td class="num nm">' + (r.missing ? '—' : usdFull(r.amount)) + '</td></tr>'),
           { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear once approved.') })
         + '</div>'
 
-        /* What gets read out on the Wednesday. Everything the evaluation
-           needs is here, so a Director never has to leave the zone. */
-        + '<div class="card"><div class="card-h"><div>'
-        + '<div class="card-t">Evaluation list</div>'
-        + '<div class="card-s">' + esc(U.weekRange(ws)) + ', read on '
-        + esc(U.fullDate(U.evalDate(ws))) + ' at 2:45pm.</div></div>'
-        + '<div class="card-a"><button class="btn btn-sm btn-a" data-act="eval-pdf"'
-        + ' data-center="' + c.id + '" data-week="' + ws + '">'
-        + ico('file', 14) + 'Download as PDF</button></div></div>'
-        + table([{ label: 'Office' }, { label: 'Orders', num: true }, { label: 'Amount', num: true },
-        { label: 'Dists', num: true }, { label: 'SMs', num: true }, { label: 'New', num: true },
-        { label: 'What slowed them down' }],
-          ranked.map(r => {
-            const rep = reps.find(x => x.office_id === r.office_id);
-            return '<tr><td class="nm">' + esc(r.office.name)
-              + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
-              + '<td class="num">' + (rep ? rep.orders : tag('Not filed', 't-warn')) + '</td>'
-              + '<td class="num nm">' + (rep ? usdFull(rep.amount) : '—') + '</td>'
-              + '<td class="num">' + (rep ? rep.num_distributors : '—') + '</td>'
-              + '<td class="num">' + (rep ? rep.num_senior_managers : '—') + '</td>'
-              + '<td class="num">' + (rep ? rep.num_newbies : '—') + '</td>'
-              + '<td style="max-width:280px;white-space:normal">'
-              + esc(rep ? (rep.issues || '—') : '—') + '</td></tr>';
-          }),
-          { empty: empty('clipboard', 'Nothing to evaluate', 'No offices in this zone yet.') })
-        + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Sessions this week</div>'
-        + '<div class="card-s">Trainings and events at this zone.</div></div></div>'
-        + table([{ label: 'Session' }, { label: 'Date' }, { label: 'Who may scan' }, { label: 'Status' }, { label: 'In', num: true }],
-          evs.map(e => '<tr class="click" data-href="' + link('trainings', e.id) + '">'
-            + '<td class="nm">' + esc(e.name) + '</td>'
-            + '<td>' + esc(U.fullDate(e.event_date)) + '<div class="sub">' + esc(e.event_time) + '</div></td>'
-            + '<td>' + (e.elig === 'sm' ? 'Senior Managers and above' : 'All distributors') + '</td>'
-            + '<td>' + statusTagEvent(e) + '</td>'
-            + '<td class="num nm">' + scans.filter(s => s.event_id === e.id && s.status === 'accepted').length + '</td></tr>'),
-          { empty: empty('qr', 'No sessions this week', 'The two weekly trainings are created automatically once the week opens.') })
-        + '</div>'
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Attendance</div>'
+        + '<div class="card-s">Trainings and scanning for this zone.</div></div></div>'
+        + note('info', 'qr', '<b>Coming soon.</b>') + '</div>'
     };
   }
 
@@ -654,23 +650,49 @@
   async function officeDetail(id) {
     const o = A.officeById(id);
     if (!o) return { title: 'Office', html: empty('building', 'Office not found', 'It may have been removed.') };
-    const hist = U.recentWeeks(10).reverse();
-    const ws = S().week;
-    /* The zone's week, so the office can be read against the offices it
-       is actually ranked with rather than in isolation. */
+    const mn = U.currentMonthNo();
+    const monthWeeks = U.weeksOfMonth(mn).filter(U.weekStarted);
+    /* All-time for the top three numbers; the zone's reports for the
+       month, so each week below can be ranked against the offices it
+       was actually filed alongside rather than read in isolation. */
     const [reps, dists, zoneReps] = await Promise.all([
       A.reports.list({ office: id }),
       A.distributors.list({ office: id }),
-      A.reports.list({ week: ws, center: o.center_id })
+      A.reports.list({ weeks: monthWeeks, center: o.center_id })
     ]);
-    const zoneRanked = rankOffices(zoneReps, A.officesOf(o.center_id).filter(x => x.active));
-    const me = zoneRanked.find(r => r.office_id === id);
-    const thisWeek = reps.find(r => r.week_start === ws);
-    const series = hist.map(w => {
-      const r = reps.find(x => x.week_start === w);
-      return { l: 'W' + U.weekNo(w), v: r ? Number(r.amount) : 0 };
-    });
     const t = totals(reps);
+    const zoneOffices = A.officesOf(o.center_id).filter(x => x.active);
+
+    /* One row per week of the current month. Ranked week by week, not
+       against the month as a whole, because "the office ranking for the
+       week" means exactly that week's standing. */
+    const perf = monthWeeks.map(w => {
+      const rep = reps.find(r => r.week_start === w);
+      const ranked = rankOffices(zoneReps.filter(r => r.week_start === w), zoneOffices);
+      const mine = ranked.find(r => r.office_id === id);
+      return {
+        w, rep,
+        rank: mine && !mine.missing ? mine.rank : null,
+        rankOf: ranked.filter(r => !r.missing).length,
+        people: rep ? peopleIn(rep) : 0,
+        perDist: rep && rep.num_distributors ? rep.amount / rep.num_distributors : 0
+      };
+    }).reverse();          // most recent week first
+
+    const perfRow = (p) => '<div class="perf-wk' + (p.rep ? ' click' : '') + '"'
+      + (p.rep ? ' data-act="week-detail" data-office="' + id + '" data-week="' + p.w + '"' : '') + '>'
+      + '<div class="perf-wk-t"><div class="nm">Week ' + U.weekOfMonth(p.w) + '</div>'
+      + '<div class="sub">' + esc(U.weekRange(p.w)) + '</div></div>'
+      + (p.rep
+        ? '<div class="perf-wk-m">'
+        + '<div><div class="perf-v">' + usdFull(p.perDist) + '</div><div class="perf-l">Per distributor</div></div>'
+        + '<div><div class="perf-v">' + p.rep.orders + ' · ' + usdFull(p.rep.amount) + '</div><div class="perf-l">Orders · amount</div></div>'
+        + '<div><div class="perf-v">' + p.people + '</div><div class="perf-l">People</div></div>'
+        + '<div><div class="perf-v">' + (p.rank ? '#' + p.rank + ' of ' + p.rankOf : '—') + '</div><div class="perf-l">Zone rank</div></div>'
+        + '</div>' + ico('right', 16)
+        : '<div class="perf-wk-m"><span class="sub">Not filed</span></div>')
+      + '</div>';
+
     return {
       title: o.name,
       crumbs: '<a href="' + link('offices') + '">Offices</a> · ' + esc((A.centerById(o.center_id) || {}).name || ''),
@@ -689,47 +711,17 @@
         + ' data-id="' + o.id + '" data-name="' + esc(o.name) + '">'
         + ico('trash', 15) + 'Delete office</button></div></div>'
         : '')
-        + '<div class="grid g4">'
+        + '<div class="grid g3">'
         + kpi('Reports filed', reps.length, 'all time', 'file')
-        + kpi('Total orders', t.orders.toLocaleString(), '', 'trend')
-        + kpi('Total amount', usd(t.amount), '', 'cash', 'kpi-blue')
-        + kpi('Distributors', dists.length, dists.filter(d => LEADER.includes(d.status)).length + ' at Director level', 'users', 'kpi-dark')
+        + kpi('Total orders', t.orders.toLocaleString(), 'all time', 'trend')
+        + kpi('Total amount', usd(t.amount), 'all time', 'cash', 'kpi-blue')
         + '</div>'
 
-        /* How it is doing right now, and why it sits where it sits. The
-           three numbers here are the three the ranking is built from. */
-        + (me && !me.missing
-          ? '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
-          + '<div class="card-t">Performance · ' + esc(U.weekName(ws)) + '</div>'
-          + '<div class="card-s">' + esc(RANK_BASIS) + ' Against '
-          + zoneRanked.filter(r => !r.missing).length + ' filed in '
-          + esc((A.centerById(o.center_id) || {}).name || 'the zone') + '.</div></div>'
-          + '<div class="card-a"><span class="rk rk-' + me.rank + '">' + me.rank + '</span></div></div>'
-          + '<div class="grid g4">'
-          + kpi('Score', me.score, 'of 100', 'crown', 'kpi-blue')
-          + kpi('Money', usdFull(me.amount), (thisWeek ? thisWeek.orders : me.orders) + ' orders', 'cash')
-          + kpi('Per pro', usdFull(me.perPro), me.pros + ' writing orders', 'trend')
-          + kpi('People', me.people, 'in the room', 'users', 'kpi-dark')
-          + '</div></div>'
-          : (thisWeek ? '' : note('info', 'file', '<b>Nothing filed for ' + esc(U.weekName(ws)) + ' yet.</b> '
-            + 'The performance panel appears once this office files.') + '<div style="height:18px"></div>'))
-
-        + '<div class="card" style="margin-top:18px"><div class="card-h"><div><div class="card-t">Amount by week</div>'
-        + '<div class="card-s">The last ten weeks.</div></div><div class="card-a">' + chartToggle(S().chartType) + '</div></div>'
-        + chart(series, -1, S().chartType) + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Everything filed</div>'
-        + '<div class="card-s">Newest first.</div></div></div>'
-        + table([{ label: 'Week' }, { label: 'Orders', num: true }, { label: 'Amount', num: true },
-        { label: 'Niches' }, { label: 'Issues' }, { label: 'Filed' }],
-          reps.map(r => '<tr><td class="nm">' + esc(U.weekName(r.week_start))
-            + '<div class="sub">' + esc(U.weekRange(r.week_start)) + '</div></td>'
-            + '<td class="num">' + r.orders + '</td>'
-            + '<td class="num nm">' + usdFull(r.amount) + '</td>'
-            + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '—') + '</td>'
-            + '<td style="max-width:260px;white-space:normal">' + esc(r.issues || '—') + '</td>'
-            + '<td class="sub">' + esc(U.timeAgo(r.submitted_at)) + '</td></tr>'),
-          { empty: empty('file', 'Nothing filed yet', 'This office has not submitted a weekly report.') })
+        + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+        + '<div class="card-t">Performance</div>'
+        + '<div class="card-s">' + esc(U.monthLabel(mn)) + '. Tap a week for the full report.</div></div></div>'
+        + (perf.length ? perf.map(perfRow).join('')
+          : empty('calendar', 'Nothing to show yet', 'The performance list fills in once this office files.'))
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Distributors · ' + dists.length + '</div></div></div>'
@@ -813,89 +805,41 @@
   }
 
   /* ===================================================================
-     FIX A WEEK
-     ---------------------------------------------------------------
-     A report filed on the Thursday a week opens, for the seven days that
-     just ended, lands on the new week unless the picker is changed
-     first -- the one click that puts an office a week out. This is how
-     it is put right: pick the office and the two weeks, and their
-     reports trade places. Nothing is deleted or re-typed.
-     =================================================================== */
-  async function weekfix() {
-    const scoped = A.isSuper() ? A.store.offices.filter(o => o.active)
-      : (A.store.me.center_id ? A.officesOf(A.store.me.center_id) : A.store.offices).filter(o => o.active);
-    if (!scoped.length) return { title: 'Fix a week', html: empty('building', 'No offices yet', 'Nothing to fix until an office exists.') };
-
-    const wf = S().weekfix = S().weekfix || {};
-    const office = wf.office && scoped.find(o => o.id === wf.office) ? wf.office : scoped[0].id;
-    const weeks = U.recentWeeks(window.CONFIG.weeksShown || 12);
-    const weekA = wf.weekA && weeks.includes(wf.weekA) ? wf.weekA : (weeks[1] || weeks[0]);
-    const weekB = wf.weekB && weeks.includes(wf.weekB) ? wf.weekB : weeks[0];
-    wf.office = office; wf.weekA = weekA; wf.weekB = weekB;
-
-    const [repA, repB] = await Promise.all([
-      A.reports.get(office, weekA), A.reports.get(office, weekB)
-    ]);
-    const o = A.officeById(office);
-
-    const officeSelect = '<select class="select" data-act="wf-office" style="max-width:260px">'
-      + scoped.map(x => '<option value="' + x.id + '"' + (x.id === office ? ' selected' : '') + '>'
-        + esc(x.name) + '</option>').join('') + '</select>';
-    const weekSelect = (sel, act) => '<select class="select" data-act="' + act + '" style="max-width:220px">'
-      + weeks.map(w => '<option value="' + w + '"' + (w === sel ? ' selected' : '') + '>'
-        + esc(U.weekLabel(w)) + '</option>').join('') + '</select>';
-
-    const side = (rep, wk) => rep
-      ? '<div class="kpi kpi-dark"><div class="kpi-l">' + ico('file', 13) + esc(U.weekName(wk)) + '</div>'
-        + '<div class="kpi-v">' + usdFull(rep.amount) + '</div>'
-        + '<div class="kpi-m">' + rep.orders + ' orders · filed ' + esc(U.timeAgo(rep.submitted_at)) + '</div></div>'
-      : '<div class="kpi"><div class="kpi-l">' + ico('file', 13) + esc(U.weekName(wk)) + '</div>'
-        + '<div class="kpi-v">—</div><div class="kpi-m">No report on this week</div></div>';
-
-    return {
-      title: 'Fix a week',
-      crumbs: 'A report on the wrong week, put right',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Which office, which two weeks</div>'
-        + '<div class="card-s">Swapping trades whatever each week already holds for this office. '
-        + 'If only one side has a report, it simply moves to the other week.</div></div></div>'
-        + '<div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:16px">'
-        + officeSelect + weekSelect(weekA, 'wf-week-a') + weekSelect(weekB, 'wf-week-b') + '</div>'
-        + '<div class="grid g2">' + side(repA, weekA) + side(repB, weekB) + '</div>'
-        + (!repA && !repB ? '<div style="height:16px"></div>'
-          + note('info', 'info', 'Neither week has a report for ' + esc(o.name) + ' yet -- there is nothing to swap.') : '')
-        + '<div class="row" style="justify-content:flex-end;margin-top:18px">'
-        + '<button class="btn btn-a btn-pop" data-act="week-swap"' + (!repA && !repB ? ' disabled' : '') + '>'
-        + ico('refresh', 15) + 'Swap these two weeks</button></div>'
-        + '</div>'
-    };
-  }
-
-  /* ===================================================================
      RANKINGS
      =================================================================== */
   async function rankings() {
-    const ws = S().week;
-    const reps = await A.reports.list({ week: ws });
+    const mn = S().month || U.currentMonthNo();
+    const weeks = U.weeksOfMonth(mn).filter(U.weekStarted);
+    const reps = await A.reports.list({ weeks });
     const ranked = rankOffices(reps, A.store.offices.filter(o => o.active));
+
+    /* One column per week that has opened so far this month — Week 1
+       through however far the month has got, growing to four on its
+       own once Week 4 arrives. Ranked by the whole month together;
+       what each column shows is just that week's orders. */
+    const weekHead = weeks.map(w => ({ label: 'Wk ' + U.weekOfMonth(w), num: true }));
+    const ordersFor = (officeId, w) => {
+      const rep = reps.find(x => x.office_id === officeId && x.week_start === w);
+      return rep ? rep.orders : '—';
+    };
+
     return {
-      title: 'Office rankings', picker: 'week', crumbs: esc(U.weekLabel(ws)),
+      title: 'Office rankings', picker: 'month', crumbs: esc(U.monthLabel(mn)),
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Office rankings</div>'
-        + '<div class="card-s">Every office across every zone. ' + RANK_BASIS + ' ' + evalLine(ws) + '</div></div></div>'
-        + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }, { label: 'Orders', num: true },
-        { label: 'Amount', num: true }, { label: 'Pros', num: true }, { label: 'Per pro', num: true },
-        { label: 'People', num: true }, { label: 'Score', num: true }, { label: '' }],
+        + '<div class="card-s">Every office across every zone. ' + RANK_BASIS
+        + ' Orders by week, ' + esc(U.monthLabel(mn)) + '.</div></div></div>'
+        + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }].concat(weekHead)
+          .concat([{ label: 'Amount', num: true }, { label: 'Score', num: true }, { label: '' }]),
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
             + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
-            + '<td class="nm">' + esc(r.office.name) + '</td>'
+            + '<td class="nm">' + esc(r.office.name)
+            + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
             + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
-            + '<td class="num">' + (r.missing ? '—' : r.orders) + '</td>'
+            + weeks.map(w => '<td class="num">' + ordersFor(r.office_id, w) + '</td>').join('')
             + '<td class="num nm">' + (r.missing ? tag('Not filed', 't-warn') : usdFull(r.amount)) + '</td>'
-            + '<td class="num">' + (r.missing ? '—' : r.pros) + '</td>'
-            + '<td class="num">' + (r.missing ? '—' : usdFull(r.perPro)) + '</td>'
-            + '<td class="num">' + (r.missing ? '—' : r.people) + '</td>'
             + '<td class="num nm">' + (r.missing ? '—' : r.score) + '</td>'
-            + '<td style="width:130px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
-          { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file for this week.') })
+            + '<td style="width:110px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
+          { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file this month.') })
         + '</div>'
     };
   }
@@ -1381,9 +1325,8 @@
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Zones</div>'
         + '<div class="card-s">A zone holds its own offices and runs its own Wednesday evaluation.</div></div>'
         + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New zone</button></div></div>'
-        + table([{ label: 'Zone' }, { label: 'Address' }, { label: 'Director' }, { label: 'Offices', num: true }, { label: '' }],
+        + table([{ label: 'Zone' }, { label: 'Zone leader' }, { label: 'Offices', num: true }, { label: '' }],
           A.store.centers.map(c => '<tr><td class="nm">' + esc(c.name) + '</td>'
-            + '<td>' + esc(c.address || '—') + '</td>'
             + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
             + '<td class="num">' + A.officesOf(c.id).length + '</td>'
             + '<td class="num"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
@@ -1577,12 +1520,13 @@
 
   window.VIEWS = {
     guide,
-    dashboard: () => A.isOffice() ? officeDash() : adminDash(),
-    evaluation, monthly, centers, offices, rankings, niches, weekfix,
+    dashboard: () => A.isOffice() ? officeDash()
+      : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()),
+    evaluation, monthly, centers, offices, rankings, niches,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),
     distributors, center: myCenter, subscriptions, admin: adminPanel, account,
-    helpers: { rankOffices, totals, nicheTally, nicheChips, statusTag, STATUSES, SM_PLUS, LEADER }
+    helpers: { rankOffices, totals, nicheTally, nicheChips, statusTag, STATUSES, SM_PLUS, LEADER, peopleIn }
   };
 })();
