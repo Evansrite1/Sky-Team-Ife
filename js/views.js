@@ -193,7 +193,9 @@
       crumbs: esc(U.weekLabel(ws)) + (U.weekClosed(ws) ? '' : ' · ' + U.weekClosesLabel(ws)),
       html:
         (!A.store.centers.length ? note('gold', 'info',
-          '<b>No zones yet.</b> Create your first zone under <a href="' + link('admin') + '" style="text-decoration:underline">Zones &amp; admins</a>, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
+          A.isSuper()
+            ? '<b>No zones yet.</b> Create your first zone under <a href="' + link('admin') + '" style="text-decoration:underline">Zones &amp; admins</a>, then send your offices the site address so they can ask to join.'
+            : '<b>No zones yet.</b> Ask the Super Admin to create one, then send your offices the site address so they can ask to join.') + '<div style="height:18px"></div>' : '')
         + '<div class="grid g4">'
         + kpi('Orders this week', t.orders.toLocaleString(), U.change(t.orders, p.orders), 'trend')
         + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-blue')
@@ -221,70 +223,9 @@
           + '<div class="num nm">' + usd(r.amount) + '</div></div>'
           + '<div style="margin-top:7px">' + bar(r.amount, maxCenter, true) + '</div>'
           + '<div class="sub">' + r.count + ' of ' + r.os.length + ' offices filed · ' + r.orders + ' orders</div></a>').join('')
-          : empty('layers', 'No zones yet', 'Create a zone and its offices can start filing.'))
-        + '</div></div>'
-    };
-  }
-
-  /* ===================================================================
-     DIRECTOR DASHBOARD
-     ---------------------------------------------------------------
-     Opening it should read like a status board, not a form to fill in
-     for one week: what has this zone made this month, who is carrying
-     it, what is it selling. Scoped to the Director's own zone — a
-     Director without one yet (brand new, not assigned) falls back to
-     the first zone that exists so the page still has something to show.
-     =================================================================== */
-  async function directorDash() {
-    const cid = A.store.me.center_id || (A.store.centers[0] || {}).id;
-    const c = cid ? A.centerById(cid) : null;
-    if (!c) return { title: 'Dashboard', html: empty('layers', 'No zone yet', 'This account is not attached to a zone.') };
-
-    const mn = U.currentMonthNo();
-    const weeks = U.weeksOfMonth(mn).filter(U.weekStarted);
-    const reps = await A.reports.list({ weeks, center: cid });
-    const t = totals(reps);
-    const offs = A.officesOf(cid).filter(o => o.active);
-    const ranked = rankOffices(reps, offs).filter(r => !r.missing);
-    const best = ranked[0];
-    const tally = nicheTally(reps).slice(0, 5);
-    const maxTally = tally.length ? tally[0][1] : 1;
-
-    const perWeek = weeks.map(w => {
-      const rs = reps.filter(r => r.week_start === w);
-      return { w, ...totals(rs) };
-    });
-    const maxWeek = Math.max.apply(null, perWeek.map(r => r.amount).concat([1]));
-
-    return {
-      title: 'Dashboard', crumbs: esc(c.name) + ' · ' + esc(U.monthLabel(mn)),
-      html: '<div class="grid g4">'
-        + kpi('Orders this month', t.orders.toLocaleString(), esc(weeks.length + ' of ' + U.WEEKS_PER_MONTH + ' weeks'), 'trend')
-        + kpi('Amount this month', usd(t.amount), '', 'cash', 'kpi-blue')
-        + kpi('Best office so far', best ? esc(best.office.name) : '—',
-          best ? usdFull(best.amount) + ' · ' + best.orders + ' orders' : 'Nobody has filed yet', 'crown', 'kpi-dark')
-        + kpi('Offices filed', t.count + ' of ' + offs.length, '', 'building')
-        + '</div>'
-
-        + '<div class="grid g-2-1" style="margin-top:18px">'
-        + '<div class="card"><div class="card-h"><div><div class="card-t">The zone, week by week</div>'
-        + '<div class="card-s">' + esc(U.monthLabel(mn)) + ' so far.</div></div></div>'
-        + (perWeek.length ? table([{ label: 'Week' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }, { label: '' }],
-          perWeek.map(r => '<tr class="click" data-href="' + link('rankings') + '">'
-            + '<td class="nm">Week ' + U.weekOfMonth(r.w) + '<div class="sub">' + esc(U.weekRange(r.w)) + '</div></td>'
-            + '<td class="num">' + r.orders + '</td>'
-            + '<td class="num nm">' + usdFull(r.amount) + '</td>'
-            + '<td style="width:150px">' + bar(r.amount, maxWeek, r.amount === maxWeek) + '</td></tr>'))
-          : empty('calendar', 'Nothing filed yet', 'The week-by-week view fills in as offices file.'))
-        + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Top niches</div>'
-        + '<div class="card-s">' + esc(c.name) + ', this month.</div></div></div>'
-        + (tally.length ? tally.map(([n, cnt]) =>
-          '<div class="spread" style="padding:8px 0;border-bottom:1px solid #edf0f7">'
-          + '<div>' + esc(n) + '</div><div class="row" style="width:110px">' + bar(cnt, maxTally, true)
-          + '<span class="num nm" style="width:22px">' + cnt + '</span></div></div>').join('')
-          : empty('star', 'No niches yet', 'They come from the weekly reports.'))
+          : empty('layers', 'No zones yet', A.isSuper()
+            ? 'Create a zone and its offices can start filing.'
+            : 'Ask the Super Admin to create one.'))
         + '</div></div>'
     };
   }
@@ -1520,8 +1461,12 @@
 
   window.VIEWS = {
     guide,
-    dashboard: () => A.isOffice() ? officeDash()
-      : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()),
+    /* A Director's dashboard is the same page a Super Admin gets — every
+       zone, every office, the whole week — not a view scoped down to
+       their own zone. It is visibility only: the two role checks inside
+       adminDash keep the create-a-zone link and button Super Admin only,
+       so nothing here hands a Director a power they did not have. */
+    dashboard: () => A.isOffice() ? officeDash() : adminDash(),
     evaluation, monthly, centers, offices, rankings, niches,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
