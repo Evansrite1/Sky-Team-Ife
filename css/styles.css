@@ -382,6 +382,16 @@ tbody tr.click:hover { background: var(--blue-tint); }
 }
 .wk-seg button.open.on::after { background: var(--on-accent); }
 
+/* The manual pull, next to whichever picker a page has. */
+.btn-refresh {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+  color: var(--muted); cursor: pointer; transition: background .14s, color .14s;
+}
+.btn-refresh:hover { background: var(--grey); color: var(--ink); }
+.btn-refresh.spin svg { animation: spin .6s linear; }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
 /* =============================== FORMS =============================== */
 .field { margin-bottom: 15px; }
 .field > label {

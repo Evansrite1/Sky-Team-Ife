@@ -356,10 +356,16 @@
         ? '<div class="wk"><span class="wk-l">Evaluating</span>' + weekButtons(state.evalWeek, 'evalweek-pick') + '</div>'
         : v.picker === 'week'
           ? '<div class="wk"><span class="wk-l">Week</span>' + weekButtons(state.week, 'week-pick') + '</div>' : '';
+    /* Live updates land on their own within a moment of a report being
+       filed, but this is the guaranteed way to pull the latest right
+       now rather than trust the timing of a socket — every page that
+       shows filed data gets it, the evaluation list included. */
     return '<header class="tb"><button class="burger" data-act="nav" aria-label="Menu">' + ico('menu', 18) + '</button>'
       + '<div>' + (v.crumbs ? '<div class="crumb">' + v.crumbs + '</div>' : '')
       + '<div class="tb-t">' + esc(v.title) + '</div></div>'
-      + '<div class="tb-r">' + picker + '</div></header>';
+      + '<div class="tb-r">' + picker
+      + '<button class="btn-refresh" data-act="refresh-page" title="Refresh" aria-label="Refresh">' + ico('refresh', 16) + '</button>'
+      + '</div></header>';
   }
   const monthOptions = () => U.recentMonths(12)
     .map(m => '<option value="' + m + '" ' + (m === state.month ? 'selected' : '') + '>'
@@ -367,6 +373,14 @@
 
   /* ============================== ROUTER ============================ */
   let routing = false;
+  /* Set the instant Supabase confirms a password-recovery link, cleared
+     once a new password is actually saved. It has to override the
+     normal routing rather than just being another page: the recovery
+     link signs someone in on its own, on a temporary session meant for
+     nothing but setting a new password, so by the time route() runs
+     `me` is already set and the ordinary logged-in routing would carry
+     them straight past the reset form to their dashboard. */
+  let recovering = false;
   async function route() {
     if (!state.booted) return;
     closeModal();
@@ -374,6 +388,7 @@
     const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
     const me = A.store.me;
 
+    if (recovering) return renderAuth('reset');
     if (!me) return renderAuth(parts[0] || 'login');
     if (me.role === 'pending') {
       return (me.req_status === 'pending' && !state.editRequest)
@@ -440,9 +455,13 @@
     if (state.page === 'distributors') return;      // they are already there
     if (namesChecked) return;
 
+    /* Keyed by office, not just by day — a shared device that dismissed
+       the prompt for one office must not silently skip it for whichever
+       office logs in next on the same day. */
+    const key = NAMES_KEY + '-' + me.office.id;
     const today = U.iso(new Date());
     let asked = '';
-    try { asked = localStorage.getItem(NAMES_KEY) || ''; } catch (e) { /* ignore */ }
+    try { asked = localStorage.getItem(key) || ''; } catch (e) { /* ignore */ }
     if (asked === today) { namesChecked = true; return; }
     namesChecked = true;
 
@@ -461,9 +480,13 @@
 
     const short = claimed > named;
     const isNudgeDay = NUDGE_DAYS.indexOf(new Date().getDay()) !== -1;
-    if (!short && !isNudgeDay) return;
+    /* Zero names on file is worth raising on any day at all — an office
+       that cannot name a single distributor cannot scan anyone in, and
+       that should not have to wait for Thursday to be pointed out. */
+    const worthAsking = short || !named || isNudgeDay;
+    if (!worthAsking) return;
 
-    try { localStorage.setItem(NAMES_KEY, today); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(key, today); } catch (e) { /* ignore */ }
 
     modal('Who is in your office?',
       short
@@ -747,9 +770,14 @@
     busy(btn, true, 'Saving…');
     try {
       await A.auth.updatePassword($('#rs-pass').value);
+      /* Cleared before the redirect, not after — route() checks this
+         flag first, and would otherwise bounce the dashboard navigation
+         straight back to the reset form it just left. */
+      recovering = false;
       await boot(true);
       toast('Password changed.');
       go('#/dashboard');
+      route();
     } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
@@ -1357,6 +1385,16 @@
     route();
   };
 
+  /* The manual pull in the topbar. Refetches the lookups too, not just
+     the page — an office approved or a zone renamed elsewhere should
+     show up here as surely as a freshly filed report does. */
+  ACT['refresh-page'] = async (el) => {
+    el.classList.add('spin');
+    state.ranks = null;
+    try { await A.loadLookups(); } catch (e) { /* the page's own fetch still runs */ }
+    await route();
+  };
+
   let searchTimer = null;
   document.addEventListener('input', (e) => {
     const el = e.target.closest('[data-act]');
@@ -1504,7 +1542,7 @@
   }
 
   A.auth && A.auth.onChange && A.auth.onChange((evt) => {
-    if (evt === 'PASSWORD_RECOVERY') go('#/reset');
+    if (evt === 'PASSWORD_RECOVERY') { recovering = true; go('#/reset'); route(); }
   });
 
   boot();

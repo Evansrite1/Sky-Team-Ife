@@ -234,16 +234,30 @@
     const me = A.store.me, off = me.office, ws = S().week;
     const prev = U.iso(U.addDays(ws, -7));
     const hist = U.recentWeeks(8).reverse();
-    const [mine, prevMine, centerReps, histReps, dists, evs] = await Promise.all([
+    /* The zone standing is scoped to the current month rather than the
+       one week on screen — "where do we stand" and "what does it take
+       to be #1" are both month questions, and rankOffices already knows
+       how to add several weeks of reports together. */
+    const mn = U.currentMonthNo();
+    const monthWeeks = U.weeksOfMonth(mn).filter(U.weekStarted);
+    const [mine, prevMine, monthReps, histReps, dists, evs] = await Promise.all([
       A.reports.get(off.id, ws),
       A.reports.get(off.id, prev),
-      A.reports.list({ week: ws, center: off.center_id }),
+      A.reports.list({ weeks: monthWeeks, center: off.center_id }),
       A.reports.list({ weeks: hist, office: off.id }),
       A.distributors.list({ office: off.id }),
       A.events.list({ week: ws, center: off.center_id })
     ]);
-    const ranked = rankOffices(centerReps, A.officesOf(off.center_id).filter(o => o.active));
+    const ranked = rankOffices(monthReps, A.officesOf(off.center_id).filter(o => o.active));
     const meRank = ranked.find(r => r.office_id === off.id) || {};
+    const leader = ranked.find(r => !r.missing);
+    const iLead = leader && leader.office_id === off.id;
+    /* What it would take to match the leader's raw numbers this month —
+       not a guarantee of #1, since the ranking also weighs output per
+       pro and room size, but the plainest possible answer to "how much
+       more". Floored at zero so a leader never reads a negative gap. */
+    const amountGap = leader && !iLead ? Math.max(0, leader.amount - (meRank.amount || 0)) : 0;
+    const orderGap = leader && !iLead ? Math.max(0, leader.orders - (meRank.orders || 0)) : 0;
     const series = hist.map(w => {
       const r = histReps.find(x => x.week_start === w);
       return { l: 'W' + U.weekNo(w), v: r ? Number(r.amount) : 0 };
@@ -288,10 +302,16 @@
           mine ? U.change(mine.orders, prevMine ? prevMine.orders : 0) : 'No report for this week', 'trend')
         + kpi('Your amount', mine ? usd(mine.amount) : '—',
           mine ? U.change(mine.amount, prevMine ? prevMine.amount : 0) : 'Nothing filed yet', 'cash', 'kpi-blue')
-        + kpi('Rank in zone', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
-          ranked.length ? esc((A.centerById(off.center_id) || {}).name || '') : '', 'crown', 'kpi-dark')
-        + kpi('Distributors', dists.length.toLocaleString(),
-          dists.filter(d => SM_PLUS.includes(d.status)).length + ' Senior Manager and above', 'users')
+        + kpi('Rank this month', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
+          esc(U.monthLabel(mn)) + ' · ' + esc((A.centerById(off.center_id) || {}).name || ''), 'crown', 'kpi-dark')
+        /* The whole point of a rank: what does it take to move it. Not
+           shown at all until at least one office has filed something
+           this month — a gap against nothing means nothing. */
+        + (!leader ? kpi('To be #1', '—', 'No reports yet this month', 'star')
+          : iLead ? kpi('To be #1', 'You lead', esc(U.monthLabel(mn)) + ' so far', 'star', 'kpi-blue')
+            : meRank.missing ? kpi('To be #1', 'File first', 'This month has no report from you yet', 'star')
+              : kpi('To be #1', usd(amountGap) + ' more',
+                orderGap + ' more order' + (orderGap === 1 ? '' : 's') + ' than now', 'star'))
         + '</div>'
 
         + '<div class="grid g-2-1" style="margin-top:18px">'
@@ -301,8 +321,8 @@
         + chart(series, series.length - 1, S().chartType) + '</div>'
 
         + '<div class="stack">'
-        + '<div class="card"><div class="card-h"><div><div class="card-t">This week in your zone</div>'
-        + '<div class="card-s">' + RANK_BASIS + '</div></div></div>'
+        + '<div class="card"><div class="card-h"><div><div class="card-t">This month in your zone</div>'
+        + '<div class="card-s">' + esc(U.monthLabel(mn)) + ' · ' + RANK_BASIS + '</div></div></div>'
         + (ranked.length ? ranked.slice(0, 6).map(r =>
           '<div class="spread" style="padding:9px 0;border-bottom:1px solid #edf0f7">'
           + '<div class="row" style="gap:9px"><span class="rk rk-' + r.rank + '">' + r.rank + '</span>'

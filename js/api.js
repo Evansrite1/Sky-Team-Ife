@@ -62,8 +62,20 @@
       if (sb) await sb.auth.signOut();
     },
     async resetPassword(email) {
+      /* No hash in the redirect. Supabase delivers the recovery token by
+         appending its own #access_token=...&type=recovery to whatever
+         URL is given, and this app's router also lives in the hash — a
+         redirect of ".../#/reset" would end up as two hashes stacked in
+         one URL (".../#/reset#access_token=..."), which the browser
+         treats as a single fragment starting at the first '#'. Supabase
+         reads that fragment as a query string, so its own "access_token"
+         key comes out mangled as "/reset#access_token" and the token is
+         silently lost — password reset stops working with no error
+         anywhere. A query marker instead of a hash leaves Supabase's
+         hash alone; app.js recognises the recovery sign-in itself, via
+         the PASSWORD_RECOVERY auth event, and takes it from there. */
       return guard(await sb.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: CFG.appUrl + '/#/reset'
+        redirectTo: CFG.appUrl + '/?reset=1'
       }));
     },
     async updatePassword(password) {
