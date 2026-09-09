@@ -269,9 +269,27 @@
       title: 'Dashboard', picker: 'week',
       crumbs: esc(off.name + ' · ' + ((A.centerById(off.center_id) || {}).name || '')),
       html:
+        /* The trial countdown, first thing on the page — dashboard is
+           where every login lands, so this is what "tell them each time
+           they log in" means in practice rather than a separate popup
+           that would just be one more thing to dismiss. */
+        ((() => {
+          if (!window.CONFIG.billingEnabled) return '';
+          const sub = A.store.sub;
+          const left = A.billing.daysLeft(sub);
+          if (!sub || left === null || sub.status === 'active') return '';
+          const low = left <= 5;
+          return note(low ? 'warn' : 'info', 'clock',
+            '<b>' + (left <= 0 ? 'Your trial ends today.' : left + ' day' + (left === 1 ? '' : 's') + ' left on your trial.') + '</b> '
+            + 'After that it is ' + U.ngn((window.CONFIG.plan || {}).amountNgn) + ' a month, or pay for longer and save. '
+            + '<a href="' + link('subscriptions') + '" style="text-decoration:underline;font-weight:600">See the plans</a>.')
+            + '<div style="height:18px"></div>';
+        })())
+        + note('gold', 'star', '<b>New features are rolling out soon</b> — email notifications and a monthly '
+          + 'summary sent straight to your inbox, among others.') + '<div style="height:18px"></div>'
         /* Last week first: it is the one about to be locked, and a late
            joiner would otherwise never learn they could still file it. */
-        ((() => {
+        + ((() => {
           const lastWk = U.iso(U.addDays(U.weekStart(), -7));
           if (prevMine || ws !== U.weekStart()) return '';
           return note('warn', 'alert',
@@ -1178,21 +1196,37 @@
      =================================================================== */
   /* What the office itself sees at the top: how long is left, or that
      the time has run out, and the one button that fixes it. */
+  /* The three lengths, laid out as cards to pick from rather than one
+     flat "pay" button. Whichever is clicked carries its period to
+     startCheckout — the price shown here is display only, matching
+     what config.js says; paystack-init decides the real amount from
+     the database regardless of what this markup claims. */
+  function planCards(sub) {
+    const plans = window.CONFIG.plans || {};
+    const renewing = sub && sub.status === 'active';
+    return '<div class="grid g3" style="margin-top:14px">'
+      + Object.values(plans).map(p => '<div class="plan-c' + (p.period === 'monthly' ? ' plan-c-on' : '') + '">'
+        + '<div class="plan-l">' + esc(p.label) + '</div>'
+        + '<div class="plan-p">' + U.ngn(p.amountNgn) + '</div>'
+        + (p.note ? '<div class="plan-n">' + esc(p.note) + '</div>' : '<div class="plan-n">&nbsp;</div>')
+        + '<button class="btn btn-a btn-pop btn-block" style="margin-top:10px" data-act="pay-now" data-period="' + p.period + '">'
+        + ico('card', 15) + (renewing ? 'Renew' : 'Pay now') + '</button>'
+        + '</div>').join('')
+      + '</div>';
+  }
+
   function ownPanel(sub, plan) {
     const left = A.billing.daysLeft(sub);
     const locked = A.store.locked;
     const on = window.CONFIG.billingEnabled;
-    const pay = on
-      ? '<button class="btn btn-a btn-pop btn-lg" data-act="pay-now">' + ico('card', 16)
-      + (sub && sub.status === 'active' ? 'Update your card' : 'Pay ' + U.ngn(plan.amountNgn) + ' now') + '</button>'
-      : '';
+    const pay = on ? planCards(sub) : '';
 
     if (locked) {
       return '<div class="card card-dark"><div class="card-h"><div>'
         + '<div class="card-t" style="font-size:20px">Your free trial has ended</div>'
         + '<div class="card-s">Filing reports and opening scanning are paused until the office pays. '
         + 'Nothing has been deleted, and everything comes straight back.</div></div></div>'
-        + '<div class="row" style="margin-top:16px">' + pay + '</div></div>'
+        + pay + '</div>'
         + '<div style="height:18px"></div>';
     }
     if (!sub) return '';
@@ -1205,15 +1239,10 @@
         : 'Your subscription is live') + '</div>'
       + '<div class="card-s">'
       + (sub.status === 'trial'
-        ? (plan.firstChargeOn
-          ? 'Billing starts ' + U.fullDate(plan.firstChargeOn) + ' — ' + U.ngn(plan.amountNgn)
-          + ' every ' + plan.days + ' days, the same for every office.'
-          : 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days.')
+        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days — or pay for longer below and save.'
         : 'Next charge ' + (sub.next_charge ? U.fullDate(sub.next_charge) : 'not set')
-        + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div>'
-      + (warn || sub.status !== 'trial' ? '<div class="card-a">' + pay + '</div>' : '') + '</div>'
-      + (!warn && sub.status === 'trial' && on
-        ? '<div class="row" style="margin-top:14px">' + pay + '</div>' : '')
+        + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div></div>'
+      + (warn || sub.status !== 'trial' || (sub.status === 'trial' && on) ? pay : '')
       + '</div><div style="height:18px"></div>';
   }
 
@@ -1237,8 +1266,8 @@
           + '<div style="height:18px"></div>' : '')
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
-        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' per office every ' + plan.days + ' days'
-        + (plan.firstChargeOn ? ', from ' + U.fullDate(plan.firstChargeOn) : '') + '.</div></div></div>'
+        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' a month, the same for every office — '
+        + 'or pay for 3 months or a year at once and it works out cheaper.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Status' }, { label: 'Trial ends' }, { label: 'Next charge' }, { label: 'Amount', num: true }],
           subs.filter(s => !own || s.office_id === A.store.me.office_id).map(s => {
             const o = A.officeById(s.office_id) || {};

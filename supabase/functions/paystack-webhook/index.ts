@@ -68,20 +68,30 @@ Deno.serve(async (req) => {
   };
 
   const office = await findOffice();
-  const days = await db.from('app_settings').select('value').eq('key', 'plan_days').maybeSingle()
-    .then(r => Number(r.data?.value ?? 30));
-
-  const nextCharge = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-  };
 
   switch (evt?.event) {
     /* Money actually arrived. This is the only event that grants time. */
     case 'charge.success': {
       if (!office) break;
       const naira = Math.round((data.amount ?? 0) / 100);
+
+      /* How many days this charge buys. paystack-init stamps the metadata
+         with the period that was actually chosen (monthly/quarterly/
+         yearly) and the day count that went with it at charge time, so a
+         quarterly or yearly payment does not get the same 30 days a
+         monthly one does. A renewal Paystack raises on its own — through
+         a Plan, months from now — carries no metadata of ours, so that
+         falls back to the plain monthly setting, which is the right
+         default for anything not explicitly longer. */
+      const metaDays = Number(data?.metadata?.days);
+      const days = metaDays > 0 ? metaDays
+        : await db.from('app_settings').select('value').eq('key', 'plan_days').maybeSingle()
+            .then(r => Number(r.data?.value ?? 30));
+      const nextCharge = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return d.toISOString().slice(0, 10);
+      };
 
       await db.from('payments').upsert({
         office_id: office,

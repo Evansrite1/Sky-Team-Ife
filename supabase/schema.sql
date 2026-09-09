@@ -62,14 +62,23 @@ insert into app_settings (key, value) values
   ('organisation',      'Sky Team Ife'),
   ('bootstrap_admin',   'ademiluaolufemi@gmail.com'),
   ('training_time',     '2:45pm'),
-  ('trial_days',        '16'),
-  ('plan_amount_ngn',   '6500'),
-  ('plan_days',         '30'),
+  ('trial_days',        '14'),
+  ('plan_amount_ngn',            '4000'),
+  ('plan_days',                  '30'),
+  ('plan_amount_ngn_quarterly',  '9000'),
+  ('plan_days_quarterly',        '90'),
+  ('plan_amount_ngn_yearly',     '30000'),
+  ('plan_days_yearly',           '365'),
   ('billing_enabled',   'false')
 on conflict (key) do nothing;
 
--- The trial was 30 days while billing was switched off; it is 16 now.
+-- The trial has moved twice: 30 days while billing was off, 16 once it
+-- was on, 14 now. Only ever bump a value that still matches the step
+-- before it, so running this against a database already moved on by
+-- supabase/2026-09-billing-update.sql does nothing.
 update app_settings set value = '16' where key = 'trial_days' and value = '30';
+update app_settings set value = '14' where key = 'trial_days' and value = '16';
+update app_settings set value = '4000' where key = 'plan_amount_ngn' and value = '6500';
 
 -- Sign-up used to be locked behind two access codes. It is approval-based
 -- now, so the codes mean nothing and are cleared out.
@@ -434,11 +443,11 @@ create index if not exists payments_office_idx on payments(office_id);
 -- directors and the super admin have no subscription row at all.
 create or replace function start_trial()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare v_days integer := coalesce(nullif(setting('trial_days'), '')::integer, 16);
+declare v_days integer := coalesce(nullif(setting('trial_days'), '')::integer, 14);
 begin
   insert into subscriptions (office_id, status, amount_ngn, trial_ends, next_charge)
   values (new.id, 'trial',
-          coalesce(nullif(setting('plan_amount_ngn'), '')::integer, 6500),
+          coalesce(nullif(setting('plan_amount_ngn'), '')::integer, 4000),
           current_date + v_days, current_date + v_days)
   on conflict (office_id) do nothing;
   return new;

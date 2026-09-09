@@ -27,15 +27,35 @@ window.CONFIG = {
      out with a button that cannot reach Paystack. */
   billingEnabled: true,
 
-  /* One plan, the same for every office: ₦6,500 every 30 days. Nobody is
-     charged before firstChargeOn — every office runs free until that day
-     whenever it joined, so the whole estate falls due together. Moving
-     the date here only changes what the app says; the dates the charges
-     actually run from live in the subscriptions table, which
-     supabase/2026-08-fixes.sql sets to match. */
-  plan: {
-    amountNgn: 6500, days: 30, trialDays: 16, name: 'Office plan',
-    firstChargeOn: '2026-09-03'
+  /* The monthly rate and the trial length, for everything that talks
+     about the plan in passing (the locked-out screen, the "not switched
+     on yet" notice). Kept in sync by hand with plan_amount_ngn and
+     trial_days in app_settings — this is what the app SAYS the price
+     is; what it actually CHARGES is decided server-side in
+     supabase/functions/paystack-init, from the database, never from
+     here. If these two ever disagree, the database wins and an office
+     sees one number and pays another — check app_settings first. */
+  plan: { amountNgn: 4000, days: 30, trialDays: 14, name: 'Office plan' },
+
+  /* The three lengths an office can pay for. Every field here has a
+     matching app_settings row of the same shape
+     (plan_amount_ngn / plan_amount_ngn_quarterly / plan_amount_ngn_yearly,
+     plan_days / plan_days_quarterly / plan_days_yearly) — same rule as
+     above, this is display only. The discount on the longer plans is
+     ours to set; change the amount here and in
+     supabase/2026-09-billing-update.sql together, or the button will
+     promise one price and Paystack will charge another.
+
+     Quarterly and yearly are untouched by the monthly price moving to
+     4,000 — they were already set at their own discount, not as a
+     multiple of the monthly figure, so only the "vs paying monthly"
+     comparison text below changed. */
+  plans: {
+    monthly:   { period: 'monthly',   label: 'Monthly',   amountNgn: 4000,  days: 30 },
+    quarterly: { period: 'quarterly', label: '3 months',  amountNgn: 9000,  days: 90,
+      note: 'vs 12,000 paid monthly' },
+    yearly:    { period: 'yearly',    label: 'Yearly',    amountNgn: 30000, days: 365,
+      note: 'vs 48,000 paid monthly — 4 months free' }
   }
 };
 

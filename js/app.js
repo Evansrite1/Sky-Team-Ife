@@ -1188,7 +1188,7 @@
   ACT['pay-now'] = async (el) => {
     busy(el, true, 'Opening Paystack…');
     try {
-      const url = await A.billing.startCheckout();
+      const url = await A.billing.startCheckout(el.dataset.period);
       window.location.href = url;
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };

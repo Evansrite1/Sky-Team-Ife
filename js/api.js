@@ -345,16 +345,18 @@
       const d = billing.daysLeft(sub);
       return d === null || d < 0 || ['past_due', 'cancelled'].indexOf(sub.status) > -1 && d < 0;
     },
-    /* Asks the Edge Function to start a Paystack checkout. The amount is
-       decided server side; nothing here can influence what is charged. */
-    async startCheckout() {
+    /* Asks the Edge Function to start a Paystack checkout. period is only
+       which of the three lengths was picked — 'monthly' | 'quarterly' |
+       'yearly' — the amount that goes with it is still decided entirely
+       server side, from the database, never from here. */
+    async startCheckout(period) {
       const { data: s } = await sb.auth.getSession();
       const token = s && s.session ? s.session.access_token : null;
       if (!token) throw new Error('Sign in again, then try once more.');
       const res = await fetch(CFG.supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/paystack-init', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: '{}'
+        body: JSON.stringify({ period: period || 'monthly' })
       });
       const out = await res.json().catch(() => ({}));
       if (!res.ok || !out.url) throw new Error(out.error || 'Could not reach Paystack.');
