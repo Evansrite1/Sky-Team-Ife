@@ -213,7 +213,13 @@
     },
     async create(row) { return guard(await sb.from('distributors').insert(row).select().single()); },
     async update(id, patch) { return guard(await sb.from('distributors').update(patch).eq('id', id).select().single()); },
-    async remove(id) { guard(await sb.from('distributors').update({ active: false }).eq('id', id)); }
+    async remove(id) { guard(await sb.from('distributors').update({ active: false }).eq('id', id)); },
+    /* One insert, not one per row — a sheet of eighty names used to mean
+       eighty round trips before this. */
+    async bulkCreate(rowsIn) {
+      if (!rowsIn.length) return [];
+      return rows(await sb.from('distributors').insert(rowsIn).select());
+    }
   };
 
   /* ---------------------------------------------------------- reports */
@@ -325,6 +331,51 @@
     }
   };
 
+  /* Every new feature ships behind one of these, default off. Reading
+     straight from store.settings rather than a separate flags object —
+     one source of truth, and a flag flipped elsewhere in the app shows
+     up here on the next lookup rather than needing its own refresh. */
+  const feature = (key) => (store.settings || {})['feature_' + key] === 'true';
+
+  /* ------------------------------------------------------------ audit */
+  const activity = {
+    /* Best-effort: a mistake logging the log must never block the
+       action it was written to explain. */
+    async log(action, target) {
+      if (!feature('activity_log')) return;
+      try {
+        await sb.from('activity_log').insert({
+          actor_id: store.me ? store.me.id : null,
+          actor_name: store.me ? (store.me.full_name || store.me.email) : '',
+          action,
+          target_kind: (target && target.kind) || '',
+          target_id: (target && target.id) || null,
+          target_name: (target && target.name) || '',
+          detail: (target && target.detail) || ''
+        });
+      } catch (e) { /* ignore */ }
+    },
+    async list(limit) {
+      return rows(await sb.from('activity_log').select('*')
+        .order('created_at', { ascending: false }).limit(limit || 100));
+    }
+  };
+
+  /* ------------------------------------------------------------ goals */
+  const goals = {
+    async get(officeId, monthNo) {
+      return guard(await sb.from('goals').select('*')
+        .eq('office_id', officeId).eq('month_no', monthNo).maybeSingle());
+    },
+    async set(officeId, monthNo, targetOrders, targetAmount) {
+      return guard(await sb.from('goals').upsert({
+        office_id: officeId, month_no: monthNo,
+        target_orders: targetOrders, target_amount: targetAmount,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'office_id,month_no' }));
+    }
+  };
+
   /* ---------------------------------------------------------- billing */
   const billing = {
     async subscriptions() { return rows(await sb.from('subscriptions').select('*')); },
@@ -429,6 +480,7 @@
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
-    people, settings, billing, join, watch, unwatch
+    people, settings, billing, join, watch, unwatch,
+    feature, activity, goals
   };
 })();

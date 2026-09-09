@@ -48,6 +48,7 @@
         { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
+        { p: 'activityLog', l: 'Activity log', i: 'shield' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
       ]
@@ -937,9 +938,61 @@
     if (!row.name) return toast('A zone needs a name.', 'no');
     busy(el, true, 'Saving…');
     try {
-      if (el.dataset.id) await A.centers.update(el.dataset.id, row);
-      else await A.centers.create(row);
+      if (el.dataset.id) {
+        await A.centers.update(el.dataset.id, row);
+        A.activity.log('center.edit', { kind: 'center', id: el.dataset.id, name: row.name });
+      } else {
+        await A.centers.create(row);
+        A.activity.log('center.create', { kind: 'center', name: row.name });
+      }
       closeModal(); toast('Zone saved.'); route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  /* --- features & pricing (Super Admin) ------------------------------ */
+  ACT['noop'] = () => {};
+
+  ACT['toggle-feature'] = async (el) => {
+    const flag = el.dataset.flag;
+    const next = !el.classList.contains('on');
+    el.classList.toggle('on');
+    el.setAttribute('aria-pressed', next ? 'true' : 'false');
+    try {
+      await A.settings.set('feature_' + flag, next ? 'true' : 'false');
+      toast(next ? 'Turned on.' : 'Turned off.');
+    } catch (err) {
+      el.classList.toggle('on');                 // undo the optimistic flip
+      el.setAttribute('aria-pressed', (!next) ? 'true' : 'false');
+      toast(err.message, 'no');
+    }
+  };
+
+  ACT['save-pricing'] = async (el) => {
+    const plans = window.CONFIG.plans || {};
+    const patch = {};
+    for (const p of Object.values(plans)) {
+      const v = Number(val('#price-' + p.period));
+      if (!isFinite(v) || v < 0) return toast('Every price needs to be a real number.', 'no');
+      patch[p.period] = v;
+    }
+    busy(el, true, 'Saving…');
+    try {
+      await Promise.all([
+        A.settings.set('plan_amount_ngn', String(patch.monthly)),
+        A.settings.set('plan_amount_ngn_quarterly', String(patch.quarterly)),
+        A.settings.set('plan_amount_ngn_yearly', String(patch.yearly))
+      ]);
+      /* config.js is what the app SHOWS; app_settings is what a charge
+         actually uses. Keeping the in-memory copy in step means a
+         Super Admin sees the new price everywhere without a reload —
+         it still only ever reads back from app_settings on the next
+         full boot, so the two cannot drift for long even if this line
+         did not exist. */
+      Object.keys(plans).forEach(k => { window.CONFIG.plans[k].amountNgn = patch[k]; });
+      window.CONFIG.plan.amountNgn = patch.monthly;
+      A.activity.log('pricing.update', { kind: 'settings', detail: JSON.stringify(patch) });
+      toast('Prices saved. Live from the next charge.');
+      route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
@@ -997,6 +1050,44 @@
     try { await A.distributors.remove(el.dataset.id); closeModal(); toast('Removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
+
+  /* A sheet of names, not one name at a time. Two columns expected —
+     name, then status — status is optional and falls back to plain
+     Distributor; anything past those two columns is ignored rather
+     than rejected, since a real export often carries extra columns. */
+  ACT['dist-csv-pick'] = () => $('#dist-csv-file').click();
+
+  ACT['dist-csv-file'] = async (el) => {
+    const file = el.files && el.files[0];
+    el.value = '';
+    if (!file) return;
+    const text = await file.text();
+    const parsed = U.parseCsv(text);
+    if (!parsed.length) return toast('That file has nothing readable in it.', 'no');
+    /* A header row, if the first cell looks like a label rather than a
+       name people actually have. */
+    const looksLikeHeader = /^(full[ _]?name|name)$/i.test((parsed[0][0] || '').trim());
+    const dataRows = looksLikeHeader ? parsed.slice(1) : parsed;
+    const known = new Set(V.helpers.STATUSES.map(s => s.toLowerCase()));
+    const toInsert = dataRows
+      .map(r => ({
+        full_name: (r[0] || '').trim(),
+        status: known.has((r[1] || '').trim().toLowerCase())
+          ? V.helpers.STATUSES.find(s => s.toLowerCase() === r[1].trim().toLowerCase()) : 'Distributor',
+        phone: (r[2] || '').trim(),
+        office_id: A.store.me.office_id, center_id: A.store.me.center_id
+      }))
+      .filter(r => r.full_name);
+    if (!toInsert.length) return toast('No names found in that file.', 'no');
+    try {
+      await A.distributors.bulkCreate(toInsert);
+      toast(toInsert.length + ' distributor' + (toInsert.length === 1 ? '' : 's') + ' added.');
+      route();
+    } catch (err) { toast(err.message, 'no'); }
+  };
+
+  ACT['dist-csv-template'] = () => U.downloadText('distributor-template.csv',
+    U.toCsv(['Full name', 'Status', 'Phone'], [['Ada Okoye', 'Distributor', '0803 000 0000']]));
 
   /* --- reports ----------------------------------------------------- */
   ACT['niche-del'] = (el) => {
@@ -1098,6 +1189,32 @@
       state.ranks = null;          /* the standing just moved */
       toast('Report filed. It will be read at the evaluation.');
       route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  ACT['save-goal'] = async (el) => {
+    const orders = Number(val('#goal-orders')) || 0;
+    const amount = Number(val('#goal-amount')) || 0;
+    busy(el, true, 'Saving…');
+    try {
+      await A.goals.set(A.store.me.office_id, U.trackingMonthNo(U.weekStart()), orders, amount);
+      toast('Goal saved.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  /* One row per report, newest first — same shape as the table already
+     on screen, just handed to a file instead of the page. */
+  ACT['export-reports'] = async (el) => {
+    busy(el, true, 'Preparing…');
+    try {
+      const reps = await A.reports.list({ office: A.store.me.office_id });
+      const csv = U.toCsv(
+        ['Week', 'Week starts', 'Orders', 'Amount', 'Niches', 'New niches', 'Issues', 'Filed'],
+        reps.map(r => [U.weekName(r.week_start), r.week_start, r.orders, r.amount,
+          (r.niches || []).join('; '), (r.new_niches || []).join('; '), r.issues || '', r.submitted_at || '']));
+      U.downloadText('reports-' + (A.store.me.office ? A.store.me.office.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'office') + '.csv', csv);
+      busy(el, false);
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
@@ -1265,8 +1382,11 @@
     if (!to) return toast('Pick the zone to move it to.', 'no');
     busy(el, true, 'Moving…');
     try {
+      const office = A.officeById(el.dataset.id);
       await A.offices.move(el.dataset.id, to);
       await A.loadLookups();
+      A.activity.log('office.move', { kind: 'office', id: el.dataset.id, name: office ? office.name : '',
+        detail: 'to ' + ((A.centerById(to) || {}).name || 'a zone') });
       toast('Moved to ' + ((A.centerById(to) || {}).name || 'the new zone') + '.');
       route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
@@ -1284,8 +1404,10 @@
   ACT['office-del-yes'] = async (el) => {
     busy(el, true, 'Deleting…');
     try {
+      const office = A.officeById(state.pendingOffice);
       await A.offices.remove(state.pendingOffice);
       await A.loadLookups();
+      A.activity.log('office.delete', { kind: 'office', id: state.pendingOffice, name: office ? office.name : '' });
       closeModal(); toast('Office deleted.');
       go('#/offices'); await route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
@@ -1368,6 +1490,7 @@
     if (!el) return;
     if (el.dataset.act === 'month') { state.month = Number(el.value); route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
+    if (el.dataset.act === 'dist-csv-file') ACT['dist-csv-file'](el);
   });
 
   /* The week buttons in the topbar — click, not change, since they are

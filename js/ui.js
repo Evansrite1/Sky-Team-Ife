@@ -440,6 +440,80 @@
     '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
     + '<button class="btn ' + (danger ? 'btn-d' : 'btn-p') + '" data-act="' + act + '">' + esc(confirmLabel) + '</button>');
 
+  /* ------------------------------------------------------------ switch */
+  /* A feature flag, as a row with a switch on the end of it — on or
+     off, nothing in between. `on` is whatever truth value the caller
+     already has (usually A.feature(key)); the click handler that
+     flips it lives in app.js, keyed off data-flag. */
+  const toggleRow = (flag, label, sub, on, disabled) =>
+    '<div class="toggle-row"><div><div class="nm">' + esc(label) + '</div>'
+    + (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') + '</div>'
+    + '<button class="toggle' + (on ? ' on' : '') + (disabled ? ' toggle-soon' : '')
+    + '" data-act="' + (disabled ? 'noop' : 'toggle-feature') + '" data-flag="' + esc(flag) + '"'
+    + ' aria-pressed="' + (on ? 'true' : 'false') + '" ' + (disabled ? 'disabled' : '') + '>'
+    + '<span class="toggle-knob"></span></button></div>';
+
+  /* -------------------------------------------------------------- csv */
+  /* Minimal but correct: quotes a field only when it needs it, and
+     un-quotes on the way back in, including a doubled "" for a literal
+     quote inside a quoted field. Good enough for names, phones and
+     numbers — nobody is pasting a novel into a distributor list. */
+  const csvField = (v) => {
+    v = v == null ? '' : String(v);
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  };
+  const toCsv = (headers, rowsIn) => [headers, ...rowsIn]
+    .map(r => r.map(csvField).join(',')).join('\r\n');
+  /* One row of fields at a time, respecting quotes — not a full RFC
+     4180 parser, but it handles a comma or a quote inside a quoted
+     field, which a name or an address occasionally has. */
+  const parseCsv = (text) => {
+    const rowsOut = [];
+    let row = [], field = '', inQuotes = false;
+    const pushField = () => { row.push(field); field = ''; };
+    const pushRow = () => { pushField(); rowsOut.push(row); row = []; };
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+        else if (c === '"') inQuotes = false;
+        else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ',') pushField();
+      else if (c === '\r') { /* skip, \n does the row break */ }
+      else if (c === '\n') pushRow();
+      else field += c;
+    }
+    if (field !== '' || row.length) pushRow();
+    return rowsOut.filter(r => r.some(f => f.trim() !== ''));
+  };
+  /* Hands the browser a file to save. Works because this is the real
+     site running in the visitor's own browser — nothing about an
+     Artifact's sandbox applies here. */
+  const downloadText = (filename, text, mime) => {
+    const blob = new Blob([text], { type: mime || 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
+
+  /* ---------------------------------------------------------- streaks */
+  /* How many tracked weeks in a row, ending at the most recent week
+     that has actually opened, an office has filed for. One missed week
+     anywhere in that run ends the streak at the week before it — this
+     is "in a row", not "how many total". */
+  const filingStreak = (reps, weeksNewestFirst) => {
+    const filed = new Set(reps.map(r => r.week_start));
+    let n = 0;
+    for (const w of weeksNewestFirst) {
+      if (!filed.has(w)) break;
+      n++;
+    }
+    return n;
+  };
+
   /* ----------------------------------------------------- the backdrop */
   /* One element, one paint. What used to live here — six masked marks
      and five motes at their own translateZ inside a perspective, tilted
@@ -604,6 +678,7 @@
     rollLook, readLook, describeLook,
     kpi, tag, note, empty, bar, change, table,
     chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster, printEvaluation,
-    toast, modal, closeModal, busy, confirmDialog
+    toast, modal, closeModal, busy, confirmDialog,
+    toggleRow, toCsv, parseCsv, downloadText, filingStreak
   };
 })();

@@ -240,14 +240,16 @@
        how to add several weeks of reports together. */
     const mn = U.currentMonthNo();
     const monthWeeks = U.weeksOfMonth(mn).filter(U.weekStarted);
-    const [mine, prevMine, monthReps, histReps, dists, evs] = await Promise.all([
+    const [mine, prevMine, monthReps, histReps, dists, evs, goal] = await Promise.all([
       A.reports.get(off.id, ws),
       A.reports.get(off.id, prev),
       A.reports.list({ weeks: monthWeeks, center: off.center_id }),
       A.reports.list({ weeks: hist, office: off.id }),
       A.distributors.list({ office: off.id }),
-      A.events.list({ week: ws, center: off.center_id })
+      A.events.list({ week: ws, center: off.center_id }),
+      A.feature('goals') ? A.goals.get(off.id, mn) : null
     ]);
+    const myMonth = totals(monthReps.filter(r => r.office_id === off.id));
     const ranked = rankOffices(monthReps, A.officesOf(off.center_id).filter(o => o.active));
     const meRank = ranked.find(r => r.office_id === off.id) || {};
     const leader = ranked.find(r => !r.missing);
@@ -264,10 +266,16 @@
     });
     const scanCounts = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
     const mineScans = scanCounts.filter(s => s.office_id === off.id && s.status === 'accepted');
+    /* hist is oldest-first for the chart above; the streak needs the
+       opposite order, since "how many in a row" only means something
+       counted backward from right now. */
+    const streak = A.feature('streaks') ? U.filingStreak(histReps, hist.slice().reverse()) : 0;
 
     return {
       title: 'Dashboard', picker: 'week',
-      crumbs: esc(off.name + ' · ' + ((A.centerById(off.center_id) || {}).name || '')),
+      crumbs: esc(off.name + ' · ' + ((A.centerById(off.center_id) || {}).name || ''))
+        + (A.feature('streaks') && streak > 0
+          ? ' · <span style="color:var(--blue)">' + streak + ' week' + (streak === 1 ? '' : 's') + ' straight</span>' : ''),
       html:
         /* The trial countdown, first thing on the page — dashboard is
            where every login lands, so this is what "tell them each time
@@ -349,6 +357,25 @@
           + '<div class="num nm">' + (r.missing ? '<span style="color:var(--faint)">—</span>' : usd(r.amount)) + '</div></div>').join('')
           : empty('crown', 'No reports yet', 'Once offices in your zone file, the ranking appears.'))
         + '</div>'
+
+        + (!A.feature('goals') ? '' : '<div class="card" id="goal-card"><div class="card-h"><div>'
+          + '<div class="card-t">Your goal for ' + esc(U.monthLabel(mn)) + '</div>'
+          + '<div class="card-s">' + (goal && (goal.target_orders || goal.target_amount)
+            ? myMonth.orders + ' of ' + goal.target_orders + ' orders · ' + usd(myMonth.amount) + ' of ' + usd(goal.target_amount)
+            : 'Not set yet — pick a target and see how close you are all month.') + '</div></div></div>'
+          + (goal && (goal.target_orders || goal.target_amount)
+            ? '<div class="grid g2" style="margin-bottom:12px">'
+            + '<div><div class="bar"><i style="width:' + Math.min(100, goal.target_orders ? 100 * myMonth.orders / goal.target_orders : 0) + '%"></i></div>'
+            + '<div class="sub" style="margin-top:5px">Orders</div></div>'
+            + '<div><div class="bar"><i style="width:' + Math.min(100, goal.target_amount ? 100 * myMonth.amount / goal.target_amount : 0) + '%"></i></div>'
+            + '<div class="sub" style="margin-top:5px">Amount</div></div></div>' : '')
+          + '<div class="row" style="gap:10px;flex-wrap:wrap">'
+          + '<div class="field" style="margin:0;flex:1;min-width:120px"><label for="goal-orders">Target orders</label>'
+          + '<input class="input" id="goal-orders" type="number" min="0" step="1" value="' + (goal ? goal.target_orders : '') + '"></div>'
+          + '<div class="field" style="margin:0;flex:1;min-width:120px"><label for="goal-amount">Target amount</label>'
+          + '<input class="input" id="goal-amount" type="number" min="0" step="1" value="' + (goal ? goal.target_amount : '') + '"></div>'
+          + '<button class="btn btn-a" style="align-self:flex-end" data-act="save-goal">Save</button>'
+          + '</div></div>')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Attendance this week</div>'
         + '<div class="card-s">Your distributors, across this week\'s sessions.</div></div></div>'
@@ -959,7 +986,9 @@
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Everything you have filed</div>'
-        + '<div class="card-s">' + all.length + ' report' + (all.length === 1 ? '' : 's') + ', newest first.</div></div></div>'
+        + '<div class="card-s">' + all.length + ' report' + (all.length === 1 ? '' : 's') + ', newest first.</div></div>'
+        + (A.feature('csv_export') && all.length ? '<div class="card-a"><button class="btn btn-sm" data-act="export-reports">'
+          + ico('file', 13) + 'Export CSV</button></div>' : '') + '</div>'
         + table([{ label: 'Week' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }, { label: 'Niches' }, { label: 'Filed' }],
           all.map(r => '<tr><td class="nm">' + esc(U.weekName(r.week_start))
             + '<div class="sub">' + esc(U.weekRange(r.week_start)) + '</div></td>'
@@ -1161,6 +1190,12 @@
         + '<div class="card-a">'
         + '<input class="input" data-act="search" placeholder="Search by name or phone" value="' + esc(S().q || '')
         + '" style="max-width:220px">'
+        + (own && A.feature('csv_import')
+          ? '<input type="file" id="dist-csv-file" data-act="dist-csv-file" accept=".csv,text/csv" hidden>'
+          + '<button class="btn" data-act="dist-csv-pick" title="A sheet of names, one per row">'
+          + ico('file', 15) + 'Import CSV</button>'
+          + '<button class="btn" data-act="dist-csv-template" title="Download a blank one to fill in">'
+          + ico('copy', 15) + 'Template</button>' : '')
         + (own ? '<button class="btn btn-a btn-pop" data-act="dist-new">' + ico('plus', 15) + 'Add distributor</button>' : '')
         + '</div></div>'
         + table([{ label: 'Name' }, { label: own ? 'Status' : 'Office' }, { label: own ? 'Phone' : 'Status' },
@@ -1298,6 +1333,24 @@
   /* ===================================================================
      CENTERS & ADMINS  (super admin)
      =================================================================== */
+  /* The ten features, each behind its own switch, off until turned on.
+     Two — WhatsApp and SMS — have no code behind them yet: they need a
+     provider picked and real credentials, which is a decision for
+     outside this app, so their row is there and disabled rather than
+     pretending a flip would do anything. */
+  const FEATURES = [
+    { flag: 'streaks', label: 'Filing streaks', sub: 'How many weeks in a row an office has filed, shown on its own dashboard.' },
+    { flag: 'csv_import', label: 'Distributor CSV import', sub: 'Upload a sheet of names instead of typing each one in.' },
+    { flag: 'goals', label: 'Self-set monthly goals', sub: 'An office sets its own order and amount target for the month.' },
+    { flag: 'csv_export', label: 'Export reports as CSV', sub: 'A download button on the weekly report history.' },
+    { flag: 'activity_log', label: 'Activity log', sub: 'Who moved an office, edited a zone, or deleted what — with a time on it.' },
+    { flag: 'renewal_emails', label: 'Renewal reminder emails', sub: 'Sent 7, 3 and 1 day before a trial ends or a charge is due. Needs notify deployed.' },
+    { flag: 'receipt_emails', label: 'Payment receipt emails', sub: 'Sent the moment a charge succeeds. Needs Resend configured on paystack-webhook.' },
+    { flag: 'monthly_digest', label: 'Monday zone digest', sub: 'Last week’s numbers, emailed to each Director. Needs notify deployed and scheduled.' },
+    { flag: 'whatsapp', label: 'WhatsApp notifications', sub: 'Coming soon — needs a WhatsApp Business API set up first.', soon: true },
+    { flag: 'sms', label: 'SMS notifications', sub: 'Coming soon — needs an SMS gateway picked first.', soon: true }
+  ];
+
   async function adminPanel() {
     const [admins, pending, all] = await Promise.all([
       A.people.admins(), A.people.pending(), A.people.everyone()
@@ -1310,9 +1363,27 @@
       + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
       + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no zone') + '</div>'
       + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
+    const plans = window.CONFIG.plans || {};
     return {
       title: 'Zones & directors',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Zones</div>'
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
+        + '<div class="card-s">Off until you turn it on. Nothing here changes what anyone sees or is charged by itself.</div></div></div>'
+        + FEATURES.map(f => U.toggleRow(f.flag, f.label, f.sub, A.feature(f.flag), f.soon)).join('')
+        + '</div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Subscription pricing</div>'
+        + '<div class="card-s">What every office is charged. Changing a number here changes the real charge — '
+        + 'the Edge Functions read it live, nothing is cached.</div></div></div>'
+        + '<div class="grid g3" id="price-form">'
+        + Object.values(plans).map(p => '<div class="field"><label for="price-' + p.period + '">'
+          + esc(p.label) + ' (₦)</label>'
+          + '<input class="input" id="price-' + p.period + '" type="number" min="0" step="50" value="' + p.amountNgn + '"></div>').join('')
+        + '</div>'
+        + '<div class="row" style="justify-content:flex-end;margin-top:6px">'
+        + '<button class="btn btn-a btn-pop" data-act="save-pricing">' + ico('cash', 15) + 'Save prices</button></div>'
+        + '</div>'
+
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Zones</div>'
         + '<div class="card-s">A zone holds its own offices and runs its own Wednesday evaluation.</div></div>'
         + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New zone</button></div></div>'
         + table([{ label: 'Zone' }, { label: 'Zone leader' }, { label: 'Offices', num: true }, { label: '' }],
@@ -1386,6 +1457,30 @@
   /* ===================================================================
      ACCOUNT
      =================================================================== */
+  /* ===================================================================
+     ACTIVITY LOG
+     =================================================================== */
+  async function activityLog() {
+    if (!A.feature('activity_log')) {
+      return { title: 'Activity log', html: empty('shield', 'Not turned on',
+        'Admin -> Features has a switch for this. Nothing was recorded before it is on.') };
+    }
+    const rowsIn = await A.activity.list(200);
+    return {
+      title: 'Activity log',
+      crumbs: 'Last 200 actions',
+      html: '<div class="card">' + table(
+        [{ label: 'When' }, { label: 'Who' }, { label: 'Did what' }, { label: 'To' }],
+        rowsIn.map(r => '<tr><td class="sub">' + esc(U.timeAgo(r.created_at)) + '</td>'
+          + '<td class="nm">' + esc(r.actor_name || '—') + '</td>'
+          + '<td>' + esc(r.action) + '</td>'
+          + '<td>' + esc(r.target_name || '—')
+          + (r.detail ? '<div class="sub">' + esc(r.detail) + '</div>' : '') + '</td></tr>'),
+        { empty: empty('shield', 'Nothing recorded yet', 'It fills in as zones and offices are managed.') })
+        + '</div>'
+    };
+  }
+
   async function account() {
     const me = A.store.me;
     const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', pending: 'Waiting for approval' };
@@ -1520,7 +1615,7 @@
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),
-    distributors, center: myCenter, subscriptions, admin: adminPanel, account,
+    distributors, center: myCenter, subscriptions, admin: adminPanel, account, activityLog,
     helpers: { rankOffices, totals, nicheTally, nicheChips, statusTag, STATUSES, SM_PLUS, LEADER, peopleIn }
   };
 })();

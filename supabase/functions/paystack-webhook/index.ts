@@ -16,6 +16,12 @@
 
    Secrets:
      PAYSTACK_SECRET_KEY   the same sk_live_... as paystack-init
+     RESEND_API_KEY        re_...   only needed if the receipt-email
+                                     feature flag is turned on; the
+                                     receipt is skipped, silently, if
+                                     either this or NOTIFY_FROM is unset
+     NOTIFY_FROM           "Sky Team Ife <no-reply@yourdomain.com>",
+                                     same as supabase/functions/notify
    ===================================================================== */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createHmac } from 'node:crypto';
@@ -42,6 +48,8 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
+  const setting = async (key: string) =>
+    (await db.from('app_settings').select('value').eq('key', key).maybeSingle()).data?.value ?? null;
 
   /* Find the office. Metadata is the fast path; the stored reference is
      the fallback for events Paystack raises on its own, like a renewal
@@ -112,6 +120,36 @@ Deno.serve(async (req) => {
         paystack_customer: data?.customer?.customer_code ?? null,
         updated_at: new Date().toISOString()
       }).eq('office_id', office);
+
+      /* A receipt, if the flag is on and Resend is configured. Neither
+         being missing should ever fail the webhook itself — the money
+         has already landed and the subscription is already updated by
+         the time this runs, so a receipt that cannot be sent is a
+         missed nice-to-have, not a reason to make Paystack retry. */
+      try {
+        if ((await setting('feature_receipt_emails')) === 'true') {
+          const apiKey = Deno.env.get('RESEND_API_KEY');
+          const from = Deno.env.get('NOTIFY_FROM');
+          if (apiKey && from) {
+            const { data: profile } = await db.from('profiles')
+              .select('email, full_name').eq('office_id', office).eq('role', 'office').maybeSingle();
+            const { data: officeRow } = await db.from('offices').select('name').eq('id', office).maybeSingle();
+            if (profile?.email) {
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + apiKey, 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  from, to: profile.email, subject: 'Sky Team Ife — payment received',
+                  html: '<p>Hi' + (profile.full_name ? ' ' + profile.full_name : '') + ',</p>'
+                    + '<p>₦' + naira.toLocaleString() + ' received for <b>' + (officeRow?.name ?? 'your office')
+                    + '</b>. Reference ' + data.reference + '.</p>'
+                    + '<p>Your plan now runs until ' + nextCharge() + '.</p>'
+                })
+              });
+            }
+          }
+        }
+      } catch { /* receipt is best-effort, never blocks the webhook */ }
       break;
     }
 
