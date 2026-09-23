@@ -1295,9 +1295,9 @@
       title: own ? 'Subscription' : 'Subscriptions',
       html: (own ? ownPanel(A.store.sub, plan) : '')
         + (!window.CONFIG.billingEnabled ? note('info', 'card',
-          '<b>Card payments are not switched on yet.</b> Every office is on the free trial and nothing is charged. '
-          + 'The plan is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days after a ' + plan.trialDays
-          + '-day trial. Turn on <span class="mono">billingEnabled</span> in config.js once Paystack is connected.')
+          '<b>Payment is paused until 1 November.</b> Every office can file its report and use the app freely — '
+          + 'nothing is charged and nobody is locked out. The plan will be '
+          + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days once billing resumes.')
           + '<div style="height:18px"></div>' : '')
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'

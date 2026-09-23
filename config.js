@@ -21,11 +21,24 @@ window.CONFIG = {
   /* How many weeks of history the pickers and charts offer. */
   weeksShown: 12,
 
-  /* Shows the pay button. The lock itself is switched on separately, by
-     setting billing_enabled to 'true' in app_settings — do that only
-     once the two Edge Functions are deployed, or offices will be locked
-     out with a button that cannot reach Paystack. */
-  billingEnabled: true,
+  /* Shows the pay button, and is what billing.locked() in api.js checks
+     first — false here means nobody is ever locked out, client side,
+     full stop, regardless of what any subscription row says. The lock
+     itself, when this is true, is switched on separately by setting
+     billing_enabled to 'true' in app_settings.
+
+     PAUSED from 23 Sept 2026 to 1 Nov 2026 — every office can file its
+     report with no payment screen in the way, whatever its trial or
+     subscription status. supabase/2026-09-pause-billing.sql does the
+     same thing on the database side (belt and braces: RLS stops
+     enforcing the lock too, not just the UI), and pushes every
+     subscription's clock to 1 Nov so re-enabling this later does not
+     retroactively lock out an office whose trial happened to run out
+     during the pause.
+
+     To resume billing: set this back to true, and run the "turn it
+     back on" block at the bottom of that SQL file. */
+  billingEnabled: false,
 
   /* The monthly rate and the trial length, for everything that talks
      about the plan in passing (the locked-out screen, the "not switched
