@@ -1,7 +1,9 @@
 /* =====================================================================
    Sky Team Ife — design system
    Dark throughout. Glass panels over a flat field, one accent colour,
-   generous radii, Space Grotesk everywhere.
+   generous radii, Roboto everywhere — the closest public, licensable
+   stand-in for Google Sans, which Google has never released as a
+   downloadable or Google-Fonts-hosted family.
 
    --surface is the glass a panel is made of. --white stays literal
    white, for text and marks that sit on top of something dark.
@@ -65,7 +67,7 @@
   --blur: none;
   --sb-w: 268px;
   --panel: rgba(10,16,36,.96);   /* top bar and tab bar */
-  --font: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font: "Roboto", "Google Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Tells the browser to draw native widgets — select popups, scrollbars,
      date pickers — in dark. Without it the option list comes back as
@@ -400,16 +402,6 @@ tbody tr.click:hover { background: var(--blue-tint); }
 }
 .seg button + button { border-left: 1px solid var(--hair); }
 .seg button.on { background: var(--blue); color: var(--on-accent); font-weight: 500; }
-
-/* The week picker: at most four buttons, since a month is at most four
-   weeks. The dot marks the one still open for filing, whether or not it
-   is the one currently on screen. */
-.wk-seg button { padding: 7px 13px; font-size: 13px; position: relative; }
-.wk-seg button.open::after {
-  content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px;
-  border-radius: 50%; background: var(--ok);
-}
-.wk-seg button.open.on::after { background: var(--on-accent); }
 
 /* The manual pull, next to whichever picker a page has. */
 .btn-refresh {

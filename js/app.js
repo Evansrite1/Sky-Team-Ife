@@ -335,28 +335,26 @@
     paintTour();
   }
 
-  /* A row of buttons, not a dropdown: every week that has opened in the
-     picked week's own month, at most four of them, so which one is
-     current is something you see rather than something you open a menu
-     to check. This is also what keeps a report from landing on the
-     wrong week — the week you are filing against is the one lit up in
-     front of you, not whatever a dropdown happened to remember. */
-  const weekButtons = (sel, act) => {
+  /* Every week that has opened in the picked week's own month, at most
+     four of them — same scope the button row used, just a dropdown
+     instead of the row of pills. The currently open one says so right
+     in its label, since a select can't carry the little dot the
+     buttons could. */
+  const weekDropdown = (sel, act) => {
     const weeks = U.weeksOfMonth(U.trackingMonthNo(sel)).filter(U.weekStarted);
-    return '<div class="seg wk-seg">' + weeks.map(w =>
-      '<button type="button" class="' + (w === sel ? 'on' : '') + (U.weekClosed(w) ? '' : ' open')
-      + '" data-act="' + act + '" data-v="' + w + '" title="' + esc(U.weekRange(w))
-      + (U.weekClosed(w) ? '' : ' — ' + U.weekClosesLabel(w)) + '">Week ' + U.weekOfMonth(w) + '</button>'
-    ).join('') + '</div>';
+    return '<select class="select" data-act="' + act + '">' + weeks.map(w =>
+      '<option value="' + w + '"' + (w === sel ? ' selected' : '') + '>Week ' + U.weekOfMonth(w)
+      + (U.weekClosed(w) ? '' : ' (open)') + '</option>'
+    ).join('') + '</select>';
   };
 
   function topbar(v) {
     const picker = v.picker === 'month'
       ? '<div class="wk"><span class="wk-l">Month</span><select data-act="month">' + monthOptions() + '</select></div>'
       : v.picker === 'evalweek'
-        ? '<div class="wk"><span class="wk-l">Evaluating</span>' + weekButtons(state.evalWeek, 'evalweek-pick') + '</div>'
+        ? '<div class="wk"><span class="wk-l">Evaluating</span>' + weekDropdown(state.evalWeek, 'evalweek-pick') + '</div>'
         : v.picker === 'week'
-          ? '<div class="wk"><span class="wk-l">Week</span>' + weekButtons(state.week, 'week-pick') + '</div>' : '';
+          ? '<div class="wk"><span class="wk-l">Week</span>' + weekDropdown(state.week, 'week-pick') + '</div>' : '';
     /* Live updates land on their own within a moment of a report being
        filed, but this is the guaranteed way to pull the latest right
        now rather than trust the timing of a socket — every page that
@@ -996,6 +994,36 @@
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  /* A real email to real people the moment it is confirmed — this is
+     the one admin action in the whole app that reaches outside it, so
+     it is the one that stops for a confirm rather than just sending. */
+  const AUDIENCE_LABEL = {
+    all: 'everyone in the app', office: 'every office',
+    platform_admin: 'every Director', super_admin: 'every Super Admin'
+  };
+  ACT['send-announce'] = () => {
+    const subject = val('#an-subject'), message = val('#an-message'), audience = val('#an-audience');
+    if (!subject) return toast('It needs a subject.', 'no');
+    if (!message) return toast('It needs a message.', 'no');
+    U.confirmDialog('Send this to ' + (AUDIENCE_LABEL[audience] || 'everyone') + '?',
+      'Subject: <b>' + esc(subject) + '</b><br>This goes out immediately, to every matching address there is. '
+      + 'There is no draft and no way to unsend it once it is confirmed.',
+      'Send it', 'send-announce-yes');
+  };
+
+  ACT['send-announce-yes'] = async (el) => {
+    const subject = val('#an-subject'), message = val('#an-message'), audience = val('#an-audience');
+    busy(el, true, 'Sending…');
+    try {
+      const out = await A.announce.send(subject, message, audience);
+      A.activity.log('announce.send', { kind: 'announcement', name: subject,
+        detail: (out.sent || 0) + ' sent, ' + (out.failed || 0) + ' failed, to ' + (AUDIENCE_LABEL[audience] || audience) });
+      closeModal();
+      toast('Sent to ' + (out.sent || 0) + (out.failed ? ' (' + out.failed + ' failed)' : '') + '.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   ACT['center-del'] = (el) => {
     state.pendingDelete = el.dataset.id;
     U.confirmDialog('Delete this zone?',
@@ -1491,12 +1519,9 @@
     if (el.dataset.act === 'month') { state.month = Number(el.value); route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
     if (el.dataset.act === 'dist-csv-file') ACT['dist-csv-file'](el);
+    if (el.dataset.act === 'week-pick') { state.week = el.value; state.month = U.trackingMonthNo(el.value); route(); }
+    if (el.dataset.act === 'evalweek-pick') { state.evalWeek = el.value; route(); }
   });
-
-  /* The week buttons in the topbar — click, not change, since they are
-     buttons now rather than a select. */
-  ACT['week-pick'] = (el) => { state.week = el.dataset.v; state.month = U.trackingMonthNo(el.dataset.v); route(); };
-  ACT['evalweek-pick'] = (el) => { state.evalWeek = el.dataset.v; route(); };
 
   /* Jump the week picker straight to a given week. */
   ACT['go-week'] = (el, e) => {

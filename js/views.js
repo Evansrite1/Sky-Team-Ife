@@ -1347,6 +1347,7 @@
     { flag: 'renewal_emails', label: 'Renewal reminder emails', sub: 'Sent 7, 3 and 1 day before a trial ends or a charge is due. Needs notify deployed.' },
     { flag: 'receipt_emails', label: 'Payment receipt emails', sub: 'Sent the moment a charge succeeds. Needs Resend configured on paystack-webhook.' },
     { flag: 'monthly_digest', label: 'Monday zone digest', sub: 'Last week’s numbers, emailed to each Director. Needs notify deployed and scheduled.' },
+    { flag: 'broadcast_email', label: 'Send an announcement', sub: 'A message to everyone in the app, or one role at a time, sent by you on demand. Needs notify deployed.' },
     { flag: 'whatsapp', label: 'WhatsApp notifications', sub: 'Coming soon — needs a WhatsApp Business API set up first.', soon: true },
     { flag: 'sms', label: 'SMS notifications', sub: 'Coming soon — needs an SMS gateway picked first.', soon: true }
   ];
@@ -1382,6 +1383,25 @@
         + '<div class="row" style="justify-content:flex-end;margin-top:6px">'
         + '<button class="btn btn-a btn-pop" data-act="save-pricing">' + ico('cash', 15) + 'Save prices</button></div>'
         + '</div>'
+
+        + (!A.feature('broadcast_email') ? '' : '<div class="card"><div class="card-h"><div>'
+          + '<div class="card-t">Send an announcement</div>'
+          + '<div class="card-s">One email, to everyone or to one role. Goes out the moment you press send — '
+          + 'there is no draft and no undo.</div></div></div>'
+          + '<div class="field"><label for="an-audience">Who gets it</label>'
+          + '<select class="select" id="an-audience">'
+          + '<option value="all">Everyone in the app</option>'
+          + '<option value="office">Offices only</option>'
+          + '<option value="platform_admin">Directors only</option>'
+          + '<option value="super_admin">Super Admins only</option>'
+          + '</select></div>'
+          + '<div class="field"><label for="an-subject">Subject</label>'
+          + '<input class="input" id="an-subject" placeholder="An update from Sky Team Ife"></div>'
+          + '<div class="field"><label for="an-message">Message</label>'
+          + '<textarea class="input" id="an-message" rows="5" placeholder="Write it the way you would say it. A blank line starts a new paragraph."></textarea></div>'
+          + '<div class="row" style="justify-content:flex-end">'
+          + '<button class="btn btn-a btn-pop" data-act="send-announce">' + ico('mail', 15) + 'Send</button></div>'
+          + '</div>')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Zones</div>'
         + '<div class="card-s">A zone holds its own offices and runs its own Wednesday evaluation.</div></div>'

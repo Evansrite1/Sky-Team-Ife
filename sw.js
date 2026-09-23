@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v24';
+const CACHE = 'sti-shell-v25';
 
 const SHELL = [
   './',

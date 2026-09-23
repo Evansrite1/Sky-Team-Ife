@@ -1,17 +1,23 @@
 /* =====================================================================
-   notify — renewal reminders and the Monday zone digest, by email.
+   notify — renewal reminders, the Monday zone digest, and a broadcast
+   the Super Admin sends by hand, all by email.
 
-   Not reachable from the browser at all — pg_cron calls this on a
-   schedule (see supabase/2026-09-features.sql for the exact commands),
-   passing { type: 'reminders' } or { type: 'digest' }. Nothing here
-   checks who is asking, because nothing outside your own database ever
-   does; lock this down further with a shared secret header if you
-   want belt and braces, but pg_cron calling its own project is not
-   normally worth guarding beyond that.
+   reminders and digest are not reachable from the browser at all —
+   pg_cron calls this on a schedule (see supabase/2026-09-features.sql
+   for the exact commands), passing { type: 'reminders' } or
+   { type: 'digest' }. Nothing checks who is asking for those two,
+   because nothing outside your own database ever does.
 
-   Both jobs check their own feature flag before sending anything, so
+   broadcast is different: it IS called from the browser, by a Super
+   Admin, on demand — "Send an announcement" in Admin -> Features — so
+   it is the one type here that checks a real Supabase session and
+   confirms the role before sending a single email. The other two stay
+   open because pg_cron carries no Supabase token to check in the
+   first place.
+
+   All three check their own feature flag before sending anything, so
    deploying this function does nothing on its own — Admin -> Features
-   is still the only thing that turns email on.
+   is still the only thing that turns any of it on.
 
    Secrets (Supabase dashboard -> Edge Functions -> Manage secrets):
      RESEND_API_KEY   re_...           Resend -> API Keys
@@ -135,5 +141,45 @@ Deno.serve(async (req) => {
     return json({ sent, failed });
   }
 
-  return json({ error: 'Unknown type. Use "reminders" or "digest".' }, 400);
+  if (type === 'broadcast') {
+    if ((await setting('feature_broadcast_email')) !== 'true') return json({ error: 'Announcements are turned off. Admin -> Features.' }, 403);
+
+    /* The one type a real person calls, so the one type that checks who
+       they actually are — a valid session belonging to a super_admin,
+       not just a body that says so. */
+    const authHeader = req.headers.get('Authorization') ?? '';
+    if (!authHeader.startsWith('Bearer ')) return json({ error: 'Not signed in.' }, 401);
+    const asUser = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } });
+    const { data: userRes } = await asUser.auth.getUser();
+    if (!userRes?.user) return json({ error: 'Not signed in.' }, 401);
+    const { data: caller } = await db.from('profiles').select('role').eq('id', userRes.user.id).maybeSingle();
+    if (caller?.role !== 'super_admin') return json({ error: 'Only the Super Admin can send an announcement.' }, 403);
+
+    const subject = String(body?.subject ?? '').trim();
+    const message = String(body?.message ?? '').trim();
+    if (!subject || !message) return json({ error: 'Both a subject and a message are needed.' }, 400);
+
+    /* Who it goes to. 'all' means every approved account with an email
+       — office, platform_admin and super_admin alike — not the pending
+       ones still waiting on approval, who have not agreed to anything
+       yet and would not know what the app even was. */
+    const audience = ['office', 'platform_admin', 'super_admin'].includes(body?.audience) ? body.audience : 'all';
+    let q = db.from('profiles').select('email, full_name, role').neq('role', 'pending');
+    if (audience !== 'all') q = q.eq('role', audience);
+    const { data: recipients } = await q;
+
+    const html = '<div>' + message.split(/\n{2,}/).map((p: string) =>
+      '<p>' + p.split('\n').map((l: string) => l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('<br>') + '</p>').join('') + '</div>';
+
+    let sent = 0, failed = 0;
+    for (const r of recipients ?? []) {
+      if (!r.email) continue;
+      const res = await sendEmail(apiKey, from, r.email, subject, html);
+      if (res.ok) sent++; else failed++;
+    }
+    return json({ sent, failed, audience });
+  }
+
+  return json({ error: 'Unknown type. Use "reminders", "digest" or "broadcast".' }, 400);
 });

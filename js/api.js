@@ -376,6 +376,27 @@
     }
   };
 
+  /* -------------------------------------------------------- announce */
+  const announce = {
+    /* audience: 'all' | 'office' | 'platform_admin' | 'super_admin'.
+       The Edge Function is the one that actually checks the caller is
+       a Super Admin — this just carries the session token along so it
+       can. */
+    async send(subject, message, audience) {
+      const { data: s } = await sb.auth.getSession();
+      const token = s && s.session ? s.session.access_token : null;
+      if (!token) throw new Error('Sign in again, then try once more.');
+      const res = await fetch(CFG.supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/notify', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'broadcast', subject, message, audience })
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Could not send that.');
+      return out;
+    }
+  };
+
   /* ---------------------------------------------------------- billing */
   const billing = {
     async subscriptions() { return rows(await sb.from('subscriptions').select('*')); },
@@ -481,6 +502,6 @@
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, billing, join, watch, unwatch,
-    feature, activity, goals
+    feature, activity, goals, announce
   };
 })();
