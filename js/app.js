@@ -340,11 +340,25 @@
      instead of the row of pills. The currently open one says so right
      in its label, since a select can't carry the little dot the
      buttons could. */
+  /* Last tracking month and this one, grouped by month so "Week 2" is
+     never ambiguous — plus the picked week's own month if it is older
+     than that, so a week opened from history still shows as selected. */
   const weekDropdown = (sel, act) => {
-    const weeks = U.weeksOfMonth(U.trackingMonthNo(sel)).filter(U.weekStarted);
-    return '<select class="select" data-act="' + act + '">' + weeks.map(w =>
-      '<option value="' + w + '"' + (w === sel ? ' selected' : '') + '>Week ' + U.weekOfMonth(w)
-      + (U.weekClosed(w) ? '' : ' (open)') + '</option>'
+    const weeks = U.fileableWeeks();
+    U.weeksOfMonth(U.trackingMonthNo(sel)).filter(U.weekStarted)
+      .forEach(w => { if (weeks.indexOf(w) < 0) weeks.push(w); });
+    weeks.sort();
+    const months = [];
+    weeks.forEach(w => {
+      const m = U.trackingMonthNo(w);
+      if (months.indexOf(m) < 0) months.push(m);
+    });
+    return '<select class="select" data-act="' + act + '">' + months.map(m =>
+      '<optgroup label="' + U.monthLabel(m) + '">' + weeks.filter(w => U.trackingMonthNo(w) === m).map(w =>
+        '<option value="' + w + '"' + (w === sel ? ' selected' : '') + '>Week ' + U.weekOfMonth(w)
+        + (months.length > 1 ? ' · from ' + U.MON[U.toDate(w).getMonth()] + ' ' + U.toDate(w).getDate() : '')
+        + (U.weekClosed(w) ? '' : ' (open)') + '</option>'
+      ).join('') + '</optgroup>'
     ).join('') + '</select>';
   };
 

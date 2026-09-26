@@ -117,6 +117,15 @@
     return out;
   };
   const currentMonthNo = () => trackingMonthNo(weekStart());
+  /* The weeks an office may still file or correct: every week of the
+     previous tracking month and of this one, as far as they have opened.
+     A new month would otherwise lock last month's weeks the day it
+     starts, which is exactly when offices are catching up on them.
+     Oldest first. */
+  const fileableWeeks = () => {
+    const m = currentMonthNo();
+    return (m > 1 ? weeksOfMonth(m - 1) : []).concat(weeksOfMonth(m)).filter(weekStarted);
+  };
   /* Newest first, same contract recentWeeks keeps. */
   const recentMonths = (n) => {
     const out = [];
@@ -672,7 +681,7 @@
     iso, toDate, addDays, weekStart, weekLabel, weekName, weekRange, weekClosed, weekNo, EPOCH_WEEK,
     weekEndsOn, weekClosesLabel, weekStarted,
     evalDate, monthLabel, recentWeeks, recentMonths, dayLabel, fullDate,
-    trackingMonthNo, weekOfMonth, weeksOfMonth, currentMonthNo, WEEKS_PER_MONTH,
+    trackingMonthNo, weekOfMonth, weeksOfMonth, currentMonthNo, WEEKS_PER_MONTH, fileableWeeks,
     timeAgo, clock, MON, MON_FULL,
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     rollLook, readLook, describeLook,

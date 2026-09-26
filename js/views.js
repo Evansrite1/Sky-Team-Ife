@@ -302,7 +302,7 @@
           if (prevMine || ws !== U.weekStart()) return '';
           return note('warn', 'alert',
             '<b>Last week is missing.</b> ' + esc(U.weekRange(lastWk))
-            + ' has no report, and once the week now running closes it can no longer be filed. '
+            + ' has no report. You can still file it, and any week of last month too. '
             + '<a href="#" data-act="go-week" data-v="' + lastWk
             + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
             + '<div style="height:18px"></div>';
@@ -898,13 +898,14 @@
     S().form = { niches, newNiches };
 
     const closed = U.weekClosed(ws);
-    /* This week and the one behind it. Anything older is read only: the
-       evaluation has been held and the numbers have been reported on, so
-       rewriting them after the fact would change a record people have
-       already acted on. */
+    /* Every week of last tracking month and this one. Anything older is
+       read only: that month has been reported on, so rewriting it after
+       the fact would change a record people have already acted on. */
     const thisWk = U.weekStart();
     const lastWk = U.iso(U.addDays(thisWk, -7));
-    const openToFile = ws === thisWk || ws === lastWk;
+    const fileable = U.fileableWeeks();
+    const openToFile = fileable.indexOf(ws) > -1;
+    const oldestOpen = fileable[0];
     const lastFiled = all.some(r => r.week_start === lastWk);
 
     return {
@@ -913,8 +914,7 @@
         /* The nudge, wherever they are in the picker. */
         (!lastFiled && ws !== lastWk
           ? note('warn', 'alert', '<b>Last week is still not filed.</b> '
-            + esc(U.weekRange(lastWk)) + ' is missing, and this is the last week you can '
-            + 'still fill it in. <a href="' + link('reports') + '" data-act="go-week" data-v="' + lastWk
+            + esc(U.weekRange(lastWk)) + ' is missing. <a href="' + link('reports') + '" data-act="go-week" data-v="' + lastWk
             + '" style="text-decoration:underline">Fill it now</a>.') + '<div style="height:16px"></div>'
           : '')
 
@@ -925,12 +925,13 @@
 
         + (!openToFile
           ? note('info', 'lock', '<b>This week is closed for filing.</b> '
-            + 'Its evaluation has been held. You can still fill in <a href="#" data-act="go-week" data-v="'
-            + lastWk + '" style="text-decoration:underline">' + esc(U.weekRange(lastWk)) + '</a> '
-            + 'and the week running now.')
-          : (ws === lastWk && !mine
-            ? note('warn', 'alert', '<b>This is last week, and it is your last chance to file it.</b> '
-              + 'Once the week now running closes, this one is locked.') + '<div style="height:16px"></div>'
+            + 'Only last month and this month can still be filled in, from <a href="#" data-act="go-week" data-v="'
+            + oldestOpen + '" style="text-decoration:underline">' + esc(U.weekRange(oldestOpen)) + '</a> '
+            + 'up to the week running now.')
+          : (ws !== thisWk && !mine
+            ? note('warn', 'alert', '<b>This week has no report yet.</b> '
+              + 'You can still file it — pick any week of last month or this month from the Week menu at the top.')
+              + '<div style="height:16px"></div>'
             : ''))
 
         + (openToFile ? '<form id="report-form">' : '<div class="ro-form" aria-disabled="true">')
