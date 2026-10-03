@@ -921,7 +921,8 @@
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + esc(U.weekName(ws)) + ' · ' + esc(U.weekRange(ws)) + '</div>'
         + '<div class="card-s">' + evalLine(ws) + '</div></div>'
-        + '<div class="card-a">' + (mine ? tag('Filed ' + U.timeAgo(mine.submitted_at), 't-ok') : tag('Not filed', 't-warn')) + '</div></div>'
+        + '<div class="card-a">' + (isEstimate(mine) ? tag('Estimate — please update', 't-warn')
+          : mine ? tag('Filed ' + U.timeAgo(mine.submitted_at), 't-ok') : tag('Not filed', 't-warn')) + '</div></div>'
 
         + (!openToFile
           ? note('info', 'lock', '<b>This week is closed for filing.</b> '
@@ -971,7 +972,7 @@
 
         + '<div class="field"><label for="f-issues">What slowed you down this week?</label>'
         + '<textarea class="input" id="f-issues" placeholder="Anything the zone should hear at the evaluation. Write “No major blockers” if the week ran clean.">'
-        + esc(mine ? mine.issues : '') + '</textarea></div>'
+        + esc(mine && !isEstimate(mine) ? mine.issues : '') + '</textarea></div>'
 
         + (openToFile
           ? '<div class="row" style="justify-content:flex-end">'
@@ -996,11 +997,18 @@
             + '<td class="num">' + r.orders + '</td>'
             + '<td class="num nm">' + usdFull(r.amount) + '</td>'
             + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '—') + '</td>'
-            + '<td class="sub">' + esc(U.timeAgo(r.submitted_at)) + '</td></tr>'),
+            + '<td class="sub">' + (isEstimate(r) ? tag('Estimate', 't-warn') : esc(U.timeAgo(r.submitted_at))) + '</td></tr>'),
           { empty: empty('file', 'Nothing filed yet', 'Your first report is the one above.') })
         + '</div>'
     };
   }
+
+  /* A week the Super Admin filled in with an estimate (supabase/
+     2026-10-backfill-estimates.sql) rather than one the office filed.
+     It counts like any report, but says so wherever it shows, and the
+     office filing that week for real replaces it. */
+  const ESTIMATE_NOTE = 'Estimated by admin';
+  const isEstimate = r => !!r && !r.submitted_by && String(r.issues || '').indexOf(ESTIMATE_NOTE) === 0;
 
   const nicheChips = list => list.length
     ? list.map(n => '<span class="chip on">' + esc(n)
