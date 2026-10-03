@@ -78,7 +78,8 @@
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'center', l: 'Your zone', i: 'layers' },
-        { p: 'subscriptions', l: 'Subscription', i: 'card' },
+        /* Hidden while the app is free — there is nothing to pay. */
+        ...(window.CONFIG.billingEnabled ? [{ p: 'subscriptions', l: 'Subscription', i: 'card' }] : []),
         { p: 'account', l: 'Account', i: 'lock' }
       ],
       more: []

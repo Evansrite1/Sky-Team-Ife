@@ -27,7 +27,9 @@ window.CONFIG = {
      itself, when this is true, is switched on separately by setting
      billing_enabled to 'true' in app_settings.
 
-     PAUSED from 23 Sept 2026 to 1 Nov 2026 — every office can file its
+     FREE FOR NOW (from 3 Oct 2026, no end date) — offices see no price,
+     no trial countdown and no Subscription page; nobody is ever locked.
+     Before that it was paused 23 Sept to 1 Nov — every office can file its
      report with no payment screen in the way, whatever its trial or
      subscription status. supabase/2026-09-pause-billing.sql does the
      same thing on the database side (belt and braces: RLS stops

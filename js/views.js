@@ -1256,6 +1256,8 @@
     const locked = A.store.locked;
     const on = window.CONFIG.billingEnabled;
     const pay = on ? planCards(sub) : '';
+    /* Free for now: no trial clock, no plans, nothing to count down to. */
+    if (!on) return '';
 
     if (locked) {
       return '<div class="card card-dark"><div class="card-h"><div>'
@@ -1296,10 +1298,12 @@
       title: own ? 'Subscription' : 'Subscriptions',
       html: (own ? ownPanel(A.store.sub, plan) : '')
         + (!window.CONFIG.billingEnabled ? note('info', 'card',
-          '<b>Payment is paused until 1 November.</b> Every office can file its report and use the app freely — '
-          + 'nothing is charged and nobody is locked out. The plan will be '
-          + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days once billing resumes.')
+          '<b>The app is free for now.</b> Every office can file its report and use everything in it — '
+          + 'nothing is charged, nobody is locked out, and no trial is running out.')
           + '<div style="height:18px"></div>' : '')
+        /* While it is free an office sees only the note above — no plan,
+           no price, no trial dates. Super Admins still see the table. */
+        + (own && !window.CONFIG.billingEnabled ? '' : (''
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
         + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' a month, the same for every office — '
@@ -1327,7 +1331,7 @@
             + '<td>' + (p.status === 'paid' ? tag('Paid', 't-ok') : tag(p.status, 't-err')) + '</td>'
             + '<td class="num nm">' + U.ngn(p.amount_ngn) + '</td></tr>'),
           { empty: empty('cash', 'No payments yet', 'Nothing has been charged.') })
-        + '</div>'
+        + '</div>'))
     };
   }
 

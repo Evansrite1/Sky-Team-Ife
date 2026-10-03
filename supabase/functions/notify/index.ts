@@ -55,6 +55,8 @@ Deno.serve(async (req) => {
 
   if (type === 'reminders') {
     if ((await setting('feature_renewal_emails')) !== 'true') return json({ skipped: 'feature off' });
+    /* Nothing to remind anyone about while the app is free. */
+    if ((await setting('billing_enabled')) !== 'true') return json({ skipped: 'billing off — app is free' });
 
     const days = ((await setting('notify_reminder_days')) ?? '7,3,1')
       .split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => n > 0);
