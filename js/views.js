@@ -1580,9 +1580,39 @@
     { flag: 'sms', label: 'SMS notifications', sub: 'Coming soon — needs an SMS gateway picked first.', soon: true }
   ];
 
+  /* What people said in the "What's new" popup: does the update solve a
+     problem, and then either what an office should pay and what they
+     want, or what is missing. */
+  function feedbackCard(fb, missing) {
+    const yes = fb.filter(f => f.solves), no = fb.filter(f => !f.solves);
+    const prices = yes.map(f => f.price_ngn).filter(p => p !== null && p !== undefined && p > 0).sort((a, b) => a - b);
+    const mid = prices.length ? prices[Math.floor((prices.length - 1) / 2)] : 0;
+    const avg = prices.length ? Math.round(sumBy(prices, p => p) / prices.length) : 0;
+    return '<div class="card"><div class="card-h"><div><div class="card-t">What people said about the update</div>'
+      + '<div class="card-s">Answers from the "What\'s new" popup. Only you can see these.</div></div></div>'
+      + (missing ? note('warn', 'alert', '<b>' + esc(missing) + '</b>')
+        : !fb.length ? empty('mail', 'No answers yet', 'They come in as people open the app and answer the popup.')
+          : '<div class="grid g4" style="margin-bottom:14px">'
+          + kpi('Answers', fb.length, '', 'mail')
+          + kpi('Says it helps', yes.length, fb.length ? Math.round(100 * yes.length / fb.length) + '%' : '', 'check', 'kpi-blue')
+          + kpi('Price they suggest', prices.length ? U.ngn(mid) : '—', prices.length ? 'middle answer · average ' + U.ngn(avg) : 'No prices yet', 'cash')
+          + kpi('Wants more', no.length, 'said it does not help yet', 'alert')
+          + '</div>'
+          + table([{ label: 'Who' }, { label: 'Helps?' }, { label: 'Price / month', num: true }, { label: 'What they want' }, { label: 'When' }],
+            fb.map(f => '<tr><td class="nm">' + esc(f.name || '—')
+              + '<div class="sub">' + esc(f.role === 'office' ? ((A.officeById(f.office_id) || {}).name || 'Office') : f.role === 'platform_admin' ? 'Director' : f.role === 'super_admin' ? 'Super Admin' : f.role) + '</div></td>'
+              + '<td>' + (f.solves ? tag('Yes', 't-ok') : tag('No', 't-warn')) + '</td>'
+              + '<td class="num nm">' + (f.price_ngn ? U.ngn(f.price_ngn) : '—') + '</td>'
+              + '<td style="max-width:320px;white-space:pre-line">' + esc((f.solves ? f.features : f.needs) || '—') + '</td>'
+              + '<td class="sub">' + esc(U.timeAgo(f.created_at)) + '</td></tr>'), {}))
+      + '</div>';
+  }
+
   async function adminPanel() {
-    const [admins, pending, all] = await Promise.all([
-      A.people.admins(), A.people.pending(), A.people.everyone()
+    let fbMissing = '';
+    const [admins, pending, all, fb] = await Promise.all([
+      A.people.admins(), A.people.pending(), A.people.everyone(),
+      A.feedback.list().catch(e => { fbMissing = e.missingTable ? e.message : 'Could not load the answers: ' + e.message; return []; })
     ]);
     const asked = pending.filter(p => p.req_status === 'pending');
     const quiet = pending.filter(p => p.req_status !== 'pending');
@@ -1595,7 +1625,8 @@
     const plans = window.CONFIG.plans || {};
     return {
       title: 'Zones & directors',
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
+      html: feedbackCard(fb, fbMissing)
+        + '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
         + '<div class="card-s">Off until you turn it on. Nothing here changes what anyone sees or is charged by itself.</div></div></div>'
         + FEATURES.map(f => U.toggleRow(f.flag, f.label, f.sub, A.feature(f.flag), f.soon)).join('')
         + '</div>'

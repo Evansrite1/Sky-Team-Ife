@@ -344,7 +344,7 @@
   /* Shown once per update, the first time each person opens the app
      after it. Bump WHATS_NEW_ID with the next update worth announcing.
      Someone brand new gets the walkthrough instead, never both. */
-  const WHATS_NEW_ID = '2026-10-issues';
+  const WHATS_NEW_ID = '2026-10-issues-2';
   const WN_KEY = 'sti-whatsnew';
   const whatsNewItems = (role) => {
     const item = (i, t, d) => '<li><div class="ins-i">' + ico(i, 16) + '</div><div><div class="ins-t">' + t + '</div>'
@@ -356,7 +356,6 @@
         + item('star', 'How to do better', 'Your dashboard now shows what your own numbers say to work on — '
           + 'the office just above you, your trend, what is selling in your zone, and more.')
         + item('calendar', 'Last month is open again', 'Pick any week of last month or this month from the Week menu and file or fix it.')
-        + item('cash', 'The app is free', 'No payment, no trial countdown. Everything is open to every office.')
         + common;
     }
     return item('alert', 'Issues & solutions', 'A new page in the menu lists every issue offices raised this month, one card each. '
@@ -365,20 +364,66 @@
       + item('calendar', 'Last month is open again', 'Offices can file or fix any week of last month or this month.')
       + common;
   };
+  /* Closing it without answering brings it back next time, up to three
+     showings; answering, or "Don't ask again", ends it for good. */
+  const WN_SHOWN = 'sti-whatsnew-shown';
+  const wnDone = () => { try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ } };
   function maybeWhatsNew(force) {
     const me = A.store.me;
     if (!me || me.role === 'pending') return;
-    let seen = '';
-    try { seen = localStorage.getItem(WN_KEY) || ''; } catch (e) { if (!force) return; }
-    if (seen === WHATS_NEW_ID && !force) return;
-    try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ }
+    let seen = '', shown = 0;
+    try {
+      seen = localStorage.getItem(WN_KEY) || '';
+      const s = (localStorage.getItem(WN_SHOWN) || '').split(':');
+      shown = s[0] === WHATS_NEW_ID ? Number(s[1]) || 0 : 0;
+    } catch (e) { if (!force) return; }
+    if (!force && (seen === WHATS_NEW_ID || shown >= 3)) return;
+    try { localStorage.setItem(WN_SHOWN, WHATS_NEW_ID + ':' + (shown + 1)); } catch (e) { /* ignore */ }
+    state.fb = { solves: null };
     modal('What\'s new in Sky Team Ife', 'A few changes since you last opened the app.',
-      '<ul class="wn">' + whatsNewItems(me.role) + '</ul>',
-      (me.role === 'office'
-        ? '<button class="btn" data-act="modal-close">Later</button>'
-          + '<a class="btn btn-a" href="#/reports" data-act="modal-close">Open my report</a>'
-        : '<button class="btn" data-act="modal-close">Later</button>'
-          + '<a class="btn btn-a" href="#/issues" data-act="modal-close">See the issues</a>'));
+      '<ul class="wn">' + whatsNewItems(me.role) + '</ul>'
+      + '<div class="fb"><div class="ins-t">Does this update solve any problem for you?</div>'
+      + '<div class="row" style="gap:8px;margin-top:10px">'
+      + '<button type="button" class="btn" data-act="fb-pick" data-v="yes">Yes</button>'
+      + '<button type="button" class="btn" data-act="fb-pick" data-v="no">No</button></div>'
+      + '<div id="fb-more"></div></div>',
+      '<button class="btn" data-act="fb-skip">Don\'t ask again</button>'
+      + '<button class="btn btn-a" data-act="fb-send" disabled>Send</button>');
+  }
+  /* Registered once ACT exists — see the call just after it. */
+  function registerFeedbackActs() {
+  ACT['fb-pick'] = (el) => {
+    const yes = el.dataset.v === 'yes';
+    state.fb = { solves: yes };
+    document.querySelectorAll('[data-act="fb-pick"]').forEach(b => b.classList.toggle('btn-a', b === el));
+    $('#fb-more').innerHTML = yes
+      ? '<div class="field" style="margin-top:14px"><label for="fb-price">How much do you think an office should pay per month for the app? (₦)</label>'
+        + '<input class="input" id="fb-price" type="number" min="0" step="100" inputmode="numeric" placeholder="e.g. 3000"></div>'
+        + '<div class="field" style="margin:0"><label for="fb-features">What features would you want in it?</label>'
+        + '<textarea class="input" id="fb-features" rows="3" placeholder="Anything that would make your week easier"></textarea></div>'
+      : '<div class="field" style="margin:14px 0 0"><label for="fb-needs">What else do you need us to add?</label>'
+        + '<textarea class="input" id="fb-needs" rows="3" placeholder="Tell us what is missing"></textarea></div>';
+    const send = $('[data-act="fb-send"]'); if (send) send.disabled = false;
+    const first = $('#fb-more input, #fb-more textarea'); if (first) first.focus();
+  };
+  ACT['fb-skip'] = () => { wnDone(); closeModal(); };
+  ACT['fb-send'] = async (el) => {
+    const f = state.fb || {};
+    if (f.solves === null || f.solves === undefined) return toast('Pick Yes or No first.', 'no');
+    const price = f.solves ? val('#fb-price') : '';
+    const features = f.solves ? val('#fb-features') : '';
+    const needs = f.solves ? '' : val('#fb-needs');
+    if (f.solves && !price && !features) return toast('Tell us a price or a feature you want.', 'no');
+    if (!f.solves && !needs) return toast('Tell us what we should add.', 'no');
+    busy(el, true, 'Sending…');
+    try {
+      await A.feedback.send({ topic: WHATS_NEW_ID, solves: f.solves,
+        price_ngn: price !== '' && isFinite(Number(price)) ? Math.round(Number(price)) : null, features, needs });
+      wnDone();
+      closeModal();
+      toast('Thank you — that goes straight to the Super Admin.');
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
   }
 
   /* Last tracking month and this one, grouped by month so "Week 2" is
@@ -778,6 +823,7 @@
 
   /* ============================== ACTIONS =========================== */
   const ACT = {};
+  registerFeedbackActs();
 
   /* --- auth ------------------------------------------------------- */
   ACT['do-login'] = async (el, e) => {

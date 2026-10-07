@@ -291,6 +291,32 @@
     }
   };
 
+  /* --------------------------------------------------------- feedback */
+  /* Answers to the question in the "What's new" popup. Anyone sends
+     their own; only the Super Admin reads them. */
+  const feedback = {
+    async send(row) {
+      const me = store.me || {};
+      const res = await sb.from('feedback').insert(Object.assign({
+        user_id: me.id, name: me.full_name || me.email || '', role: me.role || '',
+        office_id: me.office_id || null, center_id: me.center_id || null
+      }, row));
+      if (res.error && /feedback|does not exist|schema cache/i.test(res.error.message || '')) {
+        throw new Error('Could not send just now — please try again later.');
+      }
+      guard(res);
+    },
+    async list() {
+      const res = await sb.from('feedback').select('*').order('created_at', { ascending: false }).limit(200);
+      if (res.error && /feedback|does not exist|schema cache/i.test(res.error.message || '')) {
+        const e = new Error('Run supabase/2026-10-feedback.sql in Supabase to start collecting answers.');
+        e.missingTable = true;
+        throw e;
+      }
+      return rows(res);
+    }
+  };
+
   /* ----------------------------------------------------------- events */
   const events = {
     async ensureWeek(week) {
@@ -548,6 +574,6 @@
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, billing, join, watch, unwatch,
-    feature, activity, goals, announce, issues
+    feature, activity, goals, announce, issues, feedback
   };
 })();

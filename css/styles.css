@@ -1159,3 +1159,6 @@ html.standalone .inst { display: none; }
 .wn li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
 .wn li:last-child { border-bottom: 0; }
 .wn .ins-t { margin-bottom: 1px; }
+/* The question under the list. */
+.fb { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.fb .field label { white-space: normal; line-height: 1.4; }
