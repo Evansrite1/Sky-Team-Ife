@@ -230,6 +230,123 @@
     };
   }
 
+  /* ------------------------------------------------- how to do better */
+  /* Read off the office's own numbers against its zone's, this month and
+     the last eight weeks — nothing invented, nothing generic. Each line
+     is a fact and the one thing to do about it, most urgent first, and
+     at most four of them so it gets read. */
+  function insights(d) {
+    const out = [];
+    const { ranked, meRank, monthReps, histReps, hist, myMonth } = d;
+    const real = histReps.filter(r => !isEstimate(r));
+    const filed = hist.filter(w => real.some(r => r.week_start === w)).length;
+    const zoneFiled = ranked.filter(r => !r.missing);
+    const zoneT = totals(monthReps);
+
+    if (filed < hist.length) {
+      out.push({ i: 'file', k: 'down', t: 'You filed ' + filed + ' of the last ' + hist.length + ' weeks.',
+        d: 'A missing week counts as nothing in the ranking. Filing every week, even a slow one, is the easiest place to gain.' });
+    }
+
+    if (meRank.rank > 1 && !meRank.missing) {
+      const above = ranked[meRank.rank - 2];
+      const gap = Math.max(0, above.amount - meRank.amount);
+      const aov = myMonth.orders ? myMonth.amount / myMonth.orders : 0;
+      const need = aov ? Math.ceil(gap / aov) : 0;
+      out.push({ i: 'crown', k: '', t: esc(above.office.name) + ' is one place above you.',
+        d: gap > 0
+          ? usd(gap) + ' more this month closes the gap' + (need ? ' — about ' + need + ' more order' + (need === 1 ? '' : 's') + ' at your usual order size.' : '.')
+          : 'You are level on money; a bigger room or more per person moves you past them.' });
+    }
+
+    const last4 = hist.slice(-4), prev4 = hist.slice(0, -4);
+    const avgOf = ws => {
+      const rs = real.filter(r => ws.indexOf(r.week_start) > -1);
+      return rs.length ? sumBy(rs, r => r.amount) / rs.length : null;
+    };
+    const a1 = avgOf(last4), a0 = avgOf(prev4);
+    if (a1 !== null && a0) {
+      const pct = Math.round(100 * (a1 - a0) / a0);
+      const best = real.slice().sort((x, y) => y.amount - x.amount)[0];
+      if (pct >= 5) {
+        out.push({ i: 'trend', k: 'up', t: 'Up ' + pct + '% on the four weeks before.',
+          d: 'Whatever changed is working. Keep the same training days and the same products in front.' });
+      } else if (pct <= -5) {
+        out.push({ i: 'trend', k: 'down', t: 'Down ' + Math.abs(pct) + '% on the four weeks before.',
+          d: best ? 'Your best recent week was ' + esc(U.weekRange(best.week_start)) + ' at ' + usd(best.amount)
+            + ((best.niches || []).length ? ', selling ' + esc(best.niches.slice(0, 3).join(', ')) : '') + '. Go back to what you did that week.' : '' });
+      }
+    }
+
+    const mineNiches = {};
+    real.concat(monthReps.filter(r => r.office_id === d.off.id))
+      .forEach(r => (r.niches || []).forEach(n => { mineNiches[String(n).toLowerCase()] = 1; }));
+    const hot = nicheTally(monthReps.filter(r => r.office_id !== d.off.id))
+      .filter(n => !mineNiches[n[0].toLowerCase()]).slice(0, 3).map(n => n[0]);
+    if (hot.length) {
+      out.push({ i: 'star', k: '', t: 'Selling in your zone, not in your office: ' + esc(hot.join(', ')) + '.',
+        d: 'Other offices are getting orders from these this month. Ask them at the evaluation what is working.' });
+    }
+
+    if (myMonth.orders && zoneT.orders) {
+      const mine = myMonth.amount / myMonth.orders, zone = zoneT.amount / zoneT.orders;
+      if (mine < zone * 0.9) {
+        out.push({ i: 'cash', k: 'down', t: 'Your average order is ' + usd(mine) + '; the zone\'s is ' + usd(zone) + '.',
+          d: 'Same number of orders at the zone\'s size would add ' + usd((zone - mine) * myMonth.orders) + '. Lead with bigger packages.' });
+      } else if (mine > zone * 1.1) {
+        out.push({ i: 'cash', k: 'up', t: 'Your orders are worth more than the zone average (' + usd(mine) + ' vs ' + usd(zone) + ').',
+          d: 'More orders at this size is your fastest way up — every extra one counts for more than anyone else\'s.' });
+      }
+    }
+
+    if (meRank.pros && zoneFiled.length > 1) {
+      const zonePer = sumBy(zoneFiled, r => r.amount) / (sumBy(zoneFiled, r => r.pros) || 1);
+      if (meRank.perPro < zonePer * 0.85) {
+        out.push({ i: 'users', k: 'down', t: 'Each of your pros brings in ' + usd(meRank.perPro) + '; the zone average is ' + usd(zonePer) + '.',
+          d: 'Pair the ones who are not selling with your best seller this week, and get them to Friday\'s training.' });
+      }
+    }
+
+    if (zoneFiled.length > 1 && !meRank.missing) {
+      const zonePeople = sumBy(zoneFiled, r => r.people) / zoneFiled.length;
+      if (meRank.people < zonePeople * 0.85) {
+        out.push({ i: 'users', k: '', t: 'Your room is ' + meRank.people + ' people; the zone average is ' + Math.round(zonePeople) + '.',
+          d: 'Room size is almost a third of the ranking. Bring prospects to the Friday training.' });
+      }
+    }
+
+    const recentNew = sumBy(real.filter(r => last4.indexOf(r.week_start) > -1), r => r.num_newbies);
+    if (real.length >= 2 && recentNew === 0) {
+      out.push({ i: 'plus', k: '', t: 'No newbies in the last four weeks.',
+        d: 'New people are how a room grows. Aim for one new person a week.' });
+    }
+    return out.slice(0, 4);
+  }
+
+  function insightsCard(d) {
+    const list = insights(d);
+    return '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+      + '<div class="card-t">How to do better</div>'
+      + '<div class="card-s">From your own numbers against your zone\'s — ' + esc(U.monthLabel(U.currentMonthNo())) + '.</div></div></div>'
+      + (list.length ? list.map(x => '<div class="ins"><div class="ins-i ' + x.k + '">' + ico(x.i, 16) + '</div>'
+        + '<div><div class="ins-t">' + x.t + '</div><div class="ins-d">' + x.d + '</div></div></div>').join('')
+        : empty('trend', 'Nothing to flag', 'File a few weeks and this fills with what to work on.'))
+      + '</div>';
+  }
+
+  /* The newest answers the Directors have given this office. */
+  function solutionsCard(sols) {
+    if (!sols || !sols.length) return '';
+    const latest = sols.slice().sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1)).slice(0, 3);
+    return '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
+      + '<div class="card-t">Solutions from your Directors</div>'
+      + '<div class="card-s">Answers to the issues you raised. All of them are on the report for that week.</div></div></div>'
+      + latest.map(s => '<div class="iss"><div class="iss-h"><span class="iss-n">!</span><div class="iss-t">' + esc(s.issue)
+        + '<div class="sub">' + esc(U.weekName(s.week_start) + ' · ' + U.weekRange(s.week_start)) + '</div></div></div>'
+        + '<div class="iss-sol">' + ico('check', 13) + '<div><b>' + esc(s.solved_by_name || 'Directors') + ':</b> ' + esc(s.solution) + '</div></div></div>').join('')
+      + '</div>';
+  }
+
   async function officeDash() {
     const me = A.store.me, off = me.office, ws = S().week;
     const prev = U.iso(U.addDays(ws, -7));
@@ -240,14 +357,15 @@
        how to add several weeks of reports together. */
     const mn = U.currentMonthNo();
     const monthWeeks = U.weeksOfMonth(mn).filter(U.weekStarted);
-    const [mine, prevMine, monthReps, histReps, dists, evs, goal] = await Promise.all([
+    const [mine, prevMine, monthReps, histReps, dists, evs, goal, sols] = await Promise.all([
       A.reports.get(off.id, ws),
       A.reports.get(off.id, prev),
       A.reports.list({ weeks: monthWeeks, center: off.center_id }),
       A.reports.list({ weeks: hist, office: off.id }),
       A.distributors.list({ office: off.id }),
       A.events.list({ week: ws, center: off.center_id }),
-      A.feature('goals') ? A.goals.get(off.id, mn) : null
+      A.feature('goals') ? A.goals.get(off.id, mn) : null,
+      A.issues.solutions({ office: off.id }).catch(() => [])
     ]);
     const myMonth = totals(monthReps.filter(r => r.office_id === off.id));
     const ranked = rankOffices(monthReps, A.officesOf(off.center_id).filter(o => o.active));
@@ -293,24 +411,22 @@
             + '<a href="' + link('subscriptions') + '" style="text-decoration:underline;font-weight:600">See the plans</a>.')
             + '<div style="height:18px"></div>';
         })())
-        + note('gold', 'star', '<b>New features are rolling out soon</b> — email notifications and a monthly '
-          + 'summary sent straight to your inbox, among others.') + '<div style="height:18px"></div>'
-        /* Last week first: it is the one about to be locked, and a late
-           joiner would otherwise never learn they could still file it. */
+        /* One reminder, not a stack of them: whatever is still to file,
+           last week first since it is the older of the two. */
         + ((() => {
           const lastWk = U.iso(U.addDays(U.weekStart(), -7));
-          if (prevMine || ws !== U.weekStart()) return '';
-          return note('warn', 'alert',
-            '<b>Last week is missing.</b> ' + esc(U.weekRange(lastWk))
-            + ' has no report. You can still file it, and any week of last month too. '
-            + '<a href="#" data-act="go-week" data-v="' + lastWk
-            + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
+          const todo = [];
+          if (!prevMine && ws === U.weekStart()) {
+            todo.push('<a href="#" data-act="go-week" data-v="' + lastWk + '" style="text-decoration:underline;font-weight:600">'
+              + 'last week (' + esc(U.weekRange(lastWk)) + ')</a>');
+          }
+          if (!mine && !U.weekClosed(ws)) {
+            todo.push('<a href="' + link('reports') + '" style="text-decoration:underline;font-weight:600">this week</a>');
+          }
+          if (!todo.length) return '';
+          return note('gold', 'alert', '<b>Still to file:</b> ' + todo.join(' and ') + '.')
             + '<div style="height:18px"></div>';
         })())
-        + (!mine && !U.weekClosed(ws) ? note('gold', 'alert',
-          '<b>Your ' + esc(U.weekName(ws)) + ' report is not in.</b> ' + evalLine(ws)
-          + ' <a href="' + link('reports') + '" style="text-decoration:underline;font-weight:600">Fill it now</a>.')
-          + '<div style="height:18px"></div>' : '')
         /* The room, against the names on file. A distributor with no
            record cannot scan in, so a gap here is a gap in attendance. */
         + ((() => {
@@ -339,6 +455,9 @@
               : kpi('To be #1', usd(amountGap) + ' more',
                 orderGap + ' more order' + (orderGap === 1 ? '' : 's') + ' than now', 'star'))
         + '</div>'
+
+        + insightsCard({ off, ranked, meRank, monthReps, histReps, hist, myMonth })
+        + solutionsCard(sols)
 
         + '<div class="grid g-2-1" style="margin-top:18px">'
         + '<div class="card"><div class="card-h"><div><div class="card-t">Your amount by week</div>'
@@ -387,6 +506,75 @@
             + '<div class="num nm">' + a + '</div></div>';
         }).join('') : empty('qr', 'No sessions this week', 'Trainings appear here once the week opens.'))
         + '</div></div></div>'
+    };
+  }
+
+  /* ===================================================================
+     ISSUES & SOLUTIONS  (Super Admin, Directors)
+     Every issue an office raised this month, one card each, with a box
+     for the solution. The office sees the answer under its own issue.
+     =================================================================== */
+  async function issuesBoard() {
+    const key = S().month || U.currentMonthNo();
+    const weeks = U.weeksOfMonth(key).filter(U.weekStarted);
+    const zone = S().issueZone || '';
+    const show = S().issueShow || 'open';
+    if (!weeks.length) return { title: 'Issues & solutions', picker: 'month', html: empty('alert', 'Nothing for this month', 'Pick another month.') };
+
+    const reps = await A.reports.list(zone ? { weeks, center: zone } : { weeks });
+    let sols = [], missing = '';
+    try { sols = reps.length ? await A.issues.solutions({ weeks }) : []; }
+    catch (e) { if (e.missingTable) missing = e.message; else throw e; }
+
+    const all = [];
+    reps.forEach(r => {
+      if (isEstimate(r)) return;
+      A.issues.split(r.issues).forEach(t => all.push({
+        r, t, s: sols.find(x => x.report_id === r.id && x.issue === t) || null,
+        name: ((A.officeById(r.office_id) || {}).name || '—')
+      }));
+    });
+    all.sort((a, b) => (a.r.week_start < b.r.week_start ? 1 : a.r.week_start > b.r.week_start ? -1 : a.name.localeCompare(b.name)));
+    const open = all.filter(x => !x.s), solved = all.filter(x => x.s);
+    const list = show === 'open' ? open : show === 'solved' ? solved : all;
+    S().issueRows = list;
+
+    const seg = [['open', 'Need a solution', open.length], ['solved', 'Solved', solved.length], ['all', 'All', all.length]]
+      .map(o => '<button class="' + (show === o[0] ? 'on' : '') + '" data-act="issue-show" data-v="' + o[0] + '">'
+        + o[1] + ' · ' + o[2] + '</button>').join('');
+    const zonePick = '<select class="select" data-act="issue-zone" style="max-width:230px">'
+      + '<option value="">All zones</option>'
+      + A.store.centers.map(c => '<option value="' + c.id + '"' + (c.id === zone ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('')
+      + '</select>';
+
+    return {
+      title: 'Issues & solutions', picker: 'month', crumbs: esc(U.monthLabel(key)),
+      html: (missing ? note('warn', 'alert', '<b>' + esc(missing) + '</b> Until then the issues show, but solutions cannot be saved.')
+        + '<div style="height:16px"></div>' : '')
+        + '<div class="grid g3">'
+        + kpi('Issues raised', all.length, esc(U.monthLabel(key)), 'alert')
+        + kpi('Need a solution', open.length, open.length ? 'Answer them below' : 'All answered', 'clock', open.length ? 'kpi-dark' : '')
+        + kpi('Solved', solved.length, all.length ? Math.round(100 * solved.length / all.length) + '% answered' : '', 'check', 'kpi-blue')
+        + '</div>'
+        + '<div class="row" style="margin:18px 0 12px;gap:10px;flex-wrap:wrap;justify-content:space-between">'
+        + '<div class="seg">' + seg + '</div>' + zonePick + '</div>'
+        + (list.length ? list.map((x, i) =>
+          '<div class="card iss-card" id="iss-card-' + i + '"><div class="card-h"><div>'
+          + '<div class="card-t">' + esc(x.name) + '</div>'
+          + '<div class="card-s">' + esc(((A.centerById(x.r.center_id) || {}).name || '') + ' · Week ' + U.weekOfMonth(x.r.week_start)
+            + ' · ' + U.weekRange(x.r.week_start)) + '</div></div>'
+          + '<div class="card-a" id="iss-tag-' + i + '">' + (x.s ? tag('Solved', 't-ok') : tag('Needs a solution', 't-warn')) + '</div></div>'
+          + '<div class="iss-q">' + esc(x.t) + '</div>'
+          + '<div class="field" style="margin:12px 0 0"><label for="sol-' + i + '">Solution</label>'
+          + '<textarea class="input" id="sol-' + i + '" rows="2" placeholder="What should this office do about it?">'
+          + esc(x.s ? x.s.solution : '') + '</textarea>'
+          + (x.s && x.s.solved_by_name ? '<div class="hint">Last answered by ' + esc(x.s.solved_by_name) + ' · ' + esc(U.timeAgo(x.s.updated_at)) + '</div>' : '')
+          + '</div>'
+          + '<div class="row" style="justify-content:flex-end;margin-top:10px">'
+          + '<button class="btn btn-sm btn-a" data-act="issue-solve" data-i="' + i + '"' + (missing ? ' disabled' : '') + '>'
+          + ico('check', 14) + (x.s ? 'Update solution' : 'Save solution') + '</button></div></div>').join('')
+          : '<div class="card">' + empty('check', show === 'open' ? 'Nothing waiting' : 'Nothing here',
+            show === 'open' ? 'Every issue raised this month has a solution.' : 'No issues for this filter.') + '</div>')
     };
   }
 
@@ -455,7 +643,7 @@
               + rep.num_distributors + ' dist · ' + rep.num_senior_managers + ' SM · ' + rep.num_newbies + ' new</div></td>'
               + '<td>' + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">—</span>') + '</td>'
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
-              + '<td style="max-width:260px;white-space:normal">' + esc(rep.issues || '—') + '</td></tr>';
+              + '<td style="max-width:260px;white-space:pre-line">' + esc(rep.issues || '—') + '</td></tr>';
           }),
           { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here once they sign up and you approve them.') })
         + '</div>'
@@ -876,7 +1064,7 @@
               + '<td class="num nm">' + usdFull(r.amount) + '</td>'
               + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '—') + '</td>'
               + '<td>' + ((r.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '—') + '</td>'
-              + '<td style="max-width:280px;white-space:normal">' + esc(r.issues || '—') + '</td>'
+              + '<td style="max-width:280px;white-space:pre-line">' + esc(r.issues || '—') + '</td>'
               + '<td class="sub">' + esc(U.timeAgo(r.submitted_at)) + '</td></tr>';
           }),
           { empty: empty('file', 'Nothing filed for this week', 'Offices file one report a week, before the Wednesday evaluation.') })
@@ -886,16 +1074,19 @@
 
   async function officeReports() {
     const off = A.store.me.office, ws = S().week;
-    /* Three independent queries, so all three go at once. */
-    const [mine, all, dists] = await Promise.all([
+    /* Independent queries, so all of them go at once. */
+    const [mine, all, dists, sols] = await Promise.all([
       A.reports.get(off.id, ws),
       A.reports.list({ office: off.id }),
-      A.distributors.list({ office: off.id })
+      A.distributors.list({ office: off.id }),
+      A.issues.solutions({ office: off.id }).catch(() => [])
     ]);
     const f = S().form || {};
     const niches = f.niches || (mine ? (mine.niches || []).slice() : []);
     const newNiches = f.newNiches || (mine ? (mine.new_niches || []).slice() : []);
-    S().form = { niches, newNiches };
+    const issueItems = f.issues || (mine && !isEstimate(mine) ? A.issues.split(mine.issues) : []);
+    S().form = { niches, newNiches, issues: issueItems };
+    S().issueSols = mine ? sols.filter(s => s.report_id === mine.id) : [];
 
     const closed = U.weekClosed(ws);
     /* Every week of last tracking month and this one. Anything older is
@@ -970,9 +1161,15 @@
         + '<div class="row" style="margin-top:8px"><input class="input" id="new-niche-input" placeholder="A product sold for the first time" style="max-width:280px">'
         + '<button type="button" class="btn btn-sm" data-act="new-niche-add">' + ico('plus', 14) + 'Mark as new</button></div></div>'
 
-        + '<div class="field"><label for="f-issues">What slowed you down this week?</label>'
-        + '<textarea class="input" id="f-issues" placeholder="Anything the zone should hear at the evaluation. Write “No major blockers” if the week ran clean.">'
-        + esc(mine && !isEstimate(mine) ? mine.issues : '') + '</textarea></div>'
+        /* One issue at a time, so each one can get its own answer from
+           the Directors rather than a paragraph nobody replies to. */
+        + '<div class="field"><label for="issue-input">What slowed you down this week?</label>'
+        + '<div id="issue-list">' + issueList(issueItems, S().issueSols, openToFile) + '</div>'
+        + (openToFile ? '<div class="row" style="margin-top:8px;gap:8px">'
+          + '<input class="input" id="issue-input" placeholder="One issue — then press Enter or Add" style="flex:1;min-width:0" autocomplete="off">'
+          + '<button type="button" class="btn btn-sm" data-act="issue-add">' + ico('plus', 14) + 'Add</button></div>'
+          + '<div class="hint">Add each issue on its own. The Directors answer them one by one, and their solution shows up right here under the issue. Leave it empty if the week ran clean.</div>' : '')
+        + '</div>'
 
         + (openToFile
           ? '<div class="row" style="justify-content:flex-end">'
@@ -1001,6 +1198,23 @@
           { empty: empty('file', 'Nothing filed yet', 'Your first report is the one above.') })
         + '</div>'
     };
+  }
+
+  /* The office's issues, numbered, each with the Directors' answer under
+     it once there is one. Editable only while the week is open. */
+  function issueList(items, sols, editable) {
+    if (!items.length) return '<div class="sub" style="padding:4px 0">No issues added.</div>';
+    return items.map((t, i) => {
+      const s = (sols || []).find(x => x.issue === t);
+      return '<div class="iss">'
+        + '<div class="iss-h"><span class="iss-n">' + (i + 1) + '</span><div class="iss-t">' + esc(t) + '</div>'
+        + (editable ? '<button type="button" class="iss-x" data-act="issue-del" data-v="' + i + '" aria-label="Remove">' + ico('x', 13) + '</button>' : '')
+        + '</div>'
+        + (s ? '<div class="iss-sol">' + ico('check', 13) + '<div><b>Solution' + (s.solved_by_name ? ' from ' + esc(s.solved_by_name) : '') + ':</b> '
+          + esc(s.solution) + '</div></div>'
+          : '<div class="iss-wait">Waiting for a solution from the Directors</div>')
+        + '</div>';
+    }).join('');
   }
 
   /* A week the Super Admin filled in with an estimate (supabase/
@@ -1082,7 +1296,8 @@
     if (!e) return { title: 'Session', html: empty('qr', 'Session not found', 'It may have been removed.') };
     const c = A.centerById(e.center_id) || {};
     const [scans, dists] = await Promise.all([
-      A.scans.forEvent(id), A.distributors.list({ center: e.center_id })
+      A.scans.forEvent(id), A.distributors.list({ center: e.center_id }),
+      U.loadQr().catch(() => null)      // qrSvg below falls back on its own
     ]);
     const eligible = dists.filter(d => e.elig === 'sm' ? SM_PLUS.includes(d.status) : true);
     const acc = scans.filter(s => s.status === 'accepted');
@@ -1644,11 +1859,11 @@
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
     dashboard: () => A.isOffice() ? officeDash() : adminDash(),
-    evaluation, monthly, centers, offices, rankings, niches,
+    evaluation, monthly, centers, offices, rankings, niches, issues: issuesBoard,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),
     distributors, center: myCenter, subscriptions, admin: adminPanel, account, activityLog,
-    helpers: { rankOffices, totals, nicheTally, nicheChips, statusTag, STATUSES, SM_PLUS, LEADER, peopleIn }
+    helpers: { rankOffices, totals, nicheTally, nicheChips, issueList, statusTag, STATUSES, SM_PLUS, LEADER, peopleIn }
   };
 })();

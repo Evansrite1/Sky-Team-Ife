@@ -19,7 +19,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath fill='%232f6bff' fill-rule='evenodd' d='M110 12H34a24 24 0 0 0 0 48h76ZM10 60h76a24 24 0 0 1 0 48H10ZM60 33q2 21 17 27-15 6-17 27-2-21-17-27 15-6 17-27Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <!-- Rolls this visit's colour and corners before the stylesheet paints
      anything, so the look is settled by the first frame. -->
 <script src="js/look.js"></script>
@@ -30,12 +30,14 @@
 <div id="modal"></div>
 <div class="toasts" id="toasts"></div>
 
-<script src="config.js"></script>
-<script src="js/vendor/supabase.js"></script>
-<script src="js/vendor/qrcode.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/api.js"></script>
-<script src="js/views.js"></script>
-<script src="js/app.js"></script>
+<!-- defer: downloaded in parallel while the page parses, run in this
+     order once it has. The QR library is not here — ui.js fetches it the
+     first time a page needs a code. -->
+<script defer src="config.js"></script>
+<script defer src="js/vendor/supabase.js"></script>
+<script defer src="js/ui.js"></script>
+<script defer src="js/api.js"></script>
+<script defer src="js/views.js"></script>
+<script defer src="js/app.js"></script>
 </body>
 </html>

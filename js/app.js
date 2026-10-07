@@ -24,7 +24,8 @@
     tour: -1,            // walkthrough step, -1 when it is not running
     ranks: null          // the Director's rail standing, cached per week
   };
-  window.APP = { state, go, refresh };
+  /* whatsNew(true) shows the update popup again on demand. */
+  window.APP = { state, go, refresh, whatsNew: (force) => maybeWhatsNew(force) };
 
   /* ------------------------------------------------------------- nav */
   /* Five places you go every week, and everything else folded away.
@@ -36,6 +37,7 @@
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
+        { p: 'issues', l: 'Issues & solutions', i: 'alert' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'admin', l: 'Approvals & zones', i: 'shield', alertC: () => A.store.waiting || '' }
       ],
@@ -61,6 +63,7 @@
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
+        { p: 'issues', l: 'Issues & solutions', i: 'alert' },
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'niches', l: 'Niches', i: 'star' },
@@ -91,7 +94,7 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports', 'niches'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
       'subscriptions', 'account', 'offices', 'monthly', 'niches']
   };
@@ -328,19 +331,56 @@
 
   function maybeStartTour() {
     const me = A.store.me;
-    if (!me || !TOUR[me.role]) return;
+    if (!me || !TOUR[me.role]) return false;
     let seen = false;
     try { seen = localStorage.getItem('sti-tour-' + me.id) === '1'; } catch (e) { /* ignore */ }
-    if (seen) return;
+    if (seen) return false;
     state.tour = 0;
     paintTour();
+    return true;
   }
 
-  /* Every week that has opened in the picked week's own month, at most
-     four of them — same scope the button row used, just a dropdown
-     instead of the row of pills. The currently open one says so right
-     in its label, since a select can't carry the little dot the
-     buttons could. */
+  /* ----------------------------------------------------- what's new */
+  /* Shown once per update, the first time each person opens the app
+     after it. Bump WHATS_NEW_ID with the next update worth announcing.
+     Someone brand new gets the walkthrough instead, never both. */
+  const WHATS_NEW_ID = '2026-10-issues';
+  const WN_KEY = 'sti-whatsnew';
+  const whatsNewItems = (role) => {
+    const item = (i, t, d) => '<li><div class="ins-i">' + ico(i, 16) + '</div><div><div class="ins-t">' + t + '</div>'
+      + '<div class="ins-d">' + d + '</div></div></li>';
+    const common = item('trend', 'Faster to open', 'The app now loads its data all at once instead of one piece at a time.');
+    if (role === 'office') {
+      return item('alert', 'Issues, one by one', 'On your weekly report, add each thing that slowed you down on its own. '
+        + 'The Directors answer every one, and their solution shows up right under your issue.')
+        + item('star', 'How to do better', 'Your dashboard now shows what your own numbers say to work on — '
+          + 'the office just above you, your trend, what is selling in your zone, and more.')
+        + item('calendar', 'Last month is open again', 'Pick any week of last month or this month from the Week menu and file or fix it.')
+        + item('cash', 'The app is free', 'No payment, no trial countdown. Everything is open to every office.')
+        + common;
+    }
+    return item('alert', 'Issues & solutions', 'A new page in the menu lists every issue offices raised this month, one card each. '
+      + 'Write a solution and the office sees it under its own issue.')
+      + item('star', 'Insights for offices', 'Each office\'s dashboard now tells it what to work on, from its own numbers against its zone.')
+      + item('calendar', 'Last month is open again', 'Offices can file or fix any week of last month or this month.')
+      + common;
+  };
+  function maybeWhatsNew(force) {
+    const me = A.store.me;
+    if (!me || me.role === 'pending') return;
+    let seen = '';
+    try { seen = localStorage.getItem(WN_KEY) || ''; } catch (e) { if (!force) return; }
+    if (seen === WHATS_NEW_ID && !force) return;
+    try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ }
+    modal('What\'s new in Sky Team Ife', 'A few changes since you last opened the app.',
+      '<ul class="wn">' + whatsNewItems(me.role) + '</ul>',
+      (me.role === 'office'
+        ? '<button class="btn" data-act="modal-close">Later</button>'
+          + '<a class="btn btn-a" href="#/reports" data-act="modal-close">Open my report</a>'
+        : '<button class="btn" data-act="modal-close">Later</button>'
+          + '<a class="btn btn-a" href="#/issues" data-act="modal-close">See the issues</a>'));
+  }
+
   /* Last tracking month and this one, grouped by month so "Week 2" is
      never ambiguous — plus the picked week's own month if it is older
      than that, so a week opened from history still shows as selected. */
@@ -499,6 +539,9 @@
        that should not have to wait for Thursday to be pointed out. */
     const worthAsking = short || !named || isNudgeDay;
     if (!worthAsking) return;
+    /* Never on top of another popup — the update notice, or anything
+       the office has opened itself while this was loading. Tomorrow. */
+    if ($('#modal') && $('#modal').innerHTML) return;
 
     try { localStorage.setItem(key, today); } catch (e) { /* ignore */ }
 
@@ -908,8 +951,9 @@
       .then(() => toast('Link copied.'))
       .catch(() => toast('Could not copy. Select the link instead.', 'no'));
   };
-  ACT['qr-download'] = (el) => {
+  ACT['qr-download'] = async (el) => {
     const d = el.dataset;
+    try { await U.loadQr(); } catch (err) { return toast(err.message, 'no'); }
     U.downloadQrPoster({
       brand: brand(),
       url: d.url,
@@ -1147,6 +1191,43 @@
       + '<button type="button" data-act="new-niche-del" data-v="' + esc(n) + '">' + ico('x', 12) + '</button></span>').join('')
       : '<span class="sub">None marked.</span>';
   };
+  /* Issues, one at a time. Whatever is still sitting in the box when the
+     report is filed counts too — nobody should lose an issue for not
+     pressing Add. */
+  const paintIssues = () => {
+    const box = $('#issue-list');
+    if (box) box.innerHTML = V.helpers.issueList(state.form.issues || [], state.issueSols || [], true);
+  };
+  ACT['issue-add'] = () => {
+    const inp = $('#issue-input');
+    const v = inp ? inp.value.trim() : '';
+    if (!v) return;
+    state.form.issues = state.form.issues || [];
+    if (state.form.issues.indexOf(v) < 0) state.form.issues.push(v);
+    inp.value = ''; inp.focus();
+    paintIssues();
+  };
+  ACT['issue-show'] = (el) => { state.issueShow = el.dataset.v; route(); };
+  ACT['issue-solve'] = async (el) => {
+    const i = Number(el.dataset.i);
+    const row = (state.issueRows || [])[i];
+    if (!row) return;
+    const text = val('#sol-' + i);
+    busy(el, true, 'Saving…');
+    try {
+      row.s = await A.issues.solve(row.r, row.t, text);
+      busy(el, false);
+      el.innerHTML = ico('check', 14) + (row.s ? 'Update solution' : 'Save solution');
+      const t = $('#iss-tag-' + i);
+      if (t) t.innerHTML = row.s ? U.tag('Solved', 't-ok') : U.tag('Needs a solution', 't-warn');
+      toast(row.s ? 'Solution saved. The office sees it under its issue.' : 'Solution removed.');
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['issue-del'] = (el) => {
+    (state.form.issues || []).splice(Number(el.dataset.v), 1);
+    paintIssues();
+  };
+
   ACT['new-niche-add'] = async () => {
     const v = val('#new-niche-input');
     if (!v) return;
@@ -1224,7 +1305,7 @@
            were built on office_size, keep meaning the same thing. */
         office_size: Number(val('#f-dist')) || 0,
         total_office: (Number(val('#f-dist')) || 0) + (Number(val('#f-sm')) || 0),
-        issues: val('#f-issues'),
+        issues: A.issues.join((state.form.issues || []).concat(val('#issue-input') ? [val('#issue-input')] : [])),
         submitted_by: A.store.me.id,
         submitted_at: new Date().toISOString()
       });
@@ -1482,7 +1563,7 @@
         ? '<div class="field"><label>Sold for the first time</label><div class="chips">'
         + rep.new_niches.map(n => tag(n, 't-dark')).join(' ') + '</div></div>' : '')
       + '<div class="field"><label>What slowed them down</label>'
-      + '<p style="font-size:14px;line-height:1.6;color:var(--muted);margin:0">' + esc(rep.issues || '—') + '</p></div>',
+      + '<p style="font-size:14px;line-height:1.6;white-space:pre-line;color:var(--muted);margin:0">' + esc(rep.issues || '—') + '</p></div>',
       '<button class="btn btn-g" data-act="modal-close">Close</button>');
   };
 
@@ -1533,6 +1614,7 @@
     if (!el) return;
     if (el.dataset.act === 'month') { state.month = Number(el.value); route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
+    if (el.dataset.act === 'issue-zone') { state.issueZone = el.value; route(); }
     if (el.dataset.act === 'dist-csv-file') ACT['dist-csv-file'](el);
     if (el.dataset.act === 'week-pick') { state.week = el.value; state.month = U.trackingMonthNo(el.value); route(); }
     if (el.dataset.act === 'evalweek-pick') { state.evalWeek = el.value; route(); }
@@ -1594,6 +1676,7 @@
        the catalogue case-insensitively. See commitNicheInput. */
     if (t.id === 'niche-input') { e.preventDefault(); commitNicheInput(); return; }
     if (t.id === 'new-niche-input') { e.preventDefault(); ACT['new-niche-add'](); return; }
+    if (t.id === 'issue-input') { e.preventDefault(); ACT['issue-add'](); return; }
 
     /* The weekly report is long and easy to send by accident. Enter never
        files it — the button is the only way. */
@@ -1691,7 +1774,10 @@
       if (!silent) await route();
       /* After the first page is on screen, so the walkthrough has the
          sidebar behind it to point at. */
-      if (me && me.role !== 'pending') maybeStartTour();
+      if (me && me.role !== 'pending') {
+        if (maybeStartTour()) { try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ } }
+        else maybeWhatsNew();
+      }
     } catch (err) {
       state.booted = true;
       console.error(err);

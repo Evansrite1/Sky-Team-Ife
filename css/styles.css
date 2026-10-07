@@ -1123,3 +1123,39 @@ html.standalone .inst { display: none; }
     padding-bottom: calc(20px + var(--safe-b, 0px));
   }
 }
+
+/* ---------------------------------------------------------------------
+   Issues, one by one — the office's list and the Directors' answers.
+   --------------------------------------------------------------------- */
+.iss { border: 1px solid var(--hair); border-radius: var(--r-sm); background: var(--surface); padding: 10px 12px; margin-bottom: 8px; }
+.iss-h { display: flex; align-items: flex-start; gap: 10px; }
+.iss-n { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--blue-tint); color: var(--blue-soft); font-size: 12px; font-weight: 700; }
+.iss-t { flex: 1; min-width: 0; font-size: 14px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.iss-x { flex: none; border: 0; background: transparent; color: var(--faint); cursor: pointer; padding: 2px; display: grid; place-items: center; }
+.iss-x:hover { color: var(--ink); }
+.iss-sol { display: flex; gap: 8px; margin: 9px 0 0 32px; padding: 9px 11px; border-radius: var(--r-sm);
+  background: var(--ok-bg); color: var(--ink); font-size: 13.5px; line-height: 1.5; }
+.iss-sol svg { flex: none; margin-top: 3px; color: var(--ok); }
+.iss-wait { margin: 6px 0 0 32px; font-size: 12.5px; color: var(--faint); }
+.iss-q { font-size: 15px; line-height: 1.55; color: var(--ink); padding: 11px 13px; border-left: 3px solid var(--warn);
+  background: var(--surface); border-radius: 0 var(--r-sm) var(--r-sm) 0; overflow-wrap: anywhere; }
+.iss-card { margin-bottom: 14px; }
+
+/* ---------------------------------------------------------------------
+   How to do better — insights from the office's own numbers.
+   --------------------------------------------------------------------- */
+.ins { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+.ins:last-child { border-bottom: 0; padding-bottom: 2px; }
+.ins-i { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--blue-tint); color: var(--blue-soft); }
+.ins-i.up { background: var(--ok-bg); color: var(--ok); }
+.ins-i.down { background: rgba(243,194,107,.14); color: var(--warn); }
+.ins-t { font-weight: 600; font-size: 14px; color: var(--ink); line-height: 1.4; }
+.ins-d { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+
+/* What's new — the one-time popup after an update. */
+.wn { margin: 0; padding: 0; list-style: none; }
+.wn li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
+.wn li:last-child { border-bottom: 0; }
+.wn .ins-t { margin-bottom: 1px; }

@@ -94,12 +94,14 @@
     /* Stamps last_seen, at most once every five minutes. Fire and
        forget: a failure here must never block signing in. */
     sb.rpc('touch_last_seen').then(() => {}, () => {});
-    if (p.office_id) {
-      store.me.office = guard(await sb.from('offices').select('*').eq('id', p.office_id).maybeSingle());
-    }
-    if (p.center_id) {
-      store.me.center = guard(await sb.from('centers').select('*').eq('id', p.center_id).maybeSingle());
-    }
+    /* Side by side, not one after the other: every round trip here is
+       time the first page spends as a spinner. */
+    const [off, cen] = await Promise.all([
+      p.office_id ? sb.from('offices').select('*').eq('id', p.office_id).maybeSingle() : null,
+      p.center_id ? sb.from('centers').select('*').eq('id', p.center_id).maybeSingle() : null
+    ]);
+    if (off) store.me.office = guard(off);
+    if (cen) store.me.center = guard(cen);
     return store.me;
   }
 
@@ -109,11 +111,22 @@
 
   /* ------------------------------------------------------- lookup sets */
   async function loadLookups() {
-    const [c, o, n, s] = await Promise.all([
+    /* Everything this boot needs goes out in one wave. The subscription
+       is only asked for while billing is on — while the app is free it
+       cannot lock anyone, so there is nothing to ask. */
+    const wantSub = isOffice() && CFG.billingEnabled;
+    const [c, o, n, s, sub, w, l] = await Promise.all([
       sb.from('centers').select('*').order('name'),
       sb.from('offices').select('*').order('name'),
       sb.from('niches').select('*').order('name'),
-      sb.from('app_settings').select('*')
+      sb.from('app_settings').select('*'),
+      wantSub ? billing.mine().catch(() => null) : null,
+      isSuper()
+        ? sb.from('profiles').select('id', { count: 'exact', head: true }).eq('req_status', 'pending')
+        : { count: 0 },
+      isAdmin()
+        ? sb.from('profiles').select('id', { count: 'exact', head: true }).in('role', ['super_admin', 'platform_admin'])
+        : { count: 0 }
     ]);
     store.centers = rows(c);
     store.offices = rows(o);
@@ -123,28 +136,13 @@
 
     /* Is this office locked out? Worked out once per boot so the router
        does not have to ask on every page change. */
-    store.sub = null;
-    store.locked = false;
-    if (isOffice()) {
-      store.sub = await billing.mine().catch(() => null);
-      store.locked = billing.locked(store.sub);
-    }
+    store.sub = sub || null;
+    store.locked = isOffice() ? billing.locked(store.sub) : false;
 
     /* Counts the sidebar carries, so an admin can see the totals and the
        approval queue without opening anything. */
-    store.waiting = 0;
-    store.leaders = 0;
-    if (isAdmin()) {
-      const [w, l] = await Promise.all([
-        isSuper()
-          ? sb.from('profiles').select('id', { count: 'exact', head: true }).eq('req_status', 'pending')
-          : Promise.resolve({ count: 0 }),
-        sb.from('profiles').select('id', { count: 'exact', head: true })
-          .in('role', ['super_admin', 'platform_admin'])
-      ]);
-      store.waiting = w.count || 0;
-      store.leaders = l.count || 0;
-    }
+    store.waiting = w.count || 0;
+    store.leaders = l.count || 0;
     return store;
   }
 
@@ -243,6 +241,54 @@
         .upsert(row, { onConflict: 'office_id,week_start' }).select().single());
     },
     async remove(id) { guard(await sb.from('reports').delete().eq('id', id)); }
+  };
+
+  /* ----------------------------------------------------------- issues */
+  /* An office lists what slowed it down one issue at a time; they are
+     kept in reports.issues one per line, so an old free-text report
+     still reads as a single issue. A Director or Super Admin answers
+     each one, and that answer lives in issue_solutions, matched to its
+     issue by the report and the issue's own words. */
+  const NO_ISSUE = /^(none|nil|no( major)? (blockers?|issues?|problems?)|n\/a)\.?$/i;
+  const issues = {
+    split(text) {
+      const t = String(text || '');
+      if (t.indexOf('Estimated by admin') === 0) return [];
+      return t.split(/\r?\n/).map(s => s.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim())
+        .filter(s => s && !NO_ISSUE.test(s));
+    },
+    join(list) { return (list || []).map(s => String(s).trim()).filter(Boolean).join('\n'); },
+    /* Throws a plain "run the SQL" error when the table is not there yet,
+       so a page can say exactly that instead of a database message. */
+    async solutions(filter) {
+      filter = filter || {};
+      let q = sb.from('issue_solutions').select('*');
+      if (filter.office) q = q.eq('office_id', filter.office);
+      if (filter.weeks) q = q.in('week_start', filter.weeks);
+      if (filter.reports) q = q.in('report_id', filter.reports);
+      const res = await q;
+      if (res.error && /issue_solutions|does not exist|schema cache/i.test(res.error.message || '')) {
+        const e = new Error('Solutions are not switched on yet — run supabase/2026-10-issue-solutions.sql in Supabase.');
+        e.missingTable = true;
+        throw e;
+      }
+      return rows(res);
+    },
+    async solve(report, issue, solution) {
+      const text = String(solution || '').trim();
+      if (!text) {
+        guard(await sb.from('issue_solutions').delete().eq('report_id', report.id).eq('issue', issue));
+        return null;
+      }
+      return guard(await sb.from('issue_solutions').upsert({
+        report_id: report.id, issue: issue,
+        office_id: report.office_id, center_id: report.center_id, week_start: report.week_start,
+        solution: text,
+        solved_by: store.me ? store.me.id : null,
+        solved_by_name: store.me ? (store.me.full_name || store.me.email || '') : '',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'report_id,issue' }).select().single());
+    }
   };
 
   /* ----------------------------------------------------------- events */
@@ -502,6 +548,6 @@
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, billing, join, watch, unwatch,
-    feature, activity, goals, announce
+    feature, activity, goals, announce, issues
   };
 })();

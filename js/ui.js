@@ -306,6 +306,23 @@
     : lineChart(items, hiIdx, type === 'area');
 
   /* ---------------------------------------------------------------- qr */
+  /* The QR library is 60 KB that only the session pages and the poster
+     download use, so it is fetched the first time one of them asks for
+     it rather than on every visit. */
+  let qrLoading = null;
+  const loadQr = () => {
+    if (window.qrcode) return Promise.resolve();
+    if (!qrLoading) {
+      qrLoading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'js/vendor/qrcode.js';
+        s.onload = () => resolve();
+        s.onerror = () => { qrLoading = null; reject(new Error('Could not load the QR code library.')); };
+        document.head.appendChild(s);
+      });
+    }
+    return qrLoading;
+  };
   const qrSvg = (text, size) => {
     try {
       const q = window.qrcode(0, 'M');
@@ -686,7 +703,7 @@
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     rollLook, readLook, describeLook,
     kpi, tag, note, empty, bar, change, table,
-    chart, chartToggle, barChart, lineChart, qrSvg, downloadQrPoster, printEvaluation,
+    chart, chartToggle, barChart, lineChart, qrSvg, loadQr, downloadQrPoster, printEvaluation,
     toast, modal, closeModal, busy, confirmDialog,
     toggleRow, toCsv, parseCsv, downloadText, filingStreak
   };
