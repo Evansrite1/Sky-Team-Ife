@@ -1608,6 +1608,18 @@
       + '</div>';
   }
 
+  /* Notifications on this device, and the test. The status line is
+     filled in after the page paints — the browser has to be asked. */
+  function pushCard() {
+    return '<div class="card" id="push-card"><div class="card-h"><div><div class="card-t">Push notifications</div>'
+      + '<div class="card-s">Turn them on for this phone or computer, then send yourself a test.</div></div></div>'
+      + '<div id="push-status" class="sub" style="margin-bottom:12px">Checking this device…</div>'
+      + '<div class="row" style="gap:8px;flex-wrap:wrap">'
+      + '<button class="btn btn-a" data-act="push-on">' + ico('drop', 14) + 'Turn on for this device</button>'
+      + '<button class="btn" data-act="push-test">' + ico('play', 14) + 'Send me a test</button>'
+      + '</div></div>';
+  }
+
   async function adminPanel() {
     let fbMissing = '';
     const [admins, pending, all, fb] = await Promise.all([
@@ -1625,7 +1637,8 @@
     const plans = window.CONFIG.plans || {};
     return {
       title: 'Zones & directors',
-      html: feedbackCard(fb, fbMissing)
+      html: pushCard()
+        + feedbackCard(fb, fbMissing)
         + '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
         + '<div class="card-s">Off until you turn it on. Nothing here changes what anyone sees or is charged by itself.</div></div></div>'
         + FEATURES.map(f => U.toggleRow(f.flag, f.label, f.sub, A.feature(f.flag), f.soon)).join('')

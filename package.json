@@ -1,0 +1,8 @@
+{
+  "name": "sky-team-ife",
+  "private": true,
+  "description": "Static site; the only server code is api/push.js (a Vercel function).",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

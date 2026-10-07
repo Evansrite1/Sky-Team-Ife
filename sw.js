@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v30';
+const CACHE = 'sti-shell-v31';
 
 const SHELL = [
   './',
@@ -44,6 +44,34 @@ self.addEventListener('activate', (e) => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+/* Push notifications from api/push.js. The payload is
+   { title, body, url, tag }; anything missing falls back to the app. */
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'Sky Team Ife', {
+    body: d.body || '',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    data: { url: d.url || './' }
+  }));
+});
+
+/* Tapping a notification opens the app at the page it is about — the
+   window already open if there is one, a new one if not. */
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) {
+      if ('focus' in c) { c.navigate(url).catch(() => {}); return c.focus(); }
+    }
+    return self.clients.openWindow(url);
+  }));
 });
 
 self.addEventListener('fetch', (e) => {

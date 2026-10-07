@@ -531,6 +531,7 @@
     }
     routing = false;
     /* After the page is up, never before it. */
+    paintPushStatus();
     loadSbRanks();
     askForNames();
   }
@@ -1253,6 +1254,36 @@
     inp.value = ''; inp.focus();
     paintIssues();
   };
+  /* ------------------------------------------------- push, this device */
+  async function paintPushStatus() {
+    const box = $('#push-status');
+    if (!box) return;
+    if (A.push.needsInstall()) { box.innerHTML = 'On iPhone, add the app to your Home Screen and open it from there first.'; return; }
+    if (!A.push.supported()) { box.innerHTML = 'This browser cannot show notifications.'; return; }
+    const perm = A.push.permission();
+    const sub = await A.push.current().catch(() => null);
+    box.innerHTML = perm === 'denied' ? '<b style="color:var(--warn)">Blocked.</b> Allow notifications for this site in the browser settings.'
+      : sub && perm === 'granted' ? '<b style="color:var(--ok)">On for this device.</b>'
+        : 'Off for this device.';
+  }
+  ACT['push-on'] = async (el) => {
+    busy(el, true, 'Turning on…');
+    try { await A.push.enable(); toast('Notifications are on for this device.'); }
+    catch (err) { toast(err.message, 'no'); }
+    busy(el, false);
+    paintPushStatus();
+  };
+  ACT['push-test'] = async (el) => {
+    busy(el, true, 'Sending…');
+    try {
+      if (!(await A.push.current())) await A.push.enable();
+      const r = await A.push.send({ type: 'test' });
+      toast(r.sent ? 'Test sent to ' + r.sent + ' device' + (r.sent === 1 ? '' : 's') + '. It should pop up in a moment.'
+        : (r.note || 'Nothing was delivered.'), r.sent ? undefined : 'no');
+    } catch (err) { toast(err.message, 'no'); }
+    busy(el, false);
+  };
+
   ACT['issue-show'] = (el) => { state.issueShow = el.dataset.v; route(); };
   ACT['issue-solve'] = async (el) => {
     const i = Number(el.dataset.i);

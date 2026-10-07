@@ -291,6 +291,77 @@
     }
   };
 
+  /* ------------------------------------------------------------- push */
+  /* Notifications on this device: turning them on asks the browser for
+     permission, subscribes through the service worker, and keeps the
+     subscription in push_subscriptions so api/push.js knows where to
+     deliver. */
+  const b64key = (s) => {
+    const p = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(p), out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  };
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const push = {
+    supported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; },
+    /* On an iPhone push only works once the app is on the home screen. */
+    needsInstall() { return isIOS() && !standalone(); },
+    permission() { return this.supported() ? Notification.permission : 'unsupported'; },
+    async registration() {
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) reg = await navigator.serviceWorker.register('sw.js');
+      return reg;
+    },
+    async current() {
+      if (!this.supported()) return null;
+      const reg = await navigator.serviceWorker.getRegistration();
+      return reg ? reg.pushManager.getSubscription() : null;
+    },
+    async enable() {
+      if (this.needsInstall()) throw new Error('On iPhone, add the app to your Home Screen first (Share → Add to Home Screen), open it from there, then turn notifications on.');
+      if (!this.supported()) throw new Error('This browser cannot show notifications. Try Chrome.');
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Notifications are blocked for this site. Allow them in your browser settings, then try again.');
+      const reg = await this.registration();
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64key(CFG.vapidPublicKey) });
+      const j = sub.toJSON();
+      const me = store.me || {};
+      const res = await sb.from('push_subscriptions').upsert({
+        user_id: me.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+        role: me.role || '', office_id: me.office_id || null, center_id: me.center_id || null,
+        user_agent: navigator.userAgent.slice(0, 200), last_used: new Date().toISOString()
+      }, { onConflict: 'endpoint' });
+      if (res.error && /push_subscriptions|does not exist|schema cache/i.test(res.error.message || '')) {
+        throw new Error('Notifications are not switched on yet — run supabase/2026-10-push.sql in Supabase.');
+      }
+      guard(res);
+      return true;
+    },
+    async disable() {
+      const sub = await this.current();
+      if (!sub) return;
+      await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+      await sub.unsubscribe();
+    },
+    /* Asks api/push.js to deliver; it checks who is asking itself. */
+    async send(body) {
+      const s = await auth.session();
+      if (!s) throw new Error('Sign in first.');
+      const r = await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s.access_token },
+        body: JSON.stringify(body)
+      });
+      let j = {};
+      try { j = await r.json(); } catch (e) { /* not json */ }
+      if (!r.ok) throw new Error(j.error || 'The notification server did not answer (' + r.status + ').');
+      return j;
+    }
+  };
+
   /* --------------------------------------------------------- feedback */
   /* Answers to the question in the "What's new" popup. Anyone sends
      their own; only the Super Admin reads them. */
@@ -574,6 +645,6 @@
     isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, billing, join, watch, unwatch,
-    feature, activity, goals, announce, issues, feedback
+    feature, activity, goals, announce, issues, feedback, push
   };
 })();

@@ -6,3 +6,6 @@ supabase/.temp/
 supabase/.branches/
 *.log
 .claude/
+
+# Push notification private key — goes into Vercel, never into git.
+*.local.txt

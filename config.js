@@ -14,6 +14,11 @@ window.CONFIG = {
 
   organisation: 'Sky Team Ife',
 
+  /* Push notifications. The public half of the key pair — safe to
+     publish. The private half is VAPID_PRIVATE_KEY in Vercel's
+     environment variables, read only by api/push.js. */
+  vapidPublicKey: 'BE9-3jwbOU921KXzV_GpUL9MrlfmpS3LSM1C_tvFqsOEe_j2w9KymfUYJFkOerll1ibphAn9RshSmEnPz4JpIeg',
+
   /* Where this site is served from — used to build the QR links that
      distributors scan. Left alone it works the origin out by itself. */
   appUrl: window.location.origin + window.location.pathname.replace(/\/(index|scan)\.html$/, '').replace(/\/$/, ''),
