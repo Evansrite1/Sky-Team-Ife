@@ -1837,12 +1837,31 @@
       codeCard = note('info', 'info', '<b>The Wednesday code is switched off.</b> The Super Admin turns on Member accounts and Wednesday check-in in Admin, Features.')
         + '<div style="height:16px"></div>';
     }
+    /* This week at a glance: how many offices filed, the totals, and the top three. */
+    let weekCard = '';
+    try {
+      const ws = S().week;
+      const wreps = await A.reports.list(zone ? { week: ws, center: zone } : { week: ws });
+      const offs = A.store.offices.filter(o => o.active && (!zone || o.center_id === zone));
+      const ranked = rankOffices(wreps, offs).filter(r => !r.missing).slice(0, 3);
+      const orders = wreps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
+      const amount = wreps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+      weekCard = '<div class="grid g3">'
+        + kpi('Offices filed', wreps.length + ' / ' + offs.length, esc(U.weekName(ws)), 'building')
+        + kpi('Orders', orders, esc(U.weekRange(ws)), 'trend')
+        + kpi('Amount', usdFull(amount), 'this week', 'cash', 'kpi-blue')
+        + '</div><div style="height:16px"></div>'
+        + (ranked.length ? '<div class="card"><div class="card-h"><div><div class="card-t">Top offices this week</div></div></div>'
+          + table([{ label: '#', num: true }, { label: 'Office' }, { label: 'Orders', num: true }],
+            ranked.map(r => '<tr><td class="num">' + r.rank + '</td><td class="nm">' + esc(r.office.name) + '</td><td class="num">' + r.orders + '</td></tr>'),
+            { empty: '' }) + '</div><div style="height:16px"></div>' : '');
+    } catch (e) { weekCard = ''; }
     const tile = (page, icon, title, sub) => '<a class="card" href="' + link(page) + '" style="display:block;text-decoration:none;color:inherit">'
       + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico(icon, 18) + ' ' + esc(title) + '</div>'
       + '<div class="card-s">' + esc(sub) + '</div></div></div></a>';
     return {
       title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
-      html: checkCard + codeCard + apps
+      html: checkCard + codeCard + apps + weekCard
         + '<div class="grid g2">'
         + tile('issues', 'alert', 'Issues & solutions', open ? open + ' waiting for your solution' : 'Everything is answered')
         + tile('centers', 'layers', 'Zones and offices', 'Every office, its numbers and reports')
