@@ -36,6 +36,7 @@
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
+        { p: 'directors', l: 'Directors', i: 'users' },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'issues', l: 'Issues & solutions', i: 'alert' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
@@ -519,7 +520,7 @@
       const v = await V[page](id);
       /* The rail carries the credit too, but the rail is behind a menu on
          a phone - which is where most of this is read. */
-      main.innerHTML = topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
+      main.innerHTML = viewBanner() + topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
       console.error(e);
@@ -551,6 +552,7 @@
   let namesChecked = false;              // the two queries run once a visit
 
   async function askForNames() {
+    if (state.realMe) return;
     const me = A.store.me;
     if (!me || me.role !== 'office' || !me.office || A.store.locked) return;
     if (state.page === 'distributors') return;      // they are already there
@@ -887,6 +889,7 @@
   };
 
   ACT['signout'] = async () => {
+    if (state.realMe) { A.store.me = state.realMe; state.realMe = null; }
     A.unwatch();
     await A.auth.signOut();
     state.ranks = null;
@@ -1318,6 +1321,7 @@
 
   /* Ask once per device, a few days apart, never on top of another popup. */
   async function askForPush() {
+    if (state.realMe) return;
     if (!A.store.me || A.store.locked || !A.push.supported() || A.push.needsInstall()) return;
     if (A.push.permission() !== 'default') return;
     if ($('#modal') && $('#modal').innerHTML) return;
@@ -1722,6 +1726,63 @@
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  /* ============================ VIEW AS ============================= */
+  /* The Super Admin looks at the app through one office's or one
+     Director's eyes. Only what is drawn changes: the account underneath
+     is still theirs, and anything that would save, send or delete is
+     refused while looking, so nothing is ever changed by accident. */
+  const LOOK_ONLY_OK = ['nav', 'more', 'hue', 'modal-close', 'modal-bg', 'noop', 'view-as', 'exit-view',
+    'signout', 'go-week', 'week-detail', 'issue-show', 'chart-type', 'refresh-page', 'reload', 'copy',
+    'eval-pdf', 'export-reports', 'qr-download', 'tour-again', 'tour-back', 'tour-bg', 'tour-end', 'tour-next'];
+  const lookOnly = (act) => {
+    if (!state.realMe || LOOK_ONLY_OK.indexOf(act) !== -1) return false;
+    toast('You are only looking. Exit the view to make changes.', 'no');
+    return true;
+  };
+  function viewBanner() {
+    if (!state.realMe) return '';
+    const me = A.store.me;
+    const who = me.role === 'office' ? (me.office ? me.office.name : 'an office') : (me.full_name || 'a Director');
+    return '<div class="viewas" style="position:sticky;top:0;z-index:60;display:flex;align-items:center;'
+      + 'justify-content:space-between;gap:12px;padding:10px 16px;background:#1f2937;color:#fff;font-size:14px">'
+      + '<span>Viewing as <b>' + esc(who) + '</b> (' + (me.role === 'office' ? 'office' : 'Director') + '). Look only, nothing here can be changed.</span>'
+      + '<button class="btn btn-sm" data-act="exit-view" style="white-space:nowrap">Exit view</button></div>';
+  }
+  ACT['view-as'] = async (el) => {
+    if (!state.realMe && !A.isSuper()) return;
+    const real = state.realMe || A.store.me;
+    let fake;
+    if (el.dataset.kind === 'office') {
+      const o = A.officeById(el.dataset.id);
+      if (!o) return toast('That office is gone.', 'no');
+      fake = Object.assign({}, real, {
+        role: 'office', full_name: o.manager_name || o.name, office_id: o.id, office: o,
+        center_id: o.center_id, center: A.centerById(o.center_id) || null
+      });
+    } else {
+      let p;
+      try { p = (await A.people.admins()).find(x => x.id === el.dataset.id); }
+      catch (err) { return toast(err.message, 'no'); }
+      if (!p) return toast('That Director is gone.', 'no');
+      fake = Object.assign({}, real, p, { center: A.centerById(p.center_id) || null });
+    }
+    state.realMe = real;
+    A.store.me = fake;
+    A.store.locked = false;
+    state.ranks = null;
+    go('#/dashboard');
+    await route();
+    loadSbRanks();
+  };
+  ACT['exit-view'] = async () => {
+    if (!state.realMe) return;
+    A.store.me = state.realMe;
+    state.realMe = null;
+    state.ranks = null;
+    go('#/directors');
+    await route();
+  };
+
   /* ========================= EVENT DELEGATION ======================= */
   document.addEventListener('click', (e) => {
     const row = e.target.closest('tr.click');
@@ -1731,6 +1792,7 @@
       if (el.tagName === 'BUTTON' && el.type === 'submit' && el.form) return;
       const act = el.dataset.act;
       if (ACT[act]) {
+        if (lookOnly(act)) { e.preventDefault(); return; }
         if (el.tagName === 'A' && (!el.getAttribute('href') || el.getAttribute('href') === '#')) e.preventDefault();
         ACT[act](el, e);
         return;
@@ -1741,7 +1803,7 @@
 
   document.addEventListener('submit', (e) => {
     const btn = e.target.querySelector('button[type="submit"][data-act]');
-    if (btn && ACT[btn.dataset.act]) ACT[btn.dataset.act](btn, e);
+    if (btn && ACT[btn.dataset.act]) { if (lookOnly(btn.dataset.act)) e.preventDefault(); else ACT[btn.dataset.act](btn, e); }
     else e.preventDefault();
   });
 

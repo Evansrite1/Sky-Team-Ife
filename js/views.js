@@ -825,7 +825,8 @@
         + '<div class="card-s">' + list.length + ' office' + (list.length === 1 ? '' : 's')
         + ' · numbers are for ' + esc(U.weekLabel(ws)) + '.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Zone' }, { label: 'Team leader' }, { label: 'Distributors', num: true },
-        { label: 'Orders', num: true }, { label: 'Amount', num: true }],
+        { label: 'Orders', num: true }, { label: 'Amount', num: true }]
+          .concat(A.isSuper() ? [{ label: '' }] : []),
           list.map(o => {
             const r = reps.find(x => x.office_id === o.id);
             return '<tr class="click" data-href="' + link('offices', o.id) + '">'
@@ -834,9 +835,28 @@
               + '<td>' + esc(o.manager_name || '-') + '<div class="sub">' + esc(o.email || '') + '</div></td>'
               + '<td class="num">' + dists.filter(d => d.office_id === o.id).length + '</td>'
               + '<td class="num">' + (r ? r.orders : tag('Not filed', 't-warn')) + '</td>'
-              + '<td class="num nm">' + (r ? usdFull(r.amount) : '-') + '</td></tr>';
+              + '<td class="num nm">' + (r ? usdFull(r.amount) : '-') + '</td>'
+              + (A.isSuper() ? '<td><button class="btn btn-sm" data-act="view-as" data-kind="office" data-id="' + o.id + '">View as</button></td>' : '')
+              + '</tr>';
           }),
           { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its zone, and appears once you approve it.') })
+        + '</div>'
+    };
+  }
+
+  async function directors() {
+    const list = (await A.people.admins()).filter(p => p.role === 'platform_admin');
+    return {
+      title: 'Directors',
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Every Director</div>'
+        + '<div class="card-s">' + list.length + ' Director' + (list.length === 1 ? '' : 's')
+        + '. Press View as to see the app exactly as they see it.</div></div></div>'
+        + table([{ label: 'Director' }, { label: 'Zone' }, { label: 'Last seen' }, { label: '' }],
+          list.map(p => '<tr><td class="nm">' + esc(p.full_name || p.email) + '<div class="sub">' + esc(p.email || '') + '</div></td>'
+            + '<td>' + esc((A.centerById(p.center_id) || {}).name || 'All zones') + '</td>'
+            + '<td>' + (p.last_seen ? esc(U.timeAgo(p.last_seen)) : '-') + '</td>'
+            + '<td><button class="btn btn-sm" data-act="view-as" data-kind="director" data-id="' + p.id + '">View as</button></td></tr>'),
+          { empty: empty('users', 'No Directors yet', 'A Director signs up, picks Director, and appears here once you approve them.') })
         + '</div>'
     };
   }
@@ -1903,7 +1923,7 @@
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
     dashboard: () => A.isOffice() ? officeDash() : adminDash(),
-    evaluation, monthly, centers, offices, rankings, niches, issues: issuesBoard,
+    evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),
