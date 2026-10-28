@@ -92,27 +92,32 @@
     return out;               // newest first
   };
 
-  /* A "month" here is four tracked weeks, not the calendar's. Week 1 to
-     4 is Month 1, which is called August because that is the month the
-     record actually began in — the calendar's own July/August line falls
-     in the middle of Week 1 and would otherwise split it in two. Month 2
-     picks up wherever Week 5 lands, and is called September, and so on:
-     the tracking calendar and the real calendar drift in step but never
-     have to agree on where a week starts. */
-  const WEEKS_PER_MONTH = 4;
+  /* A tracked week belongs to the calendar month its closing Wednesday
+     falls in, so the week 22 – 28 Oct is October's and 29 Oct – 4 Nov is
+     November's. Month 1 is August 2026 (the record began 30 Jul, whose
+     Wednesday is 5 Aug), and a month has four or five weeks depending on
+     how many Wednesdays it has. The label can therefore never run ahead
+     of the real calendar. */
+  const WEEKS_PER_MONTH = 4;                  // the usual count; some months have 5
   const MONTH1 = { y: 2026, m: 7 };           // August 2026, 0-indexed
-  const trackingMonthNo = ws => Math.ceil(weekNo(ws) / WEEKS_PER_MONTH);
-  const weekOfMonth = ws => ((weekNo(ws) - 1) % WEEKS_PER_MONTH) + 1;
+  const trackingMonthNo = ws => {
+    const wed = addDays(ws, 6);
+    return (wed.getFullYear() - MONTH1.y) * 12 + (wed.getMonth() - MONTH1.m) + 1;
+  };
+  const weekOfMonth = ws => Math.floor((addDays(ws, 6).getDate() - 1) / 7) + 1;
   const monthLabel = n => {
     const d = new Date(MONTH1.y, MONTH1.m + (n - 1), 1);
     return MON_FULL[d.getMonth()] + ' ' + d.getFullYear();
   };
-  /* The four week-starts that belong to tracking month n, oldest first,
+  /* The week-starts that belong to tracking month n, oldest first,
      whether or not they have opened yet. */
   const weeksOfMonth = n => {
+    const first = new Date(MONTH1.y, MONTH1.m + (n - 1), 1);
     const out = [];
-    for (let i = 0; i < WEEKS_PER_MONTH; i++) {
-      out.push(iso(addDays(EPOCH_WEEK, ((n - 1) * WEEKS_PER_MONTH + i) * 7)));
+    let wed = new Date(first.getFullYear(), first.getMonth(), 1 + ((3 - first.getDay() + 7) % 7));
+    while (wed.getMonth() === first.getMonth()) {
+      out.push(iso(addDays(wed, -6)));
+      wed = addDays(wed, 7);
     }
     return out;
   };
