@@ -1899,7 +1899,7 @@
     ].join('');
     return {
       title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
-      html: todayHtml + needsHtml + weekHtml + sec('Everything you can do') + '<div class="grid g2">' + tiles + '</div>'
+      html: weekHtml + todayHtml + needsHtml + sec('Everything you can do') + '<div class="grid g2">' + tiles + '</div>'
     };
   }
 
