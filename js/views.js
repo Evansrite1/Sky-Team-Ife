@@ -515,6 +515,7 @@
      for the solution. The office sees the answer under its own issue.
      =================================================================== */
   async function issuesBoard() {
+    const ro = A.isMember();
     const key = S().month || U.currentMonthNo();
     const weeks = U.weeksOfMonth(key).filter(U.weekStarted);
     const zone = S().issueZone || '';
@@ -557,7 +558,7 @@
         + kpi('Solved', solved.length, all.length ? Math.round(100 * solved.length / all.length) + '% answered' : '', 'check', 'kpi-blue')
         + '</div>'
         + '<div class="row" style="margin:18px 0 12px;gap:10px;flex-wrap:wrap;justify-content:space-between">'
-        + '<div class="seg">' + seg + '</div>' + zonePick + '</div>'
+        + '<div class="seg">' + seg + '</div>' + (ro ? '' : zonePick) + '</div>'
         + (list.length ? list.map((x, i) =>
           '<div class="card iss-card" id="iss-card-' + i + '"><div class="card-h"><div>'
           + '<div class="card-t">' + esc(x.name) + '</div>'
@@ -565,14 +566,18 @@
             + ' · ' + U.weekRange(x.r.week_start)) + '</div></div>'
           + '<div class="card-a" id="iss-tag-' + i + '">' + (x.s ? tag('Solved', 't-ok') : tag('Needs a solution', 't-warn')) + '</div></div>'
           + '<div class="iss-q">' + esc(x.t) + '</div>'
-          + '<div class="field" style="margin:12px 0 0"><label for="sol-' + i + '">Solution</label>'
+          + (ro ? '<div class="field" style="margin:12px 0 0"><label>Solution</label>'
+            + '<p style="font-size:14px;line-height:1.6;margin:0;color:var(--muted)">' + (x.s ? esc(x.s.solution) : 'No solution yet.') + '</p>'
+            + (x.s && x.s.solved_by_name ? '<div class="hint">Answered by ' + esc(x.s.solved_by_name) + '</div>' : '')
+            + '</div></div>'
+            : '<div class="field" style="margin:12px 0 0"><label for="sol-' + i + '">Solution</label>'
           + '<textarea class="input" id="sol-' + i + '" rows="2" placeholder="What should this office do about it?">'
           + esc(x.s ? x.s.solution : '') + '</textarea>'
           + (x.s && x.s.solved_by_name ? '<div class="hint">Last answered by ' + esc(x.s.solved_by_name) + ' · ' + esc(U.timeAgo(x.s.updated_at)) + '</div>' : '')
           + '</div>'
           + '<div class="row" style="justify-content:flex-end;margin-top:10px">'
           + '<button class="btn btn-sm btn-a" data-act="issue-solve" data-i="' + i + '"' + (missing ? ' disabled' : '') + '>'
-          + ico('check', 14) + (x.s ? 'Update solution' : 'Save solution') + '</button></div></div>').join('')
+          + ico('check', 14) + (x.s ? 'Update solution' : 'Save solution') + '</button></div></div>')).join('')
           : '<div class="card">' + empty('check', show === 'open' ? 'Nothing waiting' : 'Nothing here',
             show === 'open' ? 'Every issue raised this month has a solution.' : 'No issues for this filter.') + '</div>')
     };
@@ -811,7 +816,7 @@
     const ws = S().week;
     /* An office sees its own zone and no further. Row level security says
        the same thing, so this only keeps the page honest about it. */
-    const own = A.isOffice() ? A.store.me.center_id : null;
+    const own = (A.isOffice() || A.isMember()) ? A.store.me.center_id : null;
     const [reps, dists] = await Promise.all([
       A.reports.list(own ? { week: ws, center: own } : { week: ws }),
       A.distributors.list(own ? { center: own } : {})
@@ -1587,6 +1592,7 @@
      outside this app, so their row is there and disabled rather than
      pretending a flip would do anything. */
   const FEATURES = [
+    { flag: 'members', label: 'Member accounts and Wednesday check-in', sub: 'Senior and Executive Managers join through their office link, check in with the weekly zone code, and track their own distributors.' },
     { flag: 'streaks', label: 'Filing streaks', sub: 'How many weeks in a row an office has filed, shown on its own dashboard.' },
     { flag: 'csv_import', label: 'Distributor CSV import', sub: 'Upload a sheet of names instead of typing each one in.' },
     { flag: 'goals', label: 'Self-set monthly goals', sub: 'An office sets its own order and amount target for the month.' },
@@ -1915,6 +1921,180 @@
     };
   }
 
+  /* ===================================================================
+     MEMBERS: Senior and Executive Managers (look only, plus their own)
+     =================================================================== */
+  const PEOPLE_STAGES = ['New number', 'Talking', 'Invited', 'Came to office', 'Joined'];
+  const attTag = st => ({ present: tag('On time', 't-ok'), late: tag('Late', 't-warn'),
+    absent: tag('Absent', 't-mute'), pending: tag('Not yet', 't-mute') }[st] || '');
+  const lagosClock = ts => {
+    const t = new Date(new Date(ts).getTime() + 3600000);
+    const h = t.getUTCHours(), m = String(t.getUTCMinutes()).padStart(2, '0');
+    return ((h % 12) || 12) + ':' + m + (h >= 12 ? 'pm' : 'am');
+  };
+
+  async function memberDash() {
+    const me = A.store.me;
+    if (!A.feature('members')) {
+      return { title: 'Dashboard', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on. Check back soon.') };
+    }
+    const thu = U.weekStart();
+    await A.member.ensureWeek(me.center_id, thu);
+    const [att, reps] = await Promise.all([
+      A.member.attendance(me.center_id, me.distributor_id ? [me.distributor_id] : []),
+      A.reports.list({ week: thu, center: me.center_id })
+    ]);
+    const joined = me.created_at;
+    const rowsAtt = att.events.map(ev => ({ ev, st: A.member.classify(att, ev, me.distributor_id, joined) }))
+      .filter(r => r.st !== 'none');
+    const count = s => rowsAtt.filter(r => r.st === s).length;
+    const thisEv = att.events.find(e => e.week_start === thu);
+    const mine = thisEv ? att.scans.find(s => s.event_id === thisEv.id) : null;
+    const isWed = thisEv && thisEv.event_date === att.today;
+
+    let check;
+    if (mine) {
+      check = '<div class="row" style="gap:10px;align-items:center">' + tag(mine.late ? 'Checked in, late' : 'Checked in, on time', mine.late ? 't-warn' : 't-ok')
+        + '<span class="sub">at ' + esc(lagosClock(mine.scanned_at)) + '</span></div>';
+    } else if (isWed && att.hhmm >= '13:00' && att.hhmm <= '18:00') {
+      check = '<form id="ci-form"><div class="field"><label for="ci-code">Code from your Director</label>'
+        + '<input class="input" id="ci-code" maxlength="8" autocomplete="off" autocapitalize="characters" '
+        + 'style="text-transform:uppercase;letter-spacing:.2em;font-size:20px" placeholder="ABCDE"></div>'
+        + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="check-in">' + ico('check', 16) + 'Check in</button>'
+        + '<div class="hint" style="margin-top:8px">After 2:45pm counts as late. Not checked in by 6:00pm means absent.</div></form>';
+    } else if (isWed && att.hhmm < '13:00') {
+      check = note('info', 'clock', '<b>Check-in opens at 1:00pm today.</b> Your Director will give you the code.');
+    } else if (isWed) {
+      check = note('warn', 'clock', '<b>Today\'s training is over.</b> If you did not check in you are marked absent.');
+    } else {
+      check = note('info', 'calendar', '<b>Next check-in: Wednesday.</b> The Senior Manager Training. Your Director gives you the code that day.');
+    }
+
+    const orders = reps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
+    const amount = reps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+    const zoneOffices = A.store.offices.filter(o => o.active && o.center_id === me.center_id);
+    return {
+      title: 'Dashboard', crumbs: esc((me.office || {}).name || '') + ' · ' + esc((me.center || {}).name || ''),
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Wednesday check-in</div>'
+        + '<div class="card-s">Senior Manager Training, ' + esc(me.rank || 'Senior Manager') + '</div></div></div>' + check + '</div>'
+        + '<div class="grid g3" style="margin-top:16px">'
+        + kpi('On time', count('present'), 'last 12 trainings', 'check', 'kpi-blue')
+        + kpi('Late', count('late'), 'after 2:45pm', 'clock')
+        + kpi('Absent', count('absent'), 'no check-in', 'alert')
+        + '</div>'
+        + '<div class="grid g3" style="margin-top:16px">'
+        + kpi('Zone orders', orders, esc(U.weekName(thu)), 'trend')
+        + kpi('Zone amount', usdFull(amount), esc(U.weekRange(thu)), 'cash', 'kpi-blue')
+        + kpi('Offices filed', reps.length + ' / ' + zoneOffices.length, 'this week', 'building')
+        + '</div>'
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your attendance</div>'
+        + '<div class="card-s">Newest first.</div></div></div>'
+        + table([{ label: 'Wednesday' }, { label: 'Status' }],
+          rowsAtt.map(r => '<tr><td class="nm">' + esc(U.dayLabel(r.ev.event_date)) + '</td><td>' + attTag(r.st) + '</td></tr>'),
+          { empty: empty('qr', 'No trainings yet', 'Your first one is the next Wednesday.') })
+        + '</div>'
+        + '<div class="row" style="gap:10px;margin-top:16px;flex-wrap:wrap">'
+        + '<a class="btn" href="' + link('offices') + '">' + ico('building', 15) + 'Offices in your zone</a>'
+        + '<a class="btn" href="' + link('issues') + '">' + ico('alert', 15) + 'Issues &amp; solutions</a>'
+        + '<a class="btn" href="' + link('people') + '">' + ico('users', 15) + 'My distributors</a></div>'
+    };
+  }
+
+  async function peopleView() {
+    if (!A.feature('members')) return { title: 'My distributors', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on.') };
+    const list = await A.member.people.list();
+    const n = s => list.filter(p => p.stage === s).length;
+    const came = n('Came to office') + n('Joined');
+    return {
+      title: 'My distributors',
+      html: '<div class="grid g3">'
+        + kpi('Tracking', list.length, 'people you follow up', 'users')
+        + kpi('Talking', n('Talking') + n('Invited'), 'talking or invited', 'trend', 'kpi-blue')
+        + kpi('Came to office', came, list.length ? Math.round(100 * came / list.length) + '% of your list' : '', 'building')
+        + '</div>'
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your list</div>'
+        + '<div class="card-s">Only you see the phone numbers. Your office leader sees names and stages. Directors see how many.</div></div>'
+        + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="person-new">' + ico('plus', 15) + 'Add someone</button></div></div>'
+        + table([{ label: 'Name' }, { label: 'Phone' }, { label: 'Stage' }, { label: '' }],
+          list.map(p => {
+            const i = PEOPLE_STAGES.indexOf(p.stage);
+            return '<tr><td class="nm">' + esc(p.name) + (p.note ? '<div class="sub">' + esc(p.note) + '</div>' : '') + '</td>'
+              + '<td>' + esc(p.phone || '-') + '</td>'
+              + '<td>' + tag(p.stage, p.stage === 'Joined' ? 't-ok' : p.stage === 'New number' ? 't-mute' : 't-warn') + '</td>'
+              + '<td style="white-space:nowrap">'
+              + (i < PEOPLE_STAGES.length - 1
+                ? '<button class="btn btn-sm" data-act="person-next" data-id="' + p.id + '" data-v="' + PEOPLE_STAGES[i + 1] + '">To ' + esc(PEOPLE_STAGES[i + 1]) + '</button> ' : '')
+              + '<button class="btn btn-sm btn-g" data-act="person-del" data-id="' + p.id + '" aria-label="Remove">' + ico('trash', 14) + '</button></td></tr>';
+          }),
+          { empty: empty('users', 'Nobody yet', 'Add the numbers you get from prospecting, then move each one along as they reply, visit and join.') })
+        + '</div>'
+    };
+  }
+
+  async function membersView() {
+    const off = (A.store.me && A.store.me.office) || null;
+    if (!off) return { title: 'Members', html: empty('building', 'No office', 'This page belongs to an office.') };
+    if (!A.feature('members')) return { title: 'Members', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on. The Super Admin turns them on.') };
+    const [code, roster, names] = await Promise.all([A.member.joinCode(off.id), A.member.roster(off.id), A.member.names(off.id)]);
+    const att = await A.member.attendance(off.center_id, roster.map(m => m.distributor_id).filter(Boolean));
+    const url = window.CONFIG.appUrl + '/#/m/' + code;
+    const stat = m => {
+      const r = att.events.map(ev => A.member.classify(att, ev, m.distributor_id, m.joined)).filter(s => s !== 'none');
+      const c = s => r.filter(x => x === s).length;
+      return tag(c('present') + ' on time', 't-ok') + ' ' + tag(c('late') + ' late', 't-warn') + ' ' + tag(c('absent') + ' absent', 't-mute');
+    };
+    return {
+      title: 'Members', crumbs: esc(off.name),
+      html: '<div class="card"><div class="card-h"><div><div class="card-t">Your sign-up link</div>'
+        + '<div class="card-s">Send this to your Senior and Executive Managers. They sign up through it and land in your office. No approval needed.</div></div></div>'
+        + '<div class="field"><input class="input mono" readonly value="' + esc(url) + '" onclick="this.select()"></div>'
+        + '<div class="row" style="gap:8px;flex-wrap:wrap">'
+        + '<button class="btn btn-a" data-act="copy" data-v="' + esc(url) + '">' + ico('copy', 14) + 'Copy link</button>'
+        + '<button class="btn" data-act="join-regen">' + ico('refresh', 14) + 'New link</button></div>'
+        + '<div class="hint" style="margin-top:8px">A new link stops the old one working. People already in stay in.</div></div>'
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your members</div>'
+        + '<div class="card-s">' + roster.length + ' signed in. Attendance is the last 12 Wednesdays.</div></div></div>'
+        + table([{ label: 'Name' }, { label: 'Rank' }, { label: 'Attendance' }, { label: 'Following up', num: true }, { label: '' }],
+          roster.map(m => '<tr><td class="nm">' + esc(m.name) + '<div class="sub">' + esc(m.phone || '') + '</div></td>'
+            + '<td>' + esc(m.rank || '-') + '</td><td>' + stat(m) + '</td>'
+            + '<td class="num">' + m.tracking + '</td>'
+            + '<td><button class="btn btn-sm btn-g" data-act="member-del" data-id="' + m.id + '" aria-label="Remove">' + ico('trash', 14) + '</button></td></tr>'),
+          { empty: empty('users', 'No members yet', 'Share your link above. They appear here the moment they join.') })
+        + '</div>'
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">People your members are following up</div>'
+        + '<div class="card-s">Names and stages only. The phone numbers stay private to each member.</div></div></div>'
+        + table([{ label: 'Member' }, { label: 'Name' }, { label: 'Stage' }],
+          names.map(x => '<tr><td>' + esc(x.member) + '</td><td class="nm">' + esc(x.name) + '</td><td>' + tag(x.stage, 't-mute') + '</td></tr>'),
+          { empty: empty('users', 'Nothing yet', 'When members add people to follow up, their names show here.') })
+        + '</div>'
+    };
+  }
+
+  /* Directors and the Super Admin: this Wednesday's code, one per zone. */
+  async function codesView() {
+    const me = A.store.me;
+    if (!A.feature('members')) return { title: 'Wednesday codes', html: empty('lock', 'Not open yet', 'Turn on Member accounts in Admin, Features first.') };
+    const thu = U.weekStart();
+    const codes = await A.member.codes(thu);
+    const wed = U.iso(U.addDays(thu, 6));
+    const zones = A.store.centers.filter(c => !me.center_id || c.id === me.center_id);
+    return {
+      title: 'Wednesday codes', crumbs: esc(U.fullDate(wed)),
+      html: note('info', 'info', 'One code per zone, the same all day. Give it to your Senior and Executive Managers at the training. '
+        + 'It is also sent to your phone at 8:00am, 9:00am, 12:00pm, 2:00pm and 3:05pm. Check-in is open from 1:00pm to 6:00pm, and after 2:45pm counts as late.')
+        + '<div style="height:16px"></div>'
+        + (zones.length ? '<div class="grid g2">' + zones.map(z => {
+          const c = codes.find(x => x.center_id === z.id);
+          return '<div class="card"><div class="card-h"><div><div class="card-t">' + esc(z.name) + '</div>'
+            + '<div class="card-s">Senior Manager Training</div></div></div>'
+            + (c ? '<div style="font-size:40px;letter-spacing:.25em;font-weight:600;text-align:center;margin:8px 0" class="mono">' + esc(c.code) + '</div>'
+              + '<div class="row" style="justify-content:center"><button class="btn btn-a" data-act="copy" data-v="' + esc(c.code) + '">' + ico('copy', 14) + 'Copy code</button></div>'
+              : '<div class="sub">The code is not ready yet. Refresh in a moment.</div>')
+            + '</div>';
+        }).join('') + '</div>' : empty('layers', 'No zones', 'Create a zone first.'))
+    };
+  }
+
   window.VIEWS = {
     guide,
     /* A Director's dashboard is the same page a Super Admin gets - every
@@ -1922,7 +2102,8 @@
        their own zone. It is visibility only: the two role checks inside
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
-    dashboard: () => A.isOffice() ? officeDash() : adminDash(),
+    dashboard: () => A.isMember() ? memberDash() : A.isOffice() ? officeDash() : adminDash(),
+    people: peopleView, members: membersView, codes: codesView,
     evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,
     trainings: (id) => sessions('training', id),

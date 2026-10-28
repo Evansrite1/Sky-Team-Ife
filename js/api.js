@@ -97,7 +97,7 @@
     /* Side by side, not one after the other: every round trip here is
        time the first page spends as a spinner. */
     const [off, cen] = await Promise.all([
-      p.office_id ? sb.from('offices').select('*').eq('id', p.office_id).maybeSingle() : null,
+      (p.office_id || p.member_office_id) ? sb.from('offices').select('*').eq('id', p.office_id || p.member_office_id).maybeSingle() : null,
       p.center_id ? sb.from('centers').select('*').eq('id', p.center_id).maybeSingle() : null
     ]);
     if (off) store.me.office = guard(off);
@@ -108,6 +108,7 @@
   const isAdmin = () => !!store.me && (store.me.role === 'super_admin' || store.me.role === 'platform_admin');
   const isSuper = () => !!store.me && store.me.role === 'super_admin';
   const isOffice = () => !!store.me && store.me.role === 'office';
+  const isMember = () => !!store.me && store.me.role === 'member';
 
   /* ------------------------------------------------------- lookup sets */
   async function loadLookups() {
@@ -640,9 +641,74 @@
     }
   };
 
+  /* ---------------------------------------------------------- members */
+  /* Senior and Executive Managers: their own login, a Wednesday check-in
+     with the zone code, and a private list of people they follow up. */
+  const lagosNow = () => new Date(Date.now() + 3600000);        // read with the UTC getters
+  const rpc = async (name, args) => {
+    const { data, error } = await sb.rpc(name, args || {});
+    if (error) throw new Error(error.message);
+    return data;
+  };
+  const member = {
+    joinInfo: (code) => rpc('join_office_info', { p_code: code }),
+    join: (d) => rpc('member_join', { p_code: d.code, p_rank: d.rank, p_name: d.name, p_phone: d.phone || '', p_dist: d.dist || null }),
+    checkIn: (code) => rpc('member_check_in', { p_code: code }),
+    ensureWeek: (center, week) => sb.rpc('ensure_week_events_for', { p_center: center, p_week: week }).then(() => {}, () => {}),
+    /* The last twelve Wednesday trainings in a zone and who checked in.
+       A member with no scan for a training that is over is absent: there
+       is no row for that, it is worked out here. */
+    async attendance(centerId, distIds) {
+      const evs = rows(await sb.from('events').select('id,week_start,event_date')
+        .eq('center_id', centerId).eq('type', 'SM').order('event_date', { ascending: false }).limit(12));
+      const ids = evs.map(e => e.id);
+      const scans = (ids.length && distIds.length)
+        ? rows(await sb.from('scans').select('event_id,distributor_id,late,scanned_at')
+          .eq('status', 'accepted').in('event_id', ids).in('distributor_id', distIds))
+        : [];
+      const ln = lagosNow();
+      return { events: evs, scans, today: ln.toISOString().slice(0, 10), hhmm: ln.toISOString().slice(11, 16) };
+    },
+    /* present | late | absent | pending | none (before they joined) */
+    classify(att, ev, distId, joined) {
+      const sc = att.scans.find(s => s.event_id === ev.id && s.distributor_id === distId);
+      if (sc) return sc.late ? 'late' : 'present';
+      if (joined && ev.event_date < String(joined).slice(0, 10)) return 'none';
+      const over = ev.event_date < att.today || (ev.event_date === att.today && att.hhmm >= '18:00');
+      return over ? 'absent' : 'pending';
+    },
+    async codes(thu) {
+      await sb.rpc('ensure_week_events', { p_week: thu }).then(() => {}, () => {});
+      const r = rows(await sb.from('event_codes').select('code,events!inner(center_id,week_start,type)')
+        .eq('events.week_start', thu).eq('events.type', 'SM'));
+      return r.map(x => ({ center_id: x.events.center_id, code: x.code }));
+    },
+    async joinCode(officeId) {
+      const r = guard(await sb.from('office_join_codes').select('code').eq('office_id', officeId).maybeSingle());
+      return r ? r.code : '';
+    },
+    regenCode: (officeId) => rpc('regenerate_join_code', { p_office: officeId }),
+    roster: (officeId) => rpc('office_members', { p_office: officeId || null }),
+    names: (officeId) => rpc('office_people_names', { p_office: officeId || null }),
+    remove: (id) => rpc('remove_member', { p_member: id }),
+    people: {
+      async list() { return rows(await sb.from('member_people').select('*').order('created_at', { ascending: false })); },
+      async add(p) {
+        return guard(await sb.from('member_people').insert({
+          owner_id: store.me.id, name: p.name, phone: p.phone || '', stage: p.stage || 'New number', note: p.note || ''
+        }).select().single());
+      },
+      async stage(id, stage) {
+        return guard(await sb.from('member_people').update({ stage, updated_at: new Date().toISOString() })
+          .eq('id', id).select().single());
+      },
+      async remove(id) { guard(await sb.from('member_people').delete().eq('id', id)); }
+    }
+  };
+
   window.API = {
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
-    isAdmin, isSuper, isOffice, centerById, officeById, officesOf,
+    isAdmin, isSuper, isOffice, isMember, member, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, billing, join, watch, unwatch,
     feature, activity, goals, announce, issues, feedback, push

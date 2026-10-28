@@ -37,6 +37,7 @@
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
         { p: 'directors', l: 'Directors', i: 'users' },
+        { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'issues', l: 'Issues & solutions', i: 'alert' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
@@ -68,7 +69,8 @@
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'niches', l: 'Niches', i: 'star' },
-        { p: 'trainings', l: 'Attendance', i: 'qr' }
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' }
       ],
       more: [
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
@@ -81,9 +83,20 @@
         { p: 'reports', l: 'Weekly reports', i: 'clipboard' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
+        { p: 'members', l: 'Members', i: 'users', feat: 'members' },
         { p: 'center', l: 'Your zone', i: 'layers' },
         /* Hidden while the app is free - there is nothing to pay. */
         ...(window.CONFIG.billingEnabled ? [{ p: 'subscriptions', l: 'Subscription', i: 'card' }] : []),
+        { p: 'account', l: 'Account', i: 'lock' }
+      ],
+      more: []
+    },
+    member: {
+      main: [
+        { p: 'dashboard', l: 'Dashboard', i: 'grid' },
+        { p: 'offices', l: 'Offices', i: 'building' },
+        { p: 'issues', l: 'Issues & solutions', i: 'alert' },
+        { p: 'people', l: 'My distributors', i: 'users' },
         { p: 'account', l: 'Account', i: 'lock' }
       ],
       more: []
@@ -95,9 +108,10 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues', 'codes'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
-      'subscriptions', 'account', 'offices', 'monthly', 'niches']
+      'subscriptions', 'account', 'offices', 'monthly', 'niches', 'members'],
+    member: ['dashboard', 'offices', 'issues', 'people', 'account']
   };
 
   function go(hash) { location.hash = hash; }
@@ -111,6 +125,7 @@
     + ico('drop', 16) + '</button>';
 
   const navLink = (n, active) => {
+    if (n.feat && !A.feature(n.feat)) return '';
     const cnt = n.c ? n.c() : '';
     const alert = n.alertC ? n.alertC() : '';
     return '<a class="sb-a ' + (active === n.p ? 'on' : '') + '" href="#/' + n.p + '">' + ico(n.i, 17)
@@ -140,7 +155,7 @@
       + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
-      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[me.role] || '') + '</div></div></div>'
+      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', member: 'Member' }[me.role] || '') + '</div></div></div>'
       + '<div class="sb-row">'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
       + hueBtn()
@@ -216,6 +231,12 @@
       { p: 'reports', l: 'Report', i: 'clipboard' },
       { p: 'trainings', l: 'Attendance', i: 'qr' },
       { p: 'center', l: 'Zone', i: 'layers' }
+    ],
+    member: [
+      { p: 'dashboard', l: 'Home', i: 'grid' },
+      { p: 'offices', l: 'Offices', i: 'building' },
+      { p: 'issues', l: 'Issues', i: 'alert' },
+      { p: 'people', l: 'People', i: 'users' }
     ]
   };
 
@@ -371,7 +392,7 @@
   const wnDone = () => { try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ } };
   function maybeWhatsNew(force) {
     const me = A.store.me;
-    if (!me || me.role === 'pending') return;
+    if (!me || me.role === 'pending' || me.role === 'member') return;
     let seen = '', shown = 0;
     try {
       seen = localStorage.getItem(WN_KEY) || '';
@@ -489,6 +510,11 @@
     const me = A.store.me;
 
     if (recovering) return renderAuth('reset');
+    if (me && me.role === 'pending') {
+      const pj = readJoin();
+      if (pj && !joining) return finishJoin(pj);
+    }
+    if (parts[0] === 'm' && (!me || me.role === 'pending')) return renderJoinOffice(parts[1] || '');
     if (!me) return renderAuth(parts[0] || 'login');
     if (me.role === 'pending') {
       return (me.req_status === 'pending' && !state.editRequest)
@@ -1726,6 +1752,165 @@
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  /* ======================= MEMBERS: join, check in ======================= */
+  const JOIN_KEY = 'sti-join';
+  const readJoin = () => {
+    try {
+      const d = JSON.parse(localStorage.getItem(JOIN_KEY) || 'null');
+      return d && Date.now() - d.ts < 2 * 86400000 ? d : null;
+    } catch (e) { return null; }
+  };
+  const saveJoin = (d) => { try { localStorage.setItem(JOIN_KEY, JSON.stringify(Object.assign({ ts: Date.now() }, d))); } catch (e) { /* ignore */ } };
+  const clearJoin = () => { try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* ignore */ } };
+  let joining = false;
+
+  /* Signed in, no role yet, and holding a join link's details: finish the job. */
+  async function finishJoin(pj) {
+    joining = true;
+    $('#root').innerHTML = authShell('<h1 class="auth-h">Joining your office</h1>'
+      + '<div class="loading"><div class="spinner"></div></div>');
+    try {
+      await A.member.join(pj);
+      clearJoin();
+      await boot(true);
+      joining = false;
+      go('#/dashboard');
+      await route();
+      toast('You are in.');
+    } catch (err) {
+      clearJoin(); joining = false;
+      toast(err.message, 'no');
+      await route();
+    }
+  }
+
+  async function renderJoinOffice(code) {
+    const r = $('#root');
+    r.innerHTML = authShell('<h1 class="auth-h">Opening your office link</h1><div class="loading"><div class="spinner"></div></div>');
+    let info;
+    try { info = await A.member.joinInfo(code); } catch (err) { info = { ok: false, error: err.message }; }
+    if (!info || !info.ok) {
+      r.innerHTML = authShell('<h1 class="auth-h">This link does not work</h1><p class="auth-s">'
+        + esc((info && info.error) || 'Ask your office for a new link.') + '</p>'
+        + '<div class="auth-alt"><a href="#/login">Go to sign in</a></div>');
+      return;
+    }
+    state.joinInfo = { code };
+    const signedIn = !!A.store.me;
+    const names = info.names || [];
+    r.innerHTML = authShell(
+      '<h1 class="auth-h">Join ' + esc(info.office) + '</h1>'
+      + '<p class="auth-s">' + esc(info.zone || '') + '. For Senior Managers and Executive Managers.</p>'
+      + '<form id="join-form">'
+      + (names.length ? '<div class="field"><label for="jn-pick">Are you already on your office list?</label>'
+        + '<select class="select" id="jn-pick" data-act="jn-pick"><option value="">No, add me</option>'
+        + names.map(n => '<option value="' + esc(n.id) + '" data-name="' + esc(n.name) + '" data-rank="' + esc(n.status) + '">'
+          + esc(n.name) + ' (' + esc(n.status) + ')</option>').join('') + '</select></div>' : '')
+      + '<div class="field"><label for="jn-name">Your name</label><input class="input" id="jn-name" required autocomplete="name"></div>'
+      + '<div class="field"><label for="jn-rank">Your rank</label><select class="select" id="jn-rank">'
+      + '<option>Senior Manager</option><option>Executive Manager</option></select></div>'
+      + '<div class="field"><label for="jn-phone">Phone</label><input class="input" id="jn-phone" type="tel" autocomplete="tel"></div>'
+      + (signedIn ? '' : '<div class="field"><label for="jn-email">Email</label>'
+        + '<input class="input" id="jn-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
+        + '<div class="field"><label for="jn-pass">Password</label>'
+        + '<input class="input" id="jn-pass" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></div>')
+      + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-office">Join ' + esc(info.office) + '</button>'
+      + '</form>'
+      + (signedIn ? '' : '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>'));
+  }
+
+  ACT['do-join-office'] = async (el, e) => {
+    e.preventDefault();
+    const btn = $('[data-act="do-join-office"]');
+    const sel = $('#jn-pick');
+    const d = {
+      code: (state.joinInfo || {}).code, rank: val('#jn-rank'), name: val('#jn-name'),
+      phone: val('#jn-phone'), dist: sel && sel.value ? sel.value : null
+    };
+    if (!d.name) return toast('Your name is needed.', 'no');
+    busy(btn, true, 'Joining…');
+    try {
+      saveJoin(d);
+      if (A.store.me) { await route(); return; }
+      const email = val('#jn-email'), pass = $('#jn-pass').value;
+      if (!email || pass.length < 8) { busy(btn, false); return toast('Add your email and a password of at least 8 characters.', 'no'); }
+      const out = await A.auth.signUp(email, pass, d.name);
+      if (out && out.session) { await boot(true); await route(); return; }
+      busy(btn, false);
+      modal('Check your email', '',
+        '<p style="font-size:14px;line-height:1.6;color:var(--muted)">We sent a confirmation link to <b>' + esc(email)
+        + '</b>. Open it, then sign in. You will be added to your office automatically.</p>',
+        '<a class="btn btn-a" href="#/login" data-act="modal-close">Back to sign in</a>');
+    } catch (err) { busy(btn, false); toast(err.message, 'no'); }
+  };
+
+  ACT['check-in'] = async (el, e) => {
+    if (e) e.preventDefault();
+    const code = val('#ci-code');
+    if (!code) return toast('Type the code your Director gave you.', 'no');
+    busy(el, true, 'Checking in…');
+    try {
+      const r = await A.member.checkIn(code);
+      busy(el, false);
+      if (!r.ok) return toast(r.error, 'no');
+      toast(r.already ? 'You are already checked in.'
+        : r.late ? 'Checked in at ' + r.at + '. That counts as late.' : 'Checked in at ' + r.at + '. On time.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  /* ------------------------------------------- members: their own list */
+  const PEOPLE_STAGES = ['New number', 'Talking', 'Invited', 'Came to office', 'Joined'];
+  ACT['person-new'] = () => modal('Add someone', 'A number from prospecting, or anyone you are following up.',
+    '<div class="field"><label for="pp-name">Name</label><input class="input" id="pp-name" autocomplete="off"></div>'
+    + '<div class="field"><label for="pp-phone">Phone</label><input class="input" id="pp-phone" type="tel" autocomplete="off"></div>'
+    + '<div class="field"><label for="pp-stage">Stage</label><select class="select" id="pp-stage">'
+    + PEOPLE_STAGES.map(s => '<option>' + s + '</option>').join('') + '</select></div>'
+    + '<div class="field"><label for="pp-note">Note</label><input class="input" id="pp-note" autocomplete="off"></div>',
+    '<button class="btn btn-g" data-act="modal-close">Cancel</button>'
+    + '<button class="btn btn-a" data-act="person-save">Save</button>');
+  ACT['person-save'] = async (el) => {
+    const name = val('#pp-name');
+    if (!name) return toast('A name is needed.', 'no');
+    busy(el, true, 'Saving…');
+    try {
+      await A.member.people.add({ name, phone: val('#pp-phone'), stage: val('#pp-stage'), note: val('#pp-note') });
+      closeModal(); toast('Added.'); route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['person-next'] = async (el) => {
+    busy(el, true, '…');
+    try { await A.member.people.stage(el.dataset.id, el.dataset.v); route(); }
+    catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['person-del'] = (el) => {
+    state.pendingPerson = el.dataset.id;
+    U.confirmDialog('Remove them from your list?', 'They are deleted from your list for good.', 'Remove', 'person-del-yes', true);
+  };
+  ACT['person-del-yes'] = async (el) => {
+    busy(el, true, 'Removing…');
+    try { await A.member.people.remove(state.pendingPerson); closeModal(); toast('Removed.'); route(); }
+    catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  /* ------------------------------------- office leader: link and members */
+  ACT['join-regen'] = () => U.confirmDialog('Make a new sign-up link?',
+    'The old link stops working straight away. Everyone already in your office stays in.', 'Make a new link', 'join-regen-yes');
+  ACT['join-regen-yes'] = async (el) => {
+    busy(el, true, 'Working…');
+    try { await A.member.regenCode(A.store.me.office.id); closeModal(); toast('New link ready.'); route(); }
+    catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['member-del'] = (el) => {
+    state.pendingMember = el.dataset.id;
+    U.confirmDialog('Remove this member?', 'They lose access to your office. They can join again with your link.', 'Remove', 'member-del-yes', true);
+  };
+  ACT['member-del-yes'] = async (el) => {
+    busy(el, true, 'Removing…');
+    try { await A.member.remove(state.pendingMember); closeModal(); toast('Removed.'); route(); }
+    catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   /* ============================ VIEW AS ============================= */
   /* The Super Admin looks at the app through one office's or one
      Director's eyes. Only what is drawn changes: the account underneath
@@ -1810,6 +1995,10 @@
   document.addEventListener('change', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el) return;
+    if (el.dataset.act === 'jn-pick') {
+      const o = el.options[el.selectedIndex];
+      if (o && o.dataset.name) { $('#jn-name').value = o.dataset.name; if (o.dataset.rank) $('#jn-rank').value = o.dataset.rank; }
+    }
     if (el.dataset.act === 'month') { state.month = Number(el.value); route(); }
     if (el.dataset.act === 'center') { state.center = el.value; route(); }
     if (el.dataset.act === 'issue-zone') { state.issueZone = el.value; route(); }
