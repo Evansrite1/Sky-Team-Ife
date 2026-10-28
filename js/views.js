@@ -2055,7 +2055,7 @@
         + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your members</div>'
         + '<div class="card-s">' + roster.length + ' signed in. Attendance is the last 12 Wednesdays.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Rank' }, { label: 'Attendance' }, { label: 'Following up', num: true }, { label: '' }],
-          roster.map(m => '<tr><td class="nm">' + esc(m.name) + '<div class="sub">' + esc(m.phone || '') + '</div></td>'
+          roster.map(m => '<tr><td class="nm">' + esc(m.name) + '<div class="sub">' + esc(m.phone || '') + (m.sponsor ? ' · Sponsor: ' + esc(m.sponsor) : '') + '</div></td>'
             + '<td>' + esc(m.rank || '-') + '</td><td>' + stat(m) + '</td>'
             + '<td class="num">' + m.tracking + '</td>'
             + '<td><button class="btn btn-sm btn-g" data-act="member-del" data-id="' + m.id + '" aria-label="Remove">' + ico('trash', 14) + '</button></td></tr>'),
@@ -2081,7 +2081,7 @@
     return {
       title: 'Wednesday codes', crumbs: esc(U.fullDate(wed)),
       html: note('info', 'info', 'One code per zone, the same all day. Give it to your Senior and Executive Managers at the training. '
-        + 'It is also sent to your phone at 8:00am, 9:00am, 12:00pm, 2:00pm and 3:05pm. Check-in is open from 1:00pm to 6:00pm, and after 2:45pm counts as late.')
+        + 'It is also sent to your phone at 2:00pm and 3:05pm. Check-in is open from 1:00pm to 6:00pm, and after 2:45pm counts as late.')
         + '<div style="height:16px"></div>'
         + (zones.length ? '<div class="grid g2">' + zones.map(z => {
           const c = codes.find(x => x.center_id === z.id);

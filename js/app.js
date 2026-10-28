@@ -1802,18 +1802,19 @@
       '<h1 class="auth-h">Join ' + esc(info.office) + '</h1>'
       + '<p class="auth-s">' + esc(info.zone || '') + '. For Senior Managers and Executive Managers.</p>'
       + '<form id="join-form">'
-      + (names.length ? '<div class="field"><label for="jn-pick">Are you already on your office list?</label>'
-        + '<select class="select" id="jn-pick" data-act="jn-pick"><option value="">No, add me</option>'
-        + names.map(n => '<option value="' + esc(n.id) + '" data-name="' + esc(n.name) + '" data-rank="' + esc(n.status) + '">'
-          + esc(n.name) + ' (' + esc(n.status) + ')</option>').join('') + '</select></div>' : '')
       + '<div class="field"><label for="jn-name">Your name</label><input class="input" id="jn-name" required autocomplete="name"></div>'
-      + '<div class="field"><label for="jn-rank">Your rank</label><select class="select" id="jn-rank">'
-      + '<option>Senior Manager</option><option>Executive Manager</option></select></div>'
-      + '<div class="field"><label for="jn-phone">Phone</label><input class="input" id="jn-phone" type="tel" autocomplete="tel"></div>'
-      + (signedIn ? '' : '<div class="field"><label for="jn-email">Email</label>'
-        + '<input class="input" id="jn-email" type="email" required autocomplete="email" placeholder="you@example.com"></div>'
+      + '<div class="field"><label for="jn-sponsor">Your sponsor\'s name</label><input class="input" id="jn-sponsor" autocomplete="off"></div>'
+      + '<div class="field"><label for="jn-phone">Phone number</label><input class="input" id="jn-phone" type="tel" autocomplete="tel"></div>'
+      + (signedIn ? '' : '<div class="field"><label for="jn-email">Gmail or email</label>'
+        + '<input class="input" id="jn-email" type="email" required autocomplete="email" placeholder="you@gmail.com"></div>'
         + '<div class="field"><label for="jn-pass">Password</label>'
         + '<input class="input" id="jn-pass" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></div>')
+      + '<div class="field"><label for="jn-rank">Your rank</label><select class="select" id="jn-rank">'
+      + '<option>Senior Manager</option><option>Executive Manager</option></select></div>'
+      + (names.length ? '<div class="field"><label for="jn-pick">Already on your office list? Pick yourself (optional)</label>'
+        + '<select class="select" id="jn-pick" data-act="jn-pick"><option value="">No, I will type my details</option>'
+        + names.map(n => '<option value="' + esc(n.id) + '" data-name="' + esc(n.name) + '" data-rank="' + esc(n.status) + '">'
+          + esc(n.name) + ' (' + esc(n.status) + ')</option>').join('') + '</select></div>' : '')
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-join-office">Join ' + esc(info.office) + '</button>'
       + '</form>'
       + (signedIn ? '' : '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>'));
@@ -1825,7 +1826,7 @@
     const sel = $('#jn-pick');
     const d = {
       code: (state.joinInfo || {}).code, rank: val('#jn-rank'), name: val('#jn-name'),
-      phone: val('#jn-phone'), dist: sel && sel.value ? sel.value : null
+      phone: val('#jn-phone'), sponsor: val('#jn-sponsor'), dist: sel && sel.value ? sel.value : null
     };
     if (!d.name) return toast('Your name is needed.', 'no');
     busy(btn, true, 'Joining…');

@@ -10,10 +10,10 @@
 --    the same string you saved as CRON_SECRET in Vercel.
 -- 3. Run this file.
 --
--- Times are UTC. Lagos is UTC+1, so these are 8:00, 9:00, 12:00, 14:00
--- and 15:05 Lagos on Wednesdays (day 3).
+-- Times are UTC. Lagos is UTC+1, so these are 2:00pm and 3:05pm Lagos
+-- on Wednesdays (day 3).
 -- =====================================================================
-select cron.schedule('sti-wed-code-main', '0 7,8,11,13 * * 3', $$
+select cron.schedule('sti-wed-code-2pm', '0 13 * * 3', $$
   select net.http_post(
     url := 'https://sky-team-ife.vercel.app/api/code-push',
     headers := jsonb_build_object('content-type', 'application/json',
@@ -22,7 +22,7 @@ select cron.schedule('sti-wed-code-main', '0 7,8,11,13 * * 3', $$
   );
 $$);
 
-select cron.schedule('sti-wed-code-late', '5 14 * * 3', $$
+select cron.schedule('sti-wed-code-305pm', '5 14 * * 3', $$
   select net.http_post(
     url := 'https://sky-team-ife.vercel.app/api/code-push',
     headers := jsonb_build_object('content-type', 'application/json',
@@ -32,5 +32,5 @@ select cron.schedule('sti-wed-code-late', '5 14 * * 3', $$
 $$);
 
 -- To stop them later:
---   select cron.unschedule('sti-wed-code-main');
---   select cron.unschedule('sti-wed-code-late');
+--   select cron.unschedule('sti-wed-code-2pm');
+--   select cron.unschedule('sti-wed-code-305pm');

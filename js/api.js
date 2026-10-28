@@ -652,7 +652,7 @@
   };
   const member = {
     joinInfo: (code) => rpc('join_office_info', { p_code: code }),
-    join: (d) => rpc('member_join', { p_code: d.code, p_rank: d.rank, p_name: d.name, p_phone: d.phone || '', p_dist: d.dist || null }),
+    join: (d) => rpc('member_join', { p_code: d.code, p_rank: d.rank, p_name: d.name, p_phone: d.phone || '', p_dist: d.dist || null, p_sponsor: d.sponsor || '' }),
     checkIn: (code) => rpc('member_check_in', { p_code: code }),
     ensureWeek: (center, week) => sb.rpc('ensure_week_events_for', { p_center: center, p_week: week }).then(() => {}, () => {}),
     /* The last twelve Wednesday trainings in a zone and who checked in.

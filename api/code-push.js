@@ -2,8 +2,8 @@
    Sky Team Ife - Wednesday code, pushed to the Directors.
 
    Called by the database's scheduler (pg_cron, see
-   supabase/2026-11-member-cron.sql) at 8:00, 9:00, 12:00, 14:00 and
-   15:05 Lagos time on Wednesdays. It sends each Director the same code
+   supabase/2026-11-member-cron.sql) at 14:00 and 15:05
+   Lagos time on Wednesdays. It sends each Director the same code
    for their zone, as a push notification on every device they turned
    notifications on for.
 
