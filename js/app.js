@@ -108,7 +108,7 @@
        evaluation and rankings by drilling into a zone, and the pages
        still have to answer when they do. */
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
-      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues', 'codes'],
+      'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues', 'codes', 'zonemembers'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
       'subscriptions', 'account', 'offices', 'monthly', 'niches', 'members'],
     member: ['dashboard', 'offices', 'issues', 'people', 'account']

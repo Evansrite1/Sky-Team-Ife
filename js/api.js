@@ -703,6 +703,7 @@
     roster: (officeId) => rpc('office_members', { p_office: officeId || null }),
     names: (officeId) => rpc('office_people_names', { p_office: officeId || null }),
     remove: (id) => rpc('remove_member', { p_member: id }),
+    zoneMembers: (centerId) => rpc('zone_members_summary', { p_center: centerId || null }),
     directorCheckIn: () => rpc('director_check_in'),
     applyDirector: () => rpc('apply_director'),
     reviewApplication: (id, approve) => rpc('review_director_application', { p_user: id, p_approve: !!approve }),

@@ -1799,14 +1799,19 @@
       body = note('info', 'calendar', '<b>Next check-in: Wednesday.</b> The Senior Manager Training.');
     }
     return '<div class="card"><div class="card-h"><div><div class="card-t">Your check-in</div>'
-      + '<div class="card-s">Wednesday Senior Manager Training</div></div></div>' + body + '</div><div style="height:16px"></div>';
+      + '<div class="card-s">Wednesday Senior Manager Training</div></div></div>' + body + '</div>';
   }
 
-  /* A Director's home: check in, the Wednesday code, and four places to go. */
+  /* A Director's home, in four parts: today, what needs them, the week, and everywhere they can go. */
   async function directorDash() {
     const me = A.store.me;
+    const ws = S().week;
     const weeks = U.weeksOfMonth(U.currentMonthNo()).filter(U.weekStarted);
     const zone = me.center_id || '';
+    const sec = t => '<h3 style="margin:22px 0 10px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600">' + t + '</h3>';
+    const gap = '<div style="height:16px"></div>';
+
+    /* Issues waiting for a solution this month. */
     let open = 0;
     try {
       const reps = weeks.length ? await A.reports.list(zone ? { weeks, center: zone } : { weeks }) : [];
@@ -1816,15 +1821,16 @@
         A.issues.split(r.issues).forEach(t => { if (!sols.find(x => x.report_id === r.id && x.issue === t)) open++; });
       });
     } catch (e) { open = 0; }
-    let codeCard = '', checkCard = '';
-    const apps = await applicationsCard();
+
+    /* Today: check in and the code. */
+    let checkCard = '', codeCard = '';
     if (A.feature('members')) {
       try { checkCard = await directorCheckCard(me, U.weekStart()); } catch (e) { checkCard = ''; }
       let codes = [], codeErr = '';
       try { codes = await A.member.codes(U.weekStart()); } catch (e) { codeErr = e.message || 'Could not load the code.'; }
       const zones = A.store.centers.filter(c => !zone || c.id === zone);
       codeCard = '<div class="card"><div class="card-h"><div><div class="card-t">Wednesday code</div>'
-        + '<div class="card-s">Give this to your Senior and Executive Managers at the training.</div></div></div>'
+        + '<div class="card-s">Give this to your Senior and Executive Managers.</div></div></div>'
         + (codeErr ? note('warn', 'alert', '<b>' + esc(codeErr) + '</b> The database file for Member accounts may not have been run yet.') : '')
         + (zones.map(z => {
           const c = codes.find(x => x.center_id === z.id);
@@ -1832,41 +1838,112 @@
             + (c ? '<div class="mono" style="font-size:38px;letter-spacing:.25em;font-weight:600">' + esc(c.code) + '</div>'
               : '<div class="sub">Not ready yet. Refresh in a moment.</div>') + '</div>';
         }).join('') || '<div class="sub">No zone yet.</div>')
-        + '</div><div style="height:16px"></div>';
+        + '</div>';
     } else {
-      codeCard = note('info', 'info', '<b>The Wednesday code is switched off.</b> The Super Admin turns on Member accounts and Wednesday check-in in Admin, Features.')
-        + '<div style="height:16px"></div>';
+      codeCard = note('info', 'info', '<b>The Wednesday code is switched off.</b> The Super Admin turns on Member accounts and Wednesday check-in in Admin, Features.');
     }
-    /* This week at a glance: how many offices filed, the totals, and the top three. */
-    let weekCard = '';
+    const todayHtml = sec('Today, Wednesday training')
+      + (checkCard ? '<div class="grid g2">' + checkCard + codeCard + '</div>' : codeCard);
+
+    /* This week: who has filed, totals, top three, who has not. */
+    let weekHtml = '', needs = '';
     try {
-      const ws = S().week;
       const wreps = await A.reports.list(zone ? { week: ws, center: zone } : { week: ws });
       const offs = A.store.offices.filter(o => o.active && (!zone || o.center_id === zone));
       const ranked = rankOffices(wreps, offs).filter(r => !r.missing).slice(0, 3);
       const orders = wreps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
       const amount = wreps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
-      weekCard = '<div class="grid g3">'
-        + kpi('Offices filed', wreps.length + ' / ' + offs.length, esc(U.weekName(ws)), 'building')
-        + kpi('Orders', orders, esc(U.weekRange(ws)), 'trend')
-        + kpi('Amount', usdFull(amount), 'this week', 'cash', 'kpi-blue')
-        + '</div><div style="height:16px"></div>'
-        + (ranked.length ? '<div class="card"><div class="card-h"><div><div class="card-t">Top offices this week</div></div></div>'
+      const notFiled = offs.filter(o => !wreps.find(r => r.office_id === o.id));
+      weekHtml = sec(esc(U.weekName(ws)) + ', ' + esc(U.weekRange(ws)))
+        + '<div class="grid g3">'
+        + kpi('Offices filed', wreps.length + ' / ' + offs.length, 'this week', 'building')
+        + kpi('Orders', orders, 'zone total', 'trend')
+        + kpi('Amount', usdFull(amount), 'zone total', 'cash', 'kpi-blue')
+        + '</div>'
+        + (ranked.length ? gap + '<div class="card"><div class="card-h"><div><div class="card-t">Top offices this week</div></div>'
+          + '<div class="card-a"><a class="btn btn-sm" href="' + link('rankings') + '">All rankings</a></div></div>'
           + table([{ label: '#', num: true }, { label: 'Office' }, { label: 'Orders', num: true }],
             ranked.map(r => '<tr><td class="num">' + r.rank + '</td><td class="nm">' + esc(r.office.name) + '</td><td class="num">' + r.orders + '</td></tr>'),
-            { empty: '' }) + '</div><div style="height:16px"></div>' : '');
-    } catch (e) { weekCard = ''; }
+            { empty: '' }) + '</div>' : '');
+      if (notFiled.length) {
+        needs += '<div class="card"><div class="card-h"><div><div class="card-t">Not filed yet · ' + notFiled.length + '</div>'
+          + '<div class="card-s">These offices have no report for this week.</div></div></div>'
+          + '<div class="chips">' + notFiled.slice(0, 12).map(o => tag(o.name, 't-warn')).join(' ')
+          + (notFiled.length > 12 ? ' ' + tag('+' + (notFiled.length - 12) + ' more', 't-mute') : '') + '</div></div>' + gap;
+      }
+    } catch (e) { weekHtml = ''; }
+
+    /* What needs the Director. */
+    const apps = await applicationsCard();
+    if (open) {
+      needs = '<a class="card" href="' + link('issues') + '" style="display:block;text-decoration:none;color:inherit">'
+        + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico('alert', 18) + ' ' + open + ' issue' + (open === 1 ? '' : 's') + ' waiting for your solution</div>'
+        + '<div class="card-s">Tap to answer them. The office sees your answer straight away.</div></div></div></a>' + gap + needs;
+    }
+    const needsHtml = (apps || needs) ? sec('Needs you') + apps + needs : '';
+
+    /* Everywhere a Director can go. */
     const tile = (page, icon, title, sub) => '<a class="card" href="' + link(page) + '" style="display:block;text-decoration:none;color:inherit">'
       + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico(icon, 18) + ' ' + esc(title) + '</div>'
       + '<div class="card-s">' + esc(sub) + '</div></div></div></a>';
+    const tiles = [
+      tile('issues', 'alert', 'Issues & solutions', open ? open + ' waiting for you' : 'Everything is answered'),
+      tile('centers', 'layers', 'Zones and offices', 'Every office, its numbers and reports'),
+      tile('evaluation', 'clipboard', 'Evaluation list', 'For the Wednesday evaluation, as a PDF'),
+      tile('rankings', 'crown', 'Office rankings', 'Who is ahead, week by week'),
+      tile('monthly', 'calendar', 'Monthly summary', 'The shape of the month'),
+      tile('trainings', 'qr', 'Wednesday training', 'Senior Manager attendance'),
+      tile('niches', 'star', 'Niches', 'What is selling'),
+      A.feature('members') ? tile('zonemembers', 'users', 'Members in your zone', 'Senior and Executive Managers') : '',
+      A.feature('members') ? tile('codes', 'qr', 'Wednesday codes', 'The code, and who has checked in') : ''
+    ].join('');
     return {
       title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
-      html: checkCard + codeCard + apps + weekCard
-        + '<div class="grid g2">'
-        + tile('issues', 'alert', 'Issues & solutions', open ? open + ' waiting for your solution' : 'Everything is answered')
-        + tile('centers', 'layers', 'Zones and offices', 'Every office, its numbers and reports')
-        + tile('evaluation', 'clipboard', 'Evaluation list', 'For the Wednesday evaluation')
-        + tile('trainings', 'qr', 'Wednesday training', 'Senior Manager attendance')
+      html: todayHtml + needsHtml + weekHtml + sec('Everything you can do') + '<div class="grid g2">' + tiles + '</div>'
+    };
+  }
+
+  /* The Senior and Executive Managers in a Director's zone. Counts only for the people they follow up. */
+  async function zoneMembersView() {
+    const me = A.store.me;
+    if (!A.feature('members')) return { title: 'Members in your zone', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on.') };
+    let list = [];
+    try { list = await A.member.zoneMembers(me.center_id || null); }
+    catch (e) {
+      return { title: 'Members in your zone',
+        html: note('warn', 'alert', '<b>' + esc(e.message) + '</b> Run the zone members database file in Supabase first.') };
+    }
+    const byCenter = {};
+    list.forEach(m => { (byCenter[m.center_id] = byCenter[m.center_id] || []).push(m); });
+    const atts = {};
+    await Promise.all(Object.keys(byCenter).map(async c => {
+      atts[c] = await A.member.attendance(c, byCenter[c].map(m => m.distributor_id).filter(Boolean));
+    }));
+    const stat = m => {
+      const att = atts[m.center_id];
+      if (!att) return '';
+      const r = att.events.map(ev => A.member.classify(att, ev, m.distributor_id, m.joined)).filter(s => s !== 'none');
+      const c = s => r.filter(x => x === s).length;
+      return tag(c('present') + ' on time', 't-ok') + ' ' + tag(c('late') + ' late', 't-warn') + ' ' + tag(c('absent') + ' absent', 't-mute');
+    };
+    const total = list.reduce((a, m) => a + (Number(m.tracking) || 0), 0);
+    return {
+      title: 'Members in your zone',
+      html: '<div class="grid g3">'
+        + kpi('Members', list.length, 'Senior and Executive Managers', 'users')
+        + kpi('Following up', total, 'people, in total', 'trend', 'kpi-blue')
+        + kpi('Offices', Object.keys(list.reduce((o, m) => { o[m.office_id] = 1; return o; }, {})).length, 'with members', 'building')
+        + '</div>'
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Every member</div>'
+        + '<div class="card-s">Attendance is the last 12 Wednesdays. You see how many people each member follows up, never who they are.</div></div></div>'
+        + table([{ label: 'Member' }, { label: 'Office' }, { label: 'Attendance' }, { label: 'Following up', num: true }],
+          list.map(m => {
+            const off = A.officeById(m.office_id);
+            return '<tr><td class="nm">' + esc(m.name) + '<div class="sub">' + esc(m.rank || '') + '</div></td>'
+              + '<td>' + esc(off ? off.name : '-') + '<div class="sub">' + esc((A.centerById(m.center_id) || {}).name || '') + '</div></td>'
+              + '<td>' + stat(m) + '</td><td class="num">' + m.tracking + '</td></tr>';
+          }),
+          { empty: empty('users', 'No members yet', 'They appear when Senior and Executive Managers join through their office link.') })
         + '</div>'
     };
   }
@@ -2267,7 +2344,7 @@
       v.html += anthemCard();
       return v;
     },
-    people: peopleView, members: membersView, codes: codesView, signins,
+    people: peopleView, members: membersView, codes: codesView, signins, zonemembers: zoneMembersView,
     evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,
     trainings: (id) => sessions('training', id),

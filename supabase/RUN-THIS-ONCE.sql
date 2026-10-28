@@ -8,7 +8,7 @@
 -- some of the older files. It also switches Member accounts ON.
 -- =====================================================================
 
--- ##### PART 1 of 4: 2026-11-members.sql #####
+-- ##### PART 1 of 5: 2026-11-members.sql #####
 -- =====================================================================
 -- Sky Team Ife - member accounts and the Wednesday check-in
 --
@@ -376,7 +376,7 @@ end $$;
 commit;
 
 
--- ##### PART 2 of 4: 2026-11-members-2.sql #####
+-- ##### PART 2 of 5: 2026-11-members-2.sql #####
 -- =====================================================================
 -- Sky Team Ife - members, part 2: the sponsor's name
 --
@@ -462,7 +462,7 @@ end $$;
 commit;
 
 
--- ##### PART 3 of 4: 2026-11-one-training.sql #####
+-- ##### PART 3 of 5: 2026-11-one-training.sql #####
 -- =====================================================================
 -- Sky Team Ife - one training only: the Wednesday Senior Manager Training
 --
@@ -520,7 +520,7 @@ end $$;
 commit;
 
 
--- ##### PART 4 of 4: 2026-11-directors.sql #####
+-- ##### PART 4 of 5: 2026-11-directors.sql #####
 -- =====================================================================
 -- Sky Team Ife - Directors check in, and members can apply to become one
 --
@@ -648,11 +648,44 @@ end $$;
 commit;
 
 
+-- ##### PART 5 of 5: 2026-11-zone-members.sql #####
+-- =====================================================================
+-- Sky Team Ife - Directors see the members in their zone
+--
+-- Gives a Director (or the Super Admin) the list of Senior and Executive
+-- Managers in their zone, with HOW MANY people each one is following up.
+-- Never the names or phone numbers of those people.
+--
+-- Run in the Supabase SQL editor. Safe to run twice.
+-- =====================================================================
+begin;
+
+create or replace function zone_members_summary(p_center uuid default null)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'Not allowed.'; end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', p.id, 'name', p.full_name, 'rank', p.rank,
+      'office_id', p.member_office_id, 'center_id', p.center_id,
+      'distributor_id', p.distributor_id, 'joined', p.created_at,
+      'tracking', (select count(*) from member_people m where m.owner_id = p.id)
+    ) order by p.full_name)
+    from profiles p
+    where p.role::text = 'member'
+      and (p_center is null or p.center_id = p_center)
+      and (my_role()::text = 'super_admin' or my_center() is null or p.center_id = my_center())
+  ), '[]'::jsonb);
+end $$;
+
+commit;
+
+
 -- ##### SWITCH ON #####
 insert into app_settings (key, value) values ('feature_members', 'true')
 on conflict (key) do update set value = 'true';
 
--- ##### CHECK: you should see 7 rows, all saying yes #####
+-- ##### CHECK: you should see 8 rows, all saying yes #####
 select name, 'yes' as present from (
   select table_name as name from information_schema.tables
    where table_schema = 'public'
@@ -660,5 +693,5 @@ select name, 'yes' as present from (
   union all
   select routine_name from information_schema.routines
    where routine_schema = 'public'
-     and routine_name in ('member_join', 'member_check_in', 'director_check_in')
+     and routine_name in ('member_join', 'member_check_in', 'director_check_in', 'zone_members_summary')
 ) t order by 1;
