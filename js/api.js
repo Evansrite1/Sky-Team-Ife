@@ -454,6 +454,10 @@
       return rows(await sb.from('profiles').select('*')
         .neq('role', 'pending').order('last_seen', { ascending: false, nullsFirst: false }));
     },
+    /* Every account, whatever its role, for the sign-ins page. */
+    async all() {
+      return rows(await sb.from('profiles').select('*').order('last_seen', { ascending: false, nullsFirst: false }));
+    },
     async approve(id) {
       const { error } = await sb.rpc('approve_access_request', { p_user: id });
       if (error) throw new Error(error.message);

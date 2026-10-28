@@ -37,6 +37,7 @@
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
         { p: 'directors', l: 'Directors', i: 'users' },
+        { p: 'signins', l: 'Sign-ins', i: 'clock' },
         { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'issues', l: 'Issues & solutions', i: 'alert' },
@@ -1934,6 +1935,7 @@
       + '<span>Viewing as <b>' + esc(who) + '</b> (' + (me.role === 'office' ? 'office' : 'Director') + '). Look only, nothing here can be changed.</span>'
       + '<button class="btn btn-sm" data-act="exit-view" style="white-space:nowrap">Exit view</button></div>';
   }
+  ACT['sign-filter'] = (el) => { state.signFilter = el.dataset.v; route(); };
   ACT['view-as'] = async (el) => {
     if (!state.realMe && !A.isSuper()) return;
     const real = state.realMe || A.store.me;

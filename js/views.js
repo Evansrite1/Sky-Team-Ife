@@ -1751,23 +1751,49 @@
               ? '<button class="btn btn-sm btn-d" data-act="drop-admin" data-id="' + p.id + '">Remove</button>' : '') + '</td></tr>'))
         + '</div>'
 
+    };
+  }
+
+  /* ===================================================================
+     SIGN-INS (Super Admin): every account, who has signed in and when
+     =================================================================== */
+  async function signins() {
+    const everyone = await A.people.all();
+    const roleOf = p => p.role === 'pending' ? 'waiting' : p.role === 'platform_admin' ? 'director' : p.role;
+    const filt = S().signFilter || 'all';
+    const list = filt === 'all' ? everyone : everyone.filter(p => roleOf(p) === filt);
+    const days = p => p.last_seen ? (Date.now() - new Date(p.last_seen).getTime()) / 86400000 : null;
+    const active = everyone.filter(p => days(p) !== null && days(p) <= 7).length;
+    const never = everyone.filter(p => !p.last_seen).length;
+    const cnt = k => k === 'all' ? everyone.length : everyone.filter(p => roleOf(p) === k).length;
+    const seg = [['all', 'Everyone'], ['office', 'Offices'], ['director', 'Directors'], ['member', 'Members'], ['waiting', 'Waiting']]
+      .map(o => '<button class="' + (filt === o[0] ? 'on' : '') + '" data-act="sign-filter" data-v="' + o[0] + '">'
+        + o[1] + ' · ' + cnt(o[0]) + '</button>').join('');
+    const roleName = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', member: 'Member', pending: 'Waiting' };
+    return {
+      title: 'Sign-ins',
+      html: '<div class="grid g3">'
+        + kpi('Accounts', everyone.length, 'every sign-up', 'users')
+        + kpi('Active this week', active, 'opened the app in 7 days', 'check', 'kpi-blue')
+        + kpi('Never signed in', never, never ? 'created an account, never opened it' : 'everyone has', 'clock')
+        + '</div>'
+        + '<div class="row" style="margin:18px 0 12px;gap:10px;flex-wrap:wrap"><div class="seg">' + seg + '</div></div>'
         + '<div class="card"><div class="card-h"><div><div class="card-t">Who has signed in</div>'
-        + '<div class="card-s">Every account with a role, most recent first. Stamped each time '
-        + 'the app is opened with a live session.</div></div></div>'
-        + table([{ label: 'Name' }, { label: 'Role' }, { label: 'Last seen' }, { label: 'Sign-ins', num: true }],
-          all.map(p => {
-            const days = p.last_seen
-              ? Math.floor((Date.now() - new Date(p.last_seen).getTime()) / 86400000) : null;
-            const state = days === null ? tag('Never', 't-warn')
-              : days >= 14 ? tag(U.timeAgo(p.last_seen), 't-warn')
-                : tag(U.timeAgo(p.last_seen), 't-ok');
-            return '<tr><td class="nm">' + esc(p.full_name || '-')
-              + '<div class="sub">' + esc(p.email) + '</div></td>'
-              + '<td>' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[p.role] || p.role) + '</td>'
+        + '<div class="card-s">Most recent first. Stamped each time someone opens the app signed in.</div></div></div>'
+        + table([{ label: 'Name' }, { label: 'Role' }, { label: 'Office or zone' }, { label: 'Joined' }, { label: 'Last seen' }, { label: 'Sign-ins', num: true }],
+          list.map(p => {
+            const off = A.officeById(p.office_id || p.member_office_id);
+            const zone = A.centerById(p.center_id || (off && off.center_id));
+            const d = days(p);
+            const state = d === null ? tag('Never', 't-warn') : d >= 14 ? tag(U.timeAgo(p.last_seen), 't-warn') : tag(U.timeAgo(p.last_seen), 't-ok');
+            return '<tr><td class="nm">' + esc(p.full_name || '-') + '<div class="sub">' + esc(p.email || '') + '</div></td>'
+              + '<td>' + esc(roleName[p.role] || p.role) + (p.rank ? '<div class="sub">' + esc(p.rank) + '</div>' : '') + '</td>'
+              + '<td>' + esc(off ? off.name : '-') + '<div class="sub">' + esc(zone ? zone.name : '') + '</div></td>'
+              + '<td class="sub">' + esc(U.fullDate(p.created_at)) + '</td>'
               + '<td>' + state + '</td>'
               + '<td class="num">' + (p.login_count || 0) + '</td></tr>';
           }),
-          { empty: empty('users', 'Nobody yet', 'Sign-ins show up here.') })
+          { empty: empty('users', 'Nobody here', 'No accounts match this filter.') })
         + '</div>'
     };
   }
@@ -2103,7 +2129,7 @@
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
     dashboard: () => A.isMember() ? memberDash() : A.isOffice() ? officeDash() : adminDash(),
-    people: peopleView, members: membersView, codes: codesView,
+    people: peopleView, members: membersView, codes: codesView, signins,
     evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,
     trainings: (id) => sessions('training', id),
