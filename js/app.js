@@ -70,6 +70,7 @@
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'niches', l: 'Niches', i: 'star' },
         { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'zonemembers', l: 'Members', i: 'users', feat: 'members' },
         { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' }
       ],
       more: [
@@ -139,7 +140,7 @@
     const nav = NAV[me.role] || { main: [], more: [] };
     /* Open if they asked for it, or if the page they are on lives in there. */
     const openMore = state.moreOpen || nav.more.some(n => n.p === active);
-    const bare = me.role === 'platform_admin';     // a Director's sidebar is the logo, who they are, sign out and colour
+    const bare = false;
     return '<aside class="sb"><div class="sb-top"><div class="brand">'
       + '<span class="brand-mk">' + U.logo(22) + '</span>' + esc(brand()) + '</div></div>'
       + '<nav class="sb-nav">'
@@ -242,7 +243,6 @@
   };
 
   function tabbar(active) {
-    if (A.store.me.role === 'platform_admin') return '';
     const tabs = TABS[A.store.me.role] || [];
     return '<nav class="tabs">'
       + tabs.map(n => {
@@ -1964,6 +1964,7 @@
   /* A Director has no menu, so every page but the dashboard leads back to it. */
   function backLink(page) {
     const me = A.store.me;
+    return '';
     if (!me || me.role !== 'platform_admin' || page === 'dashboard') return '';
     return '<div style="padding:12px 16px 0"><a class="btn btn-sm" href="#/dashboard">' + ico('left', 14) + 'Dashboard</a></div>';
   }
