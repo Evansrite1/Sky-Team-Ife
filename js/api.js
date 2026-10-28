@@ -659,6 +659,13 @@
     joinInfo: (code) => rpc('join_office_info', { p_code: code }),
     join: (d) => rpc('member_join', { p_code: d.code, p_rank: d.rank, p_name: d.name, p_phone: d.phone || '', p_dist: d.dist || null, p_sponsor: d.sponsor || '' }),
     checkIn: (code) => rpc('member_check_in', { p_code: code }),
+    /* When check-in closes on a given date: 18:00, unless the Super Admin
+       extended that one day (settings checkin_extra_date / _until). */
+    endFor(dateIso) {
+      const s = store.settings || {};
+      return s.checkin_extra_date === dateIso && /^\d\d:\d\d/.test(s.checkin_extra_until || '')
+        ? s.checkin_extra_until.slice(0, 5) : '18:00';
+    },
     ensureWeek: (center, week) => sb.rpc('ensure_week_events_for', { p_center: center, p_week: week }).then(() => {}, () => {}),
     /* The last twelve Wednesday trainings in a zone and who checked in.
        A member with no scan for a training that is over is absent: there
@@ -679,7 +686,7 @@
       const sc = att.scans.find(s => s.event_id === ev.id && s.distributor_id === distId);
       if (sc) return sc.late ? 'late' : 'present';
       if (joined && ev.event_date < String(joined).slice(0, 10)) return 'none';
-      const over = ev.event_date < att.today || (ev.event_date === att.today && att.hhmm >= '18:00');
+      const over = ev.event_date < att.today || (ev.event_date === att.today && att.hhmm >= member.endFor(att.today));
       return over ? 'absent' : 'pending';
     },
     async codes(thu) {

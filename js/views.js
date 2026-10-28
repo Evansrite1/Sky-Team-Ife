@@ -1788,7 +1788,7 @@
     if (mine) {
       body = '<div class="row" style="gap:10px;align-items:center">' + tag(mine.late ? 'Checked in, late' : 'Checked in, on time', mine.late ? 't-warn' : 't-ok')
         + '<span class="sub">at ' + esc(lagosClock(mine.scanned_at)) + '</span></div>';
-    } else if (isWed && hhmm >= '13:00' && hhmm <= '18:00') {
+    } else if (isWed && hhmm >= '13:00' && hhmm <= A.member.endFor(ln.toISOString().slice(0, 10))) {
       body = '<button class="btn btn-a btn-pop btn-lg btn-block" data-act="dir-check-in">' + ico('check', 16) + 'Check in to the training</button>'
         + '<div class="hint" style="margin-top:8px">After 3:00pm counts as late.</div>';
     } else if (isWed && hhmm < '13:00') {
@@ -2077,12 +2077,12 @@
     if (mine) {
       check = '<div class="row" style="gap:10px;align-items:center">' + tag(mine.late ? 'Checked in, late' : 'Checked in, on time', mine.late ? 't-warn' : 't-ok')
         + '<span class="sub">at ' + esc(lagosClock(mine.scanned_at)) + '</span></div>';
-    } else if (isWed && att.hhmm >= '13:00' && att.hhmm <= '18:00') {
+    } else if (isWed && att.hhmm >= '13:00' && att.hhmm <= A.member.endFor(att.today)) {
       check = '<form id="ci-form"><div class="field"><label for="ci-code">Code from your Director</label>'
         + '<input class="input" id="ci-code" maxlength="8" autocomplete="off" autocapitalize="characters" '
         + 'style="text-transform:uppercase;letter-spacing:.2em;font-size:20px" placeholder="ABCDE"></div>'
         + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="check-in">' + ico('check', 16) + 'Check in</button>'
-        + '<div class="hint" style="margin-top:8px">After 2:45pm counts as late. Not checked in by 6:00pm means absent.</div></form>';
+        + '<div class="hint" style="margin-top:8px">After 2:45pm counts as late. Not checked in by ' + (A.member.endFor(att.today) === '18:00' ? '6:00pm' : '8:00pm today') + ' means absent.</div></form>';
     } else if (isWed && att.hhmm < '13:00') {
       check = note('info', 'clock', '<b>Check-in opens at 1:00pm today.</b> Your Director will give you the code.');
     } else if (isWed) {
