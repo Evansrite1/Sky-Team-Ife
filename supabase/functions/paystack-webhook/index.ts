@@ -1,5 +1,5 @@
 /* =====================================================================
-   paystack-webhook — the only thing allowed to say an office has paid.
+   paystack-webhook - the only thing allowed to say an office has paid.
 
    Paystack POSTs here after every event. The body is signed with your
    secret key, so the signature is checked before a single byte of it is
@@ -87,8 +87,8 @@ Deno.serve(async (req) => {
          with the period that was actually chosen (monthly/quarterly/
          yearly) and the day count that went with it at charge time, so a
          quarterly or yearly payment does not get the same 30 days a
-         monthly one does. A renewal Paystack raises on its own — through
-         a Plan, months from now — carries no metadata of ours, so that
+         monthly one does. A renewal Paystack raises on its own - through
+         a Plan, months from now - carries no metadata of ours, so that
          falls back to the plain monthly setting, which is the right
          default for anything not explicitly longer. */
       const metaDays = Number(data?.metadata?.days);
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       }).eq('office_id', office);
 
       /* A receipt, if the flag is on and Resend is configured. Neither
-         being missing should ever fail the webhook itself — the money
+         being missing should ever fail the webhook itself - the money
          has already landed and the subscription is already updated by
          the time this runs, so a receipt that cannot be sent is a
          missed nice-to-have, not a reason to make Paystack retry. */
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
                 method: 'POST',
                 headers: { Authorization: 'Bearer ' + apiKey, 'content-type': 'application/json' },
                 body: JSON.stringify({
-                  from, to: profile.email, subject: 'Sky Team Ife — payment received',
+                  from, to: profile.email, subject: 'Sky Team Ife - payment received',
                   html: '<p>Hi' + (profile.full_name ? ' ' + profile.full_name : '') + ',</p>'
                     + '<p>₦' + naira.toLocaleString() + ' received for <b>' + (officeRow?.name ?? 'your office')
                     + '</b>. Reference ' + data.reference + '.</p>'

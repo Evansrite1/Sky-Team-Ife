@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — views. Each one fetches what it needs and returns
+   Sky Team Ife - views. Each one fetches what it needs and returns
    { title, crumbs, picker, html }. Nothing here is invented: an empty
    database renders empty states, not sample rows.
    ===================================================================== */
@@ -36,7 +36,7 @@
      is the sum of how far an office is along each of them:
 
        money       what the orders came to
-       productive  what each earner brought in — amount over the pros
+       productive  what each earner brought in - amount over the pros
        numbers     how many people the office has in the room
 
      "Pros" are the people who actually write orders: distributors and
@@ -45,7 +45,7 @@
 
      Each is scored against the best office in the same group, so a score
      is "how close to the leader" rather than a raw figure. The weights
-     below are the whole of the policy — change them here and every
+     below are the whole of the policy - change them here and every
      ranking in the app moves together. */
   const RANK_W = { amount: 0.35, perPro: 0.35, people: 0.30 };
   const RANK_BASIS = 'Money, output per pro, and size of the room.';
@@ -62,7 +62,7 @@
       b.orders += Number(r.orders) || 0;
       b.amount += Number(r.amount) || 0;
       /* Orders and money accumulate over the weeks in view. The room does
-         not — the same people come back — so it is the largest week, not
+         not - the same people come back - so it is the largest week, not
          the sum of them. */
       b.people = Math.max(b.people, peopleIn(r));
       b.pros = Math.max(b.pros, prosIn(r));
@@ -96,7 +96,7 @@
 
   /* Grouped by lower-case, so "AI video" and "ai video" are one product
      rather than two, whatever mix of casing the database happens to
-     hold. Displayed under whichever spelling was written most often —
+     hold. Displayed under whichever spelling was written most often -
      the label a count like this is read against should be the one
      people actually typed, not just the first one that happened to be
      seen. */
@@ -117,7 +117,7 @@
       .sort((a, b) => b[1] - a[1]);
   }
 
-  /* The score decides the order — it does not have to be read as a
+  /* The score decides the order - it does not have to be read as a
      number to do that. Four bands turn it into a word instead, which is
      what the evaluation list shows: the grade an office earned, not the
      arithmetic behind it. */
@@ -126,7 +126,7 @@
   const grade = score => (GRADE_BANDS.find(b => score >= b[0]) || GRADE_BANDS[GRADE_BANDS.length - 1]);
 
   /* The standing, as a card. Used on the evaluation list and anywhere
-     else a ranking has to be read rather than worked through — graded,
+     else a ranking has to be read rather than worked through - graded,
      not scored: the rank and the grade are shown, the number behind
      them is not. */
   function rankCard(ranked, title, sub) {
@@ -201,7 +201,7 @@
         + kpi('Amount this week', usd(t.amount), U.change(t.amount, p.amount), 'cash', 'kpi-blue')
         + kpi('Reports in', t.count + ' of ' + offices.length,
           missing.length ? esc(missing.length + ' still missing') : 'Every office has filed', 'file')
-        + kpi('Leading office', top ? esc(top.office.name) : '—',
+        + kpi('Leading office', top ? esc(top.office.name) : '-',
           top ? usdFull(top.amount) + ' · ' + top.orders + ' orders' : 'No reports filed yet', 'crown', 'kpi-dark')
         + '</div>'
         + '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
@@ -232,7 +232,7 @@
 
   /* ------------------------------------------------- how to do better */
   /* Read off the office's own numbers against its zone's, this month and
-     the last eight weeks — nothing invented, nothing generic. Each line
+     the last eight weeks - nothing invented, nothing generic. Each line
      is a fact and the one thing to do about it, most urgent first, and
      at most four of them so it gets read. */
   function insights(d) {
@@ -255,7 +255,7 @@
       const need = aov ? Math.ceil(gap / aov) : 0;
       out.push({ i: 'crown', k: '', t: esc(above.office.name) + ' is one place above you.',
         d: gap > 0
-          ? usd(gap) + ' more this month closes the gap' + (need ? ' — about ' + need + ' more order' + (need === 1 ? '' : 's') + ' at your usual order size.' : '.')
+          ? usd(gap) + ' more this month closes the gap' + (need ? ' - about ' + need + ' more order' + (need === 1 ? '' : 's') + ' at your usual order size.' : '.')
           : 'You are level on money; a bigger room or more per person moves you past them.' });
     }
 
@@ -295,7 +295,7 @@
           d: 'Same number of orders at the zone\'s size would add ' + usd((zone - mine) * myMonth.orders) + '. Lead with bigger packages.' });
       } else if (mine > zone * 1.1) {
         out.push({ i: 'cash', k: 'up', t: 'Your orders are worth more than the zone average (' + usd(mine) + ' vs ' + usd(zone) + ').',
-          d: 'More orders at this size is your fastest way up — every extra one counts for more than anyone else\'s.' });
+          d: 'More orders at this size is your fastest way up - every extra one counts for more than anyone else\'s.' });
       }
     }
 
@@ -327,7 +327,7 @@
     const list = insights(d);
     return '<div class="card" style="margin-top:18px"><div class="card-h"><div>'
       + '<div class="card-t">How to do better</div>'
-      + '<div class="card-s">From your own numbers against your zone\'s — ' + esc(U.monthLabel(U.currentMonthNo())) + '.</div></div></div>'
+      + '<div class="card-s">From your own numbers against your zone\'s - ' + esc(U.monthLabel(U.currentMonthNo())) + '.</div></div></div>'
       + (list.length ? list.map(x => '<div class="ins"><div class="ins-i ' + x.k + '">' + ico(x.i, 16) + '</div>'
         + '<div><div class="ins-t">' + x.t + '</div><div class="ins-d">' + x.d + '</div></div></div>').join('')
         : empty('trend', 'Nothing to flag', 'File a few weeks and this fills with what to work on.'))
@@ -352,7 +352,7 @@
     const prev = U.iso(U.addDays(ws, -7));
     const hist = U.recentWeeks(8).reverse();
     /* The zone standing is scoped to the current month rather than the
-       one week on screen — "where do we stand" and "what does it take
+       one week on screen - "where do we stand" and "what does it take
        to be #1" are both month questions, and rankOffices already knows
        how to add several weeks of reports together. */
     const mn = U.currentMonthNo();
@@ -372,7 +372,7 @@
     const meRank = ranked.find(r => r.office_id === off.id) || {};
     const leader = ranked.find(r => !r.missing);
     const iLead = leader && leader.office_id === off.id;
-    /* What it would take to match the leader's raw numbers this month —
+    /* What it would take to match the leader's raw numbers this month -
        not a guarantee of #1, since the ranking also weighs output per
        pro and room size, but the plainest possible answer to "how much
        more". Floored at zero so a leader never reads a negative gap. */
@@ -395,7 +395,7 @@
         + (A.feature('streaks') && streak > 0
           ? ' · <span style="color:var(--blue)">' + streak + ' week' + (streak === 1 ? '' : 's') + ' straight</span>' : ''),
       html:
-        /* The trial countdown, first thing on the page — dashboard is
+        /* The trial countdown, first thing on the page - dashboard is
            where every login lands, so this is what "tell them each time
            they log in" means in practice rather than a separate popup
            that would just be one more thing to dismiss. */
@@ -440,16 +440,16 @@
             + '<div style="height:18px"></div>';
         })())
         + '<div class="grid g4">'
-        + kpi('Your orders', mine ? Number(mine.orders).toLocaleString() : '—',
+        + kpi('Your orders', mine ? Number(mine.orders).toLocaleString() : '-',
           mine ? U.change(mine.orders, prevMine ? prevMine.orders : 0) : 'No report for this week', 'trend')
-        + kpi('Your amount', mine ? usd(mine.amount) : '—',
+        + kpi('Your amount', mine ? usd(mine.amount) : '-',
           mine ? U.change(mine.amount, prevMine ? prevMine.amount : 0) : 'Nothing filed yet', 'cash', 'kpi-blue')
-        + kpi('Rank this month', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '—',
+        + kpi('Rank this month', meRank.rank ? '#' + meRank.rank + ' of ' + ranked.length : '-',
           esc(U.monthLabel(mn)) + ' · ' + esc((A.centerById(off.center_id) || {}).name || ''), 'crown', 'kpi-dark')
         /* The whole point of a rank: what does it take to move it. Not
            shown at all until at least one office has filed something
-           this month — a gap against nothing means nothing. */
-        + (!leader ? kpi('To be #1', '—', 'No reports yet this month', 'star')
+           this month - a gap against nothing means nothing. */
+        + (!leader ? kpi('To be #1', '-', 'No reports yet this month', 'star')
           : iLead ? kpi('To be #1', 'You lead', esc(U.monthLabel(mn)) + ' so far', 'star', 'kpi-blue')
             : meRank.missing ? kpi('To be #1', 'File first', 'This month has no report from you yet', 'star')
               : kpi('To be #1', usd(amountGap) + ' more',
@@ -473,7 +473,7 @@
           + '<div class="row" style="gap:9px"><span class="rk rk-' + r.rank + '">' + r.rank + '</span>'
           + '<span class="' + (r.office_id === off.id ? 'nm' : '') + '">' + esc(r.office.name)
           + (r.office_id === off.id ? ' <span class="tag t-ok">You</span>' : '') + '</span></div>'
-          + '<div class="num nm">' + (r.missing ? '<span style="color:var(--faint)">—</span>' : usd(r.amount)) + '</div></div>').join('')
+          + '<div class="num nm">' + (r.missing ? '<span style="color:var(--faint)">-</span>' : usd(r.amount)) + '</div></div>').join('')
           : empty('crown', 'No reports yet', 'Once offices in your zone file, the ranking appears.'))
         + '</div>'
 
@@ -481,7 +481,7 @@
           + '<div class="card-t">Your goal for ' + esc(U.monthLabel(mn)) + '</div>'
           + '<div class="card-s">' + (goal && (goal.target_orders || goal.target_amount)
             ? myMonth.orders + ' of ' + goal.target_orders + ' orders · ' + usd(myMonth.amount) + ' of ' + usd(goal.target_amount)
-            : 'Not set yet — pick a target and see how close you are all month.') + '</div></div></div>'
+            : 'Not set yet - pick a target and see how close you are all month.') + '</div></div></div>'
           + (goal && (goal.target_orders || goal.target_amount)
             ? '<div class="grid g2" style="margin-bottom:12px">'
             + '<div><div class="bar"><i style="width:' + Math.min(100, goal.target_orders ? 100 * myMonth.orders / goal.target_orders : 0) + '%"></i></div>'
@@ -531,7 +531,7 @@
       if (isEstimate(r)) return;
       A.issues.split(r.issues).forEach(t => all.push({
         r, t, s: sols.find(x => x.report_id === r.id && x.issue === t) || null,
-        name: ((A.officeById(r.office_id) || {}).name || '—')
+        name: ((A.officeById(r.office_id) || {}).name || '-')
       }));
     });
     all.sort((a, b) => (a.r.week_start < b.r.week_start ? 1 : a.r.week_start > b.r.week_start ? -1 : a.name.localeCompare(b.name)));
@@ -626,24 +626,24 @@
             const rep = reps.find(x => x.office_id === r.office_id);
             const pr = prevReps.find(x => x.office_id === r.office_id);
             if (!rep) {
-              return '<tr><td><span class="rk">—</span></td>'
+              return '<tr><td><span class="rk">-</span></td>'
                 + '<td class="nm">' + esc(r.office.name)
                 + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
-                + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
+                + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '-') + '</td>'
                 + '<td class="num" colspan="7">' + tag('No report filed', 't-warn') + '</td></tr>';
             }
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
               + '<td><div class="nm">' + esc(r.office.name) + '</div>'
               + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
-              + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '—') + '</td>'
+              + '<td class="num">' + (pr ? usdFull(pr.amount) + '<div class="sub">' + pr.orders + ' orders</div>' : '-') + '</td>'
               + '<td class="num nm">' + usdFull(rep.amount) + '<div class="sub">' + rep.orders + ' orders</div></td>'
               + '<td class="num">' + (pr ? U.change(rep.amount, pr.amount) : '<span class="sub">first week</span>') + '</td>'
               + '<td class="sub">' + peopleIn(rep) + ' people<div class="sub">'
               + rep.num_distributors + ' dist · ' + rep.num_senior_managers + ' SM · ' + rep.num_newbies + ' new</div></td>'
-              + '<td>' + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">—</span>') + '</td>'
-              + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">—</span>') + '</td>'
-              + '<td style="max-width:260px;white-space:pre-line">' + esc(rep.issues || '—') + '</td></tr>';
+              + '<td>' + ((rep.niches || []).map(n => tag(n)).join(' ') || '<span class="sub">-</span>') + '</td>'
+              + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">-</span>') + '</td>'
+              + '<td style="max-width:260px;white-space:pre-line">' + esc(rep.issues || '-') + '</td></tr>';
           }),
           { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here once they sign up and you approve them.') })
         + '</div>'
@@ -674,8 +674,8 @@
         + kpi('Amount', usd(t.amount), '', 'cash', 'kpi-blue')
         + kpi('Reports filed', t.count, mine ? '' : esc('across ' + offices.length + ' offices'), 'file')
         + kpi(mine ? 'Best week' : 'Best office',
-          mine ? (series.length ? series.reduce((a, b) => b.v > a.v ? b : a, series[0]).l : '—')
-            : (ranked[0] ? esc(ranked[0].office.name) : '—'),
+          mine ? (series.length ? series.reduce((a, b) => b.v > a.v ? b : a, series[0]).l : '-')
+            : (ranked[0] ? esc(ranked[0].office.name) : '-'),
           mine ? '' : (ranked[0] ? usdFull(ranked[0].amount) : ''), 'crown', 'kpi-dark')
         + '</div>'
 
@@ -702,7 +702,7 @@
             ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
               + '<td><span class="rk rk-' + r.rank + '">' + r.rank + '</span></td>'
               + '<td class="nm">' + esc(r.office.name) + '</td>'
-              + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
+              + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '-') + '</td>'
               + '<td class="num">' + reps.filter(x => x.office_id === r.office_id).length + '</td>'
               + '<td class="num">' + r.orders + '</td>'
               + '<td class="num nm">' + usdFull(r.amount) + '</td></tr>'),
@@ -724,7 +724,7 @@
       const t = totals(rs);
       return '<tr class="click" data-href="' + link('centers', c.id) + '">'
         + '<td class="nm">' + esc(c.name) + '</td>'
-        + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
+        + '<td>' + esc(c.leader_name || '-') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
         + '<td class="num">' + os.length + '</td>'
         + '<td class="num">' + t.count + ' of ' + os.length + '</td>'
         + '<td class="num nm">' + usdFull(t.amount) + '</td></tr>';
@@ -763,7 +763,7 @@
       title: c.name, crumbs: '<a href="' + link('centers') + '">Zones</a> · ' + esc(U.monthLabel(mn)),
       html: '<div class="grid g4">'
         + kpi('Offices', offs.length, '', 'building')
-        + kpi('Zone leader', esc(c.leader_name || '—'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
+        + kpi('Zone leader', esc(c.leader_name || '-'), esc(c.assistant_name ? 'Assistant: ' + c.assistant_name : ''), 'crown', 'kpi-dark')
         + kpi('Orders this month', t.orders.toLocaleString(), '', 'trend')
         + kpi('Amount this month', usd(t.amount), t.count + ' of ' + offs.length + ' filed', 'cash', 'kpi-blue')
         + '</div>'
@@ -786,11 +786,11 @@
           + ico('edit', 14) + 'Edit zone</button></div>' : '') + '</div>'
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Orders', num: true }, { label: 'Amount', num: true }],
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
-            + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
+            + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '-' : r.rank) + '</span></td>'
             + '<td class="nm">' + esc(r.office.name)
             + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
             + '<td class="num">' + (r.missing ? tag('Not filed', 't-warn') : r.orders) + '</td>'
-            + '<td class="num nm">' + (r.missing ? '—' : usdFull(r.amount)) + '</td></tr>'),
+            + '<td class="num nm">' + (r.missing ? '-' : usdFull(r.amount)) + '</td></tr>'),
           { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear once approved.') })
         + '</div>'
 
@@ -830,11 +830,11 @@
             const r = reps.find(x => x.office_id === o.id);
             return '<tr class="click" data-href="' + link('offices', o.id) + '">'
               + '<td class="nm">' + esc(o.name) + '</td>'
-              + '<td>' + esc((A.centerById(o.center_id) || {}).name || '—') + '</td>'
-              + '<td>' + esc(o.manager_name || '—') + '<div class="sub">' + esc(o.email || '') + '</div></td>'
+              + '<td>' + esc((A.centerById(o.center_id) || {}).name || '-') + '</td>'
+              + '<td>' + esc(o.manager_name || '-') + '<div class="sub">' + esc(o.email || '') + '</div></td>'
               + '<td class="num">' + dists.filter(d => d.office_id === o.id).length + '</td>'
               + '<td class="num">' + (r ? r.orders : tag('Not filed', 't-warn')) + '</td>'
-              + '<td class="num nm">' + (r ? usdFull(r.amount) : '—') + '</td></tr>';
+              + '<td class="num nm">' + (r ? usdFull(r.amount) : '-') + '</td></tr>';
           }),
           { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its zone, and appears once you approve it.') })
         + '</div>'
@@ -882,7 +882,7 @@
         + '<div><div class="perf-v">' + usdFull(p.perDist) + '</div><div class="perf-l">Per distributor</div></div>'
         + '<div><div class="perf-v">' + p.rep.orders + ' · ' + usdFull(p.rep.amount) + '</div><div class="perf-l">Orders · amount</div></div>'
         + '<div><div class="perf-v">' + p.people + '</div><div class="perf-l">People</div></div>'
-        + '<div><div class="perf-v">' + (p.rank ? '#' + p.rank + ' of ' + p.rankOf : '—') + '</div><div class="perf-l">Zone rank</div></div>'
+        + '<div><div class="perf-v">' + (p.rank ? '#' + p.rank + ' of ' + p.rankOf : '-') + '</div><div class="perf-l">Zone rank</div></div>'
         + '</div>' + ico('right', 16)
         : '<div class="perf-wk-m"><span class="sub">Not filed</span></div>')
       + '</div>';
@@ -921,7 +921,7 @@
         + '<div class="card"><div class="card-h"><div><div class="card-t">Distributors · ' + dists.length + '</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Status' }, { label: 'Phone' }],
           dists.map(d => '<tr><td class="nm">' + esc(d.full_name) + '</td>'
-            + '<td>' + statusTag(d.status) + '</td><td>' + esc(d.phone || '—') + '</td></tr>'),
+            + '<td>' + statusTag(d.status) + '</td><td>' + esc(d.phone || '-') + '</td></tr>'),
           { empty: empty('users', 'No distributors', 'The office adds them from its own Distributors page.') })
         + '</div>'
     };
@@ -932,7 +932,7 @@
      ---------------------------------------------------------------
      What is actually selling, across everything and then zone by zone.
      Counted by the number of reports a product appears on rather than
-     by money, because a niche is a thing offices are working on — the
+     by money, because a niche is a thing offices are working on - the
      question is how many of them are working on it.
      =================================================================== */
   async function niches() {
@@ -1007,14 +1007,14 @@
     const reps = await A.reports.list({ weeks });
     const ranked = rankOffices(reps, A.store.offices.filter(o => o.active));
 
-    /* One column per week that has opened so far this month — Week 1
+    /* One column per week that has opened so far this month - Week 1
        through however far the month has got, growing to four on its
        own once Week 4 arrives. Ranked by the whole month together;
        what each column shows is just that week's orders. */
     const weekHead = weeks.map(w => ({ label: 'Wk ' + U.weekOfMonth(w), num: true }));
     const ordersFor = (officeId, w) => {
       const rep = reps.find(x => x.office_id === officeId && x.week_start === w);
-      return rep ? rep.orders : '—';
+      return rep ? rep.orders : '-';
     };
 
     return {
@@ -1025,13 +1025,13 @@
         + table([{ label: '#' }, { label: 'Office' }, { label: 'Zone' }].concat(weekHead)
           .concat([{ label: 'Amount', num: true }, { label: 'Score', num: true }, { label: '' }]),
           ranked.map(r => '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
-            + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '—' : r.rank) + '</span></td>'
+            + '<td><span class="rk rk-' + r.rank + '">' + (r.missing ? '-' : r.rank) + '</span></td>'
             + '<td class="nm">' + esc(r.office.name)
             + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
-            + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '—') + '</td>'
+            + '<td>' + esc((A.centerById(r.office.center_id) || {}).name || '-') + '</td>'
             + weeks.map(w => '<td class="num">' + ordersFor(r.office_id, w) + '</td>').join('')
             + '<td class="num nm">' + (r.missing ? tag('Not filed', 't-warn') : usdFull(r.amount)) + '</td>'
-            + '<td class="num nm">' + (r.missing ? '—' : r.score) + '</td>'
+            + '<td class="num nm">' + (r.missing ? '-' : r.score) + '</td>'
             + '<td style="width:110px">' + bar(r.score, 100, r.rank === 1) + '</td></tr>'),
           { empty: empty('crown', 'Nothing to rank yet', 'Rankings appear as soon as offices file this month.') })
         + '</div>'
@@ -1058,13 +1058,13 @@
           reps.map(r => {
             const o = A.officeById(r.office_id) || {};
             return '<tr class="click" data-href="' + link('offices', r.office_id) + '">'
-              + '<td class="nm">' + esc(o.name || '—') + '</td>'
-              + '<td>' + esc((A.centerById(r.center_id) || {}).name || '—') + '</td>'
+              + '<td class="nm">' + esc(o.name || '-') + '</td>'
+              + '<td>' + esc((A.centerById(r.center_id) || {}).name || '-') + '</td>'
               + '<td class="num">' + r.orders + '</td>'
               + '<td class="num nm">' + usdFull(r.amount) + '</td>'
-              + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '—') + '</td>'
-              + '<td>' + ((r.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '—') + '</td>'
-              + '<td style="max-width:280px;white-space:pre-line">' + esc(r.issues || '—') + '</td>'
+              + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '-') + '</td>'
+              + '<td>' + ((r.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '-') + '</td>'
+              + '<td style="max-width:280px;white-space:pre-line">' + esc(r.issues || '-') + '</td>'
               + '<td class="sub">' + esc(U.timeAgo(r.submitted_at)) + '</td></tr>';
           }),
           { empty: empty('file', 'Nothing filed for this week', 'Offices file one report a week, before the Wednesday evaluation.') })
@@ -1112,7 +1112,7 @@
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + esc(U.weekName(ws)) + ' · ' + esc(U.weekRange(ws)) + '</div>'
         + '<div class="card-s">' + evalLine(ws) + '</div></div>'
-        + '<div class="card-a">' + (isEstimate(mine) ? tag('Estimate — please update', 't-warn')
+        + '<div class="card-a">' + (isEstimate(mine) ? tag('Estimate - please update', 't-warn')
           : mine ? tag('Filed ' + U.timeAgo(mine.submitted_at), 't-ok') : tag('Not filed', 't-warn')) + '</div></div>'
 
         + (!openToFile
@@ -1122,7 +1122,7 @@
             + 'up to the week running now.')
           : (ws !== thisWk && !mine
             ? note('warn', 'alert', '<b>This week has no report yet.</b> '
-              + 'You can still file it — pick any week of last month or this month from the Week menu at the top.')
+              + 'You can still file it - pick any week of last month or this month from the Week menu at the top.')
               + '<div style="height:16px"></div>'
             : ''))
 
@@ -1166,7 +1166,7 @@
         + '<div class="field"><label for="issue-input">What slowed you down this week?</label>'
         + '<div id="issue-list">' + issueList(issueItems, S().issueSols, openToFile) + '</div>'
         + (openToFile ? '<div class="row" style="margin-top:8px;gap:8px">'
-          + '<input class="input" id="issue-input" placeholder="One issue — then press Enter or Add" style="flex:1;min-width:0" autocomplete="off">'
+          + '<input class="input" id="issue-input" placeholder="One issue - then press Enter or Add" style="flex:1;min-width:0" autocomplete="off">'
           + '<button type="button" class="btn btn-sm" data-act="issue-add">' + ico('plus', 14) + 'Add</button></div>'
           + '<div class="hint">Add each issue on its own. The Directors answer them one by one, and their solution shows up right here under the issue. Leave it empty if the week ran clean.</div>' : '')
         + '</div>'
@@ -1176,7 +1176,7 @@
           /* The week is named on the button as well as at the top of the
              form. The picker opens on the week running now, so filing on
              a Thursday for the seven days that just ended goes to the
-             wrong week unless it is changed first — and that is exactly
+             wrong week unless it is changed first - and that is exactly
              how a report ends up one week out. */
           + '<button type="submit" class="btn btn-a btn-pop btn-lg" data-act="report-save">'
           + ico('check', 16) + (mine ? 'Update ' : 'File ') + esc(U.weekName(ws)) + '</button></div>'
@@ -1193,7 +1193,7 @@
             + '<div class="sub">' + esc(U.weekRange(r.week_start)) + '</div></td>'
             + '<td class="num">' + r.orders + '</td>'
             + '<td class="num nm">' + usdFull(r.amount) + '</td>'
-            + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '—') + '</td>'
+            + '<td>' + ((r.niches || []).map(n => tag(n)).join(' ') || '-') + '</td>'
             + '<td class="sub">' + (isEstimate(r) ? tag('Estimate', 't-warn') : esc(U.timeAgo(r.submitted_at))) + '</td></tr>'),
           { empty: empty('file', 'Nothing filed yet', 'Your first report is the one above.') })
         + '</div>'
@@ -1239,7 +1239,7 @@
     if (A.isOffice()) filter.center = A.store.me.center_id;
     else if (S().center) filter.center = S().center;
     /* The distributors do not depend on the events, so they are fetched
-       alongside rather than after — this page used to make four round
+       alongside rather than after - this page used to make four round
        trips one behind the other. */
     const distsP = A.distributors.list(A.isOffice() ? { center: A.store.me.center_id } : {});
     if (kind === 'training') await A.events.ensureWeek(ws);
@@ -1273,7 +1273,7 @@
             const el = eligible(e);
             return '<tr class="click" data-href="' + link(kind === 'training' ? 'trainings' : 'events', e.id) + '">'
               + '<td><div class="nm">' + esc(e.name) + '</div><div class="sub mono">' + esc(e.code) + '</div></td>'
-              + '<td>' + esc((A.centerById(e.center_id) || {}).name || '—') + '</td>'
+              + '<td>' + esc((A.centerById(e.center_id) || {}).name || '-') + '</td>'
               + '<td>' + esc(U.fullDate(e.event_date)) + '<div class="sub">' + esc(e.event_time) + '</div></td>'
               + '<td>' + (e.elig === 'sm' ? 'Senior Managers and above' : 'All distributors') + '</td>'
               + '<td class="num nm">' + acc + (el ? '<span class="sub">of ' + el + ' eligible</span>' : '') + '</td>'
@@ -1334,7 +1334,7 @@
         + '<div class="grid g3">'
         + kpi('Scanned in', acc.length, '', 'check', 'kpi-blue')
         + kpi('Eligible', eligible.length, e.elig === 'sm' ? 'SM and above' : 'all distributors', 'users')
-        + kpi('Turnout', eligible.length ? U.pct((acc.length / eligible.length) * 100) : '—', '', 'trend', 'kpi-dark')
+        + kpi('Turnout', eligible.length ? U.pct((acc.length / eligible.length) * 100) : '-', '', 'trend', 'kpi-dark')
         + '</div>'
         + '<div class="card"><div class="card-h"><div><div class="card-t">Scanning</div>'
         + '<div class="card-s">' + (e.status === 'open'
@@ -1355,9 +1355,9 @@
           acc.map(s => {
             const d = dists.find(x => x.id === s.distributor_id) || {};
             const o = A.officeById(s.office_id) || {};
-            return '<tr><td class="nm">' + esc(d.full_name || '—') + '</td>'
-              + '<td>' + esc(o.name || '—') + '</td>'
-              + '<td>' + (d.status ? statusTag(d.status) : '—') + '</td>'
+            return '<tr><td class="nm">' + esc(d.full_name || '-') + '</td>'
+              + '<td>' + esc(o.name || '-') + '</td>'
+              + '<td>' + (d.status ? statusTag(d.status) : '-') + '</td>'
               + '<td>' + esc(U.clock(s.scanned_at)) + '</td>'
               + '<td class="' + (s.device_id ? 'mono sub' : 'sub') + '">'
               + esc(s.device_id || (s.reason || 'Marked by hand')) + '</td></tr>';
@@ -1370,9 +1370,9 @@
           + table([{ label: 'Name' }, { label: 'Reason' }, { label: 'Time' }, { label: 'Device' }],
             rej.map(s => {
               const d = dists.find(x => x.id === s.distributor_id) || {};
-              return '<tr><td>' + esc(d.full_name || '—') + '</td><td>' + esc(s.reason) + '</td>'
+              return '<tr><td>' + esc(d.full_name || '-') + '</td><td>' + esc(s.reason) + '</td>'
                 + '<td>' + esc(U.clock(s.scanned_at)) + '</td>'
-                + '<td class="mono sub">' + esc(s.device_id || '—') + '</td></tr>';
+                + '<td class="mono sub">' + esc(s.device_id || '-') + '</td></tr>';
             })) + '</div>' : '')
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Did not come · ' + missed.length + '</div>'
@@ -1383,7 +1383,7 @@
         + table([{ label: 'Name' }, { label: 'Office' }, { label: 'Status' }]
           .concat(A.isAdmin() ? [{ label: '' }] : []),
           missed.map(d => '<tr><td class="nm">' + esc(d.full_name) + '</td>'
-            + '<td>' + esc((A.officeById(d.office_id) || {}).name || '—') + '</td>'
+            + '<td>' + esc((A.officeById(d.office_id) || {}).name || '-') + '</td>'
             + '<td>' + statusTag(d.status) + '</td>'
             + (A.isAdmin()
               ? '<td class="num"><button class="btn btn-sm btn-a" data-act="mark-present"'
@@ -1426,9 +1426,9 @@
         { label: own ? 'Added' : 'Zone' }, { label: '' }],
           shown.map(d => '<tr>'
             + '<td class="nm">' + esc(d.full_name) + '</td>'
-            + '<td>' + (own ? statusTag(d.status) : esc((A.officeById(d.office_id) || {}).name || '—')) + '</td>'
-            + '<td>' + (own ? esc(d.phone || '—') : statusTag(d.status)) + '</td>'
-            + '<td class="sub">' + (own ? esc(U.fullDate(d.created_at)) : esc((A.centerById(d.center_id) || {}).name || '—')) + '</td>'
+            + '<td>' + (own ? statusTag(d.status) : esc((A.officeById(d.office_id) || {}).name || '-')) + '</td>'
+            + '<td>' + (own ? esc(d.phone || '-') : statusTag(d.status)) + '</td>'
+            + '<td class="sub">' + (own ? esc(U.fullDate(d.created_at)) : esc((A.centerById(d.center_id) || {}).name || '-')) + '</td>'
             + '<td class="num">' + (own
               ? '<button class="btn btn-sm" data-act="dist-edit" data-id="' + d.id + '">' + ico('edit', 13) + 'Edit</button>'
               : '') + '</td></tr>'),
@@ -1457,7 +1457,7 @@
      the time has run out, and the one button that fixes it. */
   /* The three lengths, laid out as cards to pick from rather than one
      flat "pay" button. Whichever is clicked carries its period to
-     startCheckout — the price shown here is display only, matching
+     startCheckout - the price shown here is display only, matching
      what config.js says; paystack-init decides the real amount from
      the database regardless of what this markup claims. */
   function planCards(sub) {
@@ -1500,7 +1500,7 @@
         : 'Your subscription is live') + '</div>'
       + '<div class="card-s">'
       + (sub.status === 'trial'
-        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days — or pay for longer below and save.'
+        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days - or pay for longer below and save.'
         : 'Next charge ' + (sub.next_charge ? U.fullDate(sub.next_charge) : 'not set')
         + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div></div>'
       + (warn || sub.status !== 'trial' || (sub.status === 'trial' && on) ? pay : '')
@@ -1521,23 +1521,23 @@
       title: own ? 'Subscription' : 'Subscriptions',
       html: (own ? ownPanel(A.store.sub, plan) : '')
         + (!window.CONFIG.billingEnabled ? note('info', 'card',
-          '<b>The app is free for now.</b> Every office can file its report and use everything in it — '
+          '<b>The app is free for now.</b> Every office can file its report and use everything in it - '
           + 'nothing is charged, nobody is locked out, and no trial is running out.')
           + '<div style="height:18px"></div>' : '')
-        /* While it is free an office sees only the note above — no plan,
+        /* While it is free an office sees only the note above - no plan,
            no price, no trial dates. Super Admins still see the table. */
         + (own && !window.CONFIG.billingEnabled ? '' : (''
         + '<div class="card"><div class="card-h"><div>'
         + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
-        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' a month, the same for every office — '
+        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' a month, the same for every office - '
         + 'or pay for 3 months or a year at once and it works out cheaper.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Status' }, { label: 'Trial ends' }, { label: 'Next charge' }, { label: 'Amount', num: true }],
           subs.filter(s => !own || s.office_id === A.store.me.office_id).map(s => {
             const o = A.officeById(s.office_id) || {};
-            return '<tr><td class="nm">' + esc(o.name || '—') + '</td>'
+            return '<tr><td class="nm">' + esc(o.name || '-') + '</td>'
               + '<td>' + billTag(s.status) + '</td>'
-              + '<td>' + (s.trial_ends ? esc(U.fullDate(s.trial_ends)) : '—') + '</td>'
-              + '<td>' + (s.next_charge ? esc(U.fullDate(s.next_charge)) : '—') + '</td>'
+              + '<td>' + (s.trial_ends ? esc(U.fullDate(s.trial_ends)) : '-') + '</td>'
+              + '<td>' + (s.next_charge ? esc(U.fullDate(s.next_charge)) : '-') + '</td>'
               + '<td class="num nm">' + U.ngn(s.amount_ngn) + '</td></tr>';
           }),
           { empty: empty('card', 'No offices on a plan yet', 'Every office starts a 30-day trial the moment it signs up.') })
@@ -1547,10 +1547,10 @@
         + '<div class="card-s">Newest first.</div></div></div>'
         + table([{ label: 'Office' }, { label: 'Date' }, { label: 'Reference' }, { label: 'Method' },
         { label: 'Status' }, { label: 'Amount', num: true }],
-          pays.map(p => '<tr><td>' + esc((A.officeById(p.office_id) || {}).name || '—') + '</td>'
+          pays.map(p => '<tr><td>' + esc((A.officeById(p.office_id) || {}).name || '-') + '</td>'
             + '<td>' + esc(U.fullDate(p.paid_at)) + '</td>'
             + '<td class="mono sub">' + esc(p.reference) + '</td>'
-            + '<td>' + esc(p.method || '—') + '</td>'
+            + '<td>' + esc(p.method || '-') + '</td>'
             + '<td>' + (p.status === 'paid' ? tag('Paid', 't-ok') : tag(p.status, 't-err')) + '</td>'
             + '<td class="num nm">' + U.ngn(p.amount_ngn) + '</td></tr>'),
           { empty: empty('cash', 'No payments yet', 'Nothing has been charged.') })
@@ -1562,7 +1562,7 @@
      CENTERS & ADMINS  (super admin)
      =================================================================== */
   /* The ten features, each behind its own switch, off until turned on.
-     Two — WhatsApp and SMS — have no code behind them yet: they need a
+     Two - WhatsApp and SMS - have no code behind them yet: they need a
      provider picked and real credentials, which is a decision for
      outside this app, so their row is there and disabled rather than
      pretending a flip would do anything. */
@@ -1571,13 +1571,13 @@
     { flag: 'csv_import', label: 'Distributor CSV import', sub: 'Upload a sheet of names instead of typing each one in.' },
     { flag: 'goals', label: 'Self-set monthly goals', sub: 'An office sets its own order and amount target for the month.' },
     { flag: 'csv_export', label: 'Export reports as CSV', sub: 'A download button on the weekly report history.' },
-    { flag: 'activity_log', label: 'Activity log', sub: 'Who moved an office, edited a zone, or deleted what — with a time on it.' },
+    { flag: 'activity_log', label: 'Activity log', sub: 'Who moved an office, edited a zone, or deleted what - with a time on it.' },
     { flag: 'renewal_emails', label: 'Renewal reminder emails', sub: 'Sent 7, 3 and 1 day before a trial ends or a charge is due. Needs notify deployed.' },
     { flag: 'receipt_emails', label: 'Payment receipt emails', sub: 'Sent the moment a charge succeeds. Needs Resend configured on paystack-webhook.' },
     { flag: 'monthly_digest', label: 'Monday zone digest', sub: 'Last week’s numbers, emailed to each Director. Needs notify deployed and scheduled.' },
     { flag: 'broadcast_email', label: 'Send an announcement', sub: 'A message to everyone in the app, or one role at a time, sent by you on demand. Needs notify deployed.' },
-    { flag: 'whatsapp', label: 'WhatsApp notifications', sub: 'Coming soon — needs a WhatsApp Business API set up first.', soon: true },
-    { flag: 'sms', label: 'SMS notifications', sub: 'Coming soon — needs an SMS gateway picked first.', soon: true }
+    { flag: 'whatsapp', label: 'WhatsApp notifications', sub: 'Coming soon - needs a WhatsApp Business API set up first.', soon: true },
+    { flag: 'sms', label: 'SMS notifications', sub: 'Coming soon - needs an SMS gateway picked first.', soon: true }
   ];
 
   /* What people said in the "What's new" popup: does the update solve a
@@ -1595,21 +1595,21 @@
           : '<div class="grid g4" style="margin-bottom:14px">'
           + kpi('Answers', fb.length, '', 'mail')
           + kpi('Says it helps', yes.length, fb.length ? Math.round(100 * yes.length / fb.length) + '%' : '', 'check', 'kpi-blue')
-          + kpi('Price they suggest', prices.length ? U.ngn(mid) : '—', prices.length ? 'middle answer · average ' + U.ngn(avg) : 'No prices yet', 'cash')
+          + kpi('Price they suggest', prices.length ? U.ngn(mid) : '-', prices.length ? 'middle answer · average ' + U.ngn(avg) : 'No prices yet', 'cash')
           + kpi('Wants more', no.length, 'said it does not help yet', 'alert')
           + '</div>'
           + table([{ label: 'Who' }, { label: 'Helps?' }, { label: 'Price / month', num: true }, { label: 'What they want' }, { label: 'When' }],
-            fb.map(f => '<tr><td class="nm">' + esc(f.name || '—')
+            fb.map(f => '<tr><td class="nm">' + esc(f.name || '-')
               + '<div class="sub">' + esc(f.role === 'office' ? ((A.officeById(f.office_id) || {}).name || 'Office') : f.role === 'platform_admin' ? 'Director' : f.role === 'super_admin' ? 'Super Admin' : f.role) + '</div></td>'
               + '<td>' + (f.solves ? tag('Yes', 't-ok') : tag('No', 't-warn')) + '</td>'
-              + '<td class="num nm">' + (f.price_ngn ? U.ngn(f.price_ngn) : '—') + '</td>'
-              + '<td style="max-width:320px;white-space:pre-line">' + esc((f.solves ? f.features : f.needs) || '—') + '</td>'
+              + '<td class="num nm">' + (f.price_ngn ? U.ngn(f.price_ngn) : '-') + '</td>'
+              + '<td style="max-width:320px;white-space:pre-line">' + esc((f.solves ? f.features : f.needs) || '-') + '</td>'
               + '<td class="sub">' + esc(U.timeAgo(f.created_at)) + '</td></tr>'), {}))
       + '</div>';
   }
 
   /* Notifications on this device, and the test. The status line is
-     filled in after the page paints — the browser has to be asked. */
+     filled in after the page paints - the browser has to be asked. */
   function pushCard() {
     return '<div class="card" id="push-card"><div class="card-h"><div><div class="card-t">Push notifications</div>'
       + '<div class="card-s">Turn them on for this phone or computer, then send yourself a test.</div></div></div>'
@@ -1631,7 +1631,7 @@
     const wants = p => p.req_kind === 'leader'
       ? tag('Director', 't-gold')
       : tag('An office', 't-ok')
-      + '<div class="sub"><b>' + esc(p.req_office_name || '—') + '</b>'
+      + '<div class="sub"><b>' + esc(p.req_office_name || '-') + '</b>'
       + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no zone') + '</div>'
       + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
     const plans = window.CONFIG.plans || {};
@@ -1645,7 +1645,7 @@
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Subscription pricing</div>'
-        + '<div class="card-s">What every office is charged. Changing a number here changes the real charge — '
+        + '<div class="card-s">What every office is charged. Changing a number here changes the real charge - '
         + 'the Edge Functions read it live, nothing is cached.</div></div></div>'
         + '<div class="grid g3" id="price-form">'
         + Object.values(plans).map(p => '<div class="field"><label for="price-' + p.period + '">'
@@ -1658,7 +1658,7 @@
 
         + (!A.feature('broadcast_email') ? '' : '<div class="card"><div class="card-h"><div>'
           + '<div class="card-t">Send an announcement</div>'
-          + '<div class="card-s">One email, to everyone or to one role. Goes out the moment you press send — '
+          + '<div class="card-s">One email, to everyone or to one role. Goes out the moment you press send - '
           + 'there is no draft and no undo.</div></div></div>'
           + '<div class="field"><label for="an-audience">Who gets it</label>'
           + '<select class="select" id="an-audience">'
@@ -1680,7 +1680,7 @@
         + '<div class="card-a"><button class="btn btn-a btn-pop" data-act="center-new">' + ico('plus', 15) + 'New zone</button></div></div>'
         + table([{ label: 'Zone' }, { label: 'Zone leader' }, { label: 'Offices', num: true }, { label: '' }],
           A.store.centers.map(c => '<tr><td class="nm">' + esc(c.name) + '</td>'
-            + '<td>' + esc(c.leader_name || '—') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
+            + '<td>' + esc(c.leader_name || '-') + '<div class="sub">' + esc(c.assistant_name || '') + '</div></td>'
             + '<td class="num">' + A.officesOf(c.id).length + '</td>'
             + '<td class="num"><button class="btn btn-sm" data-act="center-edit" data-id="' + c.id + '">'
             + ico('edit', 13) + 'Edit</button></td></tr>'),
@@ -1692,7 +1692,7 @@
           + '<div class="card-s">They have signed up and said what they are joining as. '
           + 'Approving an office creates it; nothing exists until you do.</div></div></div>'
           + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Asking to join as' }, { label: 'Asked' }, { label: '' }],
-            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '—')
+            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '-')
               + '<div class="sub">' + esc(p.phone || 'no phone') + '</div></td>'
               + '<td>' + esc(p.email) + '</td><td>' + wants(p) + '</td>'
               + '<td class="sub">' + esc(U.timeAgo(p.req_at || p.created_at)) + '</td>'
@@ -1707,7 +1707,7 @@
           + '<div class="card-s">These accounts exist but have not said what they are joining as, '
           + 'or you turned their request down. They see nothing until they ask and you approve.</div></div></div>'
           + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Signed up' }, { label: '' }],
-            quiet.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
+            quiet.map(p => '<tr><td class="nm">' + esc(p.full_name || '-') + '</td>'
               + '<td>' + esc(p.email) + '</td><td class="sub">' + esc(U.timeAgo(p.created_at)) + '</td>'
               + '<td class="num">' + (p.req_status === 'declined'
                 ? tag('Declined', 't-mute') + '<div class="sub">' + esc(p.req_note || '') + '</div>' : '')
@@ -1717,7 +1717,7 @@
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
         + '<div class="card-s">Directors see every zone and run the Wednesday evaluation. They cannot create zones.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
-          admins.map(p => '<tr><td class="nm">' + esc(p.full_name || '—') + '</td>'
+          admins.map(p => '<tr><td class="nm">' + esc(p.full_name || '-') + '</td>'
             + '<td>' + esc(p.email) + '</td>'
             + '<td>' + (p.role === 'super_admin' ? tag('Super Admin', 't-gold') : tag('Director', 't-ok')) + '</td>'
             + '<td class="sub">' + esc(U.fullDate(p.created_at)) + '</td>'
@@ -1735,7 +1735,7 @@
             const state = days === null ? tag('Never', 't-warn')
               : days >= 14 ? tag(U.timeAgo(p.last_seen), 't-warn')
                 : tag(U.timeAgo(p.last_seen), 't-ok');
-            return '<tr><td class="nm">' + esc(p.full_name || '—')
+            return '<tr><td class="nm">' + esc(p.full_name || '-')
               + '<div class="sub">' + esc(p.email) + '</div></td>'
               + '<td>' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office' }[p.role] || p.role) + '</td>'
               + '<td>' + state + '</td>'
@@ -1764,9 +1764,9 @@
       html: '<div class="card">' + table(
         [{ label: 'When' }, { label: 'Who' }, { label: 'Did what' }, { label: 'To' }],
         rowsIn.map(r => '<tr><td class="sub">' + esc(U.timeAgo(r.created_at)) + '</td>'
-          + '<td class="nm">' + esc(r.actor_name || '—') + '</td>'
+          + '<td class="nm">' + esc(r.actor_name || '-') + '</td>'
           + '<td>' + esc(r.action) + '</td>'
-          + '<td>' + esc(r.target_name || '—')
+          + '<td>' + esc(r.target_name || '-')
           + (r.detail ? '<div class="sub">' + esc(r.detail) + '</div>' : '') + '</td></tr>'),
         { empty: empty('shield', 'Nothing recorded yet', 'It fills in as zones and offices are managed.') })
         + '</div>'
@@ -1823,7 +1823,7 @@
   }
 
   /* ===================================================================
-     GUIDE  —  what the platform is for, and what this role does with it
+     GUIDE  -  what the platform is for, and what this role does with it
      =================================================================== */
   const DOES = [
     'Manage documentation digitally.',
@@ -1897,8 +1897,8 @@
 
   window.VIEWS = {
     guide,
-    /* A Director's dashboard is the same page a Super Admin gets — every
-       zone, every office, the whole week — not a view scoped down to
+    /* A Director's dashboard is the same page a Super Admin gets - every
+       zone, every office, the whole week - not a view scoped down to
        their own zone. It is visibility only: the two role checks inside
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */

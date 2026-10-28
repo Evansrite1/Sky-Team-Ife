@@ -1,25 +1,25 @@
 /* =====================================================================
-   paystack-init — start a subscription for the signed-in office.
+   paystack-init - start a subscription for the signed-in office.
 
    The browser cannot be trusted to say who it is or what it should pay.
-   It may say WHICH LENGTH it wants — monthly, quarterly, yearly — but
+   It may say WHICH LENGTH it wants - monthly, quarterly, yearly - but
    the amount and the Paystack plan that goes with that length are both
    looked up here, from app_settings, never taken from the request.
 
-   Returns { url } — send the browser there and Paystack takes over.
+   Returns { url } - send the browser there and Paystack takes over.
 
    Secrets (Supabase dashboard -> Edge Functions -> Manage secrets):
      PAYSTACK_SECRET_KEY            sk_live_... Paystack -> Settings -> API Keys
      PAYSTACK_PLAN_CODE_MONTHLY     PLN_...     Paystack -> Plans (30 days)
      PAYSTACK_PLAN_CODE_QUARTERLY   PLN_...     Paystack -> Plans (90 days)
      PAYSTACK_PLAN_CODE_YEARLY      PLN_...     Paystack -> Plans (365 days)
-     PAYSTACK_PLAN_CODE             the old single name — still read as a
+     PAYSTACK_PLAN_CODE             the old single name - still read as a
                                      fallback for PAYSTACK_PLAN_CODE_MONTHLY,
                                      so nothing breaks if only that is set.
      SITE_URL                       https://sky-team-ife.vercel.app
 
    Leaving a period's plan code unset does not stop that period from
-   being sold — Paystack still takes the one payment at the right
+   being sold - Paystack still takes the one payment at the right
    amount. It just means Paystack will not re-bill it automatically;
    only supabase/functions/paystack-webhook, reacting to a payment that
    already landed, can grant the next block of time.
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
   /* The only thing the browser gets to say: which of the three lengths.
      Anything else in the request body is ignored. An unrecognised or
-     missing value falls back to monthly rather than failing outright —
+     missing value falls back to monthly rather than failing outright -
      the amount is still decided below, from the database either way. */
   const PERIODS: Record<string, { amountKey: string; daysKey: string; fallbackAmount: number; fallbackDays: number; planEnv: string[] }> = {
     monthly:   { amountKey: 'plan_amount_ngn',           daysKey: 'plan_days',           fallbackAmount: 4000,  fallbackDays: 30,  planEnv: ['PAYSTACK_PLAN_CODE_MONTHLY', 'PAYSTACK_PLAN_CODE'] },
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
   }
 
   /* The price and the cycle length both live in the database, never in
-     the request — only WHICH period was picked came from the browser,
+     the request - only WHICH period was picked came from the browser,
      and that only chose which two settings rows get read. */
   const { data: rows } = await asAdmin
     .from('app_settings').select('key, value').in('key', [chosen.amountKey, chosen.daysKey]);
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
     currency: 'NGN',
     callback_url: site ? site + '/index.html#/subscriptions' : undefined,
     /* period and days travel with the charge so paystack-webhook can
-       grant the right amount of time without a second lookup — the
+       grant the right amount of time without a second lookup - the
        metadata Paystack hands back on charge.success is the same
        object sent here. */
     metadata: { office_id: profile.office_id, profile_id: profile.id, period, days }

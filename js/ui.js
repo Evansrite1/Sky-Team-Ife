@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — shared UI. Formatting, week maths, icons, charts and
+   Sky Team Ife - shared UI. Formatting, week maths, icons, charts and
    the small set of components every view is built from.
    ===================================================================== */
 (function () {
@@ -51,7 +51,7 @@
     return iso(t);
   };
   /* Weeks are numbered from a fixed start rather than the calendar's ISO
-     week — the record itself begins on 30 July 2026, so that Thursday is
+     week - the record itself begins on 30 July 2026, so that Thursday is
      Week 1 regardless of what the ISO calendar would call it. Week 2 is
      6–12 Aug, Week 3 is 13–19 Aug, and it counts up from there forever.
      Nothing before EPOCH_WEEK is part of the tracked history: it is the
@@ -69,7 +69,7 @@
      that ends the week counts as open all the way through: it turns over
      at midnight, not at some hour of the afternoon. */
   const weekClosed = ws => iso(addDays(ws, 6)) < iso(new Date());
-  /* Whether a week has opened yet at all — the fourth week of a month
+  /* Whether a week has opened yet at all - the fourth week of a month
      that is only in its third does not exist to query or show a column
      for. Both edges use the same whole-date comparison as weekClosed. */
   const weekStarted = ws => iso(ws) <= iso(new Date());
@@ -82,7 +82,7 @@
      so it always looks back over the seven days ending that day. */
   const evalDate = ws => addDays(ws, 6);
   /* Newest first, and it stops the moment it would step before the
-     record began — a picker asking for 12 weeks gets 3 once only 3 exist,
+     record began - a picker asking for 12 weeks gets 3 once only 3 exist,
      rather than padding the list with weeks nothing was ever filed
      against. */
   const recentWeeks = (n) => {
@@ -208,7 +208,7 @@
     '<div class="kpi ' + (mod || '') + '"><div class="kpi-l">' + (icon ? ico(icon, 13) : '') + esc(label)
     + '</div><div class="kpi-v">' + value + '</div><div class="kpi-m">' + (meta || '') + '</div></div>';
 
-  /* The Sky Team mark. Two blocks — one capped left, one capped right —
+  /* The Sky Team mark. Two blocks - one capped left, one capped right -
      with a four-pointed star cut out of the seam where they meet. It is
      one path with three subpaths; the even-odd rule turns the star into
      a hole rather than a white shape, so it works on any background. */
@@ -472,7 +472,7 @@
     + '<button class="btn ' + (danger ? 'btn-d' : 'btn-p') + '" data-act="' + act + '">' + esc(confirmLabel) + '</button>');
 
   /* ------------------------------------------------------------ switch */
-  /* A feature flag, as a row with a switch on the end of it — on or
+  /* A feature flag, as a row with a switch on the end of it - on or
      off, nothing in between. `on` is whatever truth value the caller
      already has (usually A.feature(key)); the click handler that
      flips it lives in app.js, keyed off data-flag. */
@@ -488,14 +488,14 @@
   /* Minimal but correct: quotes a field only when it needs it, and
      un-quotes on the way back in, including a doubled "" for a literal
      quote inside a quoted field. Good enough for names, phones and
-     numbers — nobody is pasting a novel into a distributor list. */
+     numbers - nobody is pasting a novel into a distributor list. */
   const csvField = (v) => {
     v = v == null ? '' : String(v);
     return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
   };
   const toCsv = (headers, rowsIn) => [headers, ...rowsIn]
     .map(r => r.map(csvField).join(',')).join('\r\n');
-  /* One row of fields at a time, respecting quotes — not a full RFC
+  /* One row of fields at a time, respecting quotes - not a full RFC
      4180 parser, but it handles a comma or a quote inside a quoted
      field, which a name or an address occasionally has. */
   const parseCsv = (text) => {
@@ -519,7 +519,7 @@
     return rowsOut.filter(r => r.some(f => f.trim() !== ''));
   };
   /* Hands the browser a file to save. Works because this is the real
-     site running in the visitor's own browser — nothing about an
+     site running in the visitor's own browser - nothing about an
      Artifact's sandbox applies here. */
   const downloadText = (filename, text, mime) => {
     const blob = new Blob([text], { type: mime || 'text/csv;charset=utf-8' });
@@ -533,7 +533,7 @@
   /* ---------------------------------------------------------- streaks */
   /* How many tracked weeks in a row, ending at the most recent week
      that has actually opened, an office has filed for. One missed week
-     anywhere in that run ends the streak at the week before it — this
+     anywhere in that run ends the streak at the week before it - this
      is "in a row", not "how many total". */
   const filingStreak = (reps, weeksNewestFirst) => {
     const filed = new Set(reps.map(r => r.week_start));
@@ -546,9 +546,9 @@
   };
 
   /* ----------------------------------------------------- the backdrop */
-  /* One element, one paint. What used to live here — six masked marks
+  /* One element, one paint. What used to live here - six masked marks
      and five motes at their own translateZ inside a perspective, tilted
-     by a requestAnimationFrame loop — is a gradient in CSS now. It cost
+     by a requestAnimationFrame loop - is a gradient in CSS now. It cost
      more than it was worth on anything but a fast desktop. */
   const backdrop3d = () => '<div class="bg3d" aria-hidden="true"></div>';
 
@@ -573,8 +573,8 @@
      a screenshot of one. */
   function printEvaluation(o) {
     const rows = o.rows || [];
-    const cell = (v) => '<td>' + esc(v == null ? '—' : String(v)) + '</td>';
-    const num = (v) => '<td class="n">' + esc(v == null ? '—' : String(v)) + '</td>';
+    const cell = (v) => '<td>' + esc(v == null ? '-' : String(v)) + '</td>';
+    const num = (v) => '<td class="n">' + esc(v == null ? '-' : String(v)) + '</td>';
     const html = '<!doctype html><html><head><meta charset="utf-8">'
       + '<title>' + esc(o.title) + '</title><style>'
       + '@page { size: A4 landscape; margin: 14mm; }'

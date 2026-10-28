@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — the page a distributor lands on after scanning the QR
+   Sky Team Ife - the page a distributor lands on after scanning the QR
    code at the door. No account, no password: pick your office, find your
    name, and you are in. One phone records one person per session.
    ===================================================================== */
@@ -188,7 +188,7 @@
       + rows.map((r, i) => '<li class="' + (r.mine ? 'me' : '') + '">'
         + '<span class="rank-n">' + (i + 1) + '</span>'
         + '<span class="rank-o">' + esc(r.name) + (r.mine ? '<i>you</i>' : '') + '</span>'
-        + '<span class="rank-v">' + (r.filed ? U.usdFull(r.amount) : '—')
+        + '<span class="rank-v">' + (r.filed ? U.usdFull(r.amount) : '-')
         + '<em>' + (r.filed ? r.orders + (r.orders === 1 ? ' order' : ' orders') : 'not filed') + '</em>'
         + '</span></li>').join('')
       + '</ol></div>';
@@ -204,7 +204,7 @@
     + (e.elig === 'sm'
       ? U.note('info', 'crown', 'This session is for Senior Managers and above.') + '<div style="height:14px"></div>' : '');
 
-  /* The zone QR — one code per zone, forever. Look the zone up,
+  /* The zone QR - one code per zone, forever. Look the zone up,
      list this week's sessions, and let the distributor pick one. */
   async function lookupCenter(id) {
     S.step = 'load'; paint();
@@ -249,7 +249,7 @@
       if (error) throw new Error(error.message);
       if (data && data.ok) { S.result = data; S.step = 'done'; S.error = ''; return paint(); }
       /* A wrong number or a missing one is worth another go; anything
-         else — closed session, already in, wrong zone — is final. */
+         else - closed session, already in, wrong zone - is final. */
       S.error = (data && data.error) || 'We could not scan you in.';
       S.step = (data && (data.retry || data.needs_phone)) ? 'phone' : 'fail';
     } catch (err) { S.step = 'fail'; S.error = err.message; }

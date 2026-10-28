@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — everything that talks to Supabase.
+   Sky Team Ife - everything that talks to Supabase.
    No view file touches the client directly; it all comes through here.
    ===================================================================== */
 (function () {
@@ -64,13 +64,13 @@
     async resetPassword(email) {
       /* No hash in the redirect. Supabase delivers the recovery token by
          appending its own #access_token=...&type=recovery to whatever
-         URL is given, and this app's router also lives in the hash — a
+         URL is given, and this app's router also lives in the hash - a
          redirect of ".../#/reset" would end up as two hashes stacked in
          one URL (".../#/reset#access_token=..."), which the browser
          treats as a single fragment starting at the first '#'. Supabase
          reads that fragment as a query string, so its own "access_token"
          key comes out mangled as "/reset#access_token" and the token is
-         silently lost — password reset stops working with no error
+         silently lost - password reset stops working with no error
          anywhere. A query marker instead of a hash leaves Supabase's
          hash alone; app.js recognises the recovery sign-in itself, via
          the PASSWORD_RECOVERY auth event, and takes it from there. */
@@ -112,7 +112,7 @@
   /* ------------------------------------------------------- lookup sets */
   async function loadLookups() {
     /* Everything this boot needs goes out in one wave. The subscription
-       is only asked for while billing is on — while the app is free it
+       is only asked for while billing is on - while the app is free it
        cannot lock anyone, so there is nothing to ask. */
     const wantSub = isOffice() && CFG.billingEnabled;
     const [c, o, n, s, sub, w, l] = await Promise.all([
@@ -212,7 +212,7 @@
     async create(row) { return guard(await sb.from('distributors').insert(row).select().single()); },
     async update(id, patch) { return guard(await sb.from('distributors').update(patch).eq('id', id).select().single()); },
     async remove(id) { guard(await sb.from('distributors').update({ active: false }).eq('id', id)); },
-    /* One insert, not one per row — a sheet of eighty names used to mean
+    /* One insert, not one per row - a sheet of eighty names used to mean
        eighty round trips before this. */
     async bulkCreate(rowsIn) {
       if (!rowsIn.length) return [];
@@ -268,7 +268,7 @@
       if (filter.reports) q = q.in('report_id', filter.reports);
       const res = await q;
       if (res.error && /issue_solutions|does not exist|schema cache/i.test(res.error.message || '')) {
-        const e = new Error('Solutions are not switched on yet — run supabase/2026-10-issue-solutions.sql in Supabase.');
+        const e = new Error('Solutions are not switched on yet - run supabase/2026-10-issue-solutions.sql in Supabase.');
         e.missingTable = true;
         throw e;
       }
@@ -335,7 +335,7 @@
         user_agent: navigator.userAgent.slice(0, 200), last_used: new Date().toISOString()
       }, { onConflict: 'endpoint' });
       if (res.error && /push_subscriptions|does not exist|schema cache/i.test(res.error.message || '')) {
-        throw new Error('Notifications are not switched on yet — run supabase/2026-10-push.sql in Supabase.');
+        throw new Error('Notifications are not switched on yet - run supabase/2026-10-push.sql in Supabase.');
       }
       guard(res);
       return true;
@@ -373,7 +373,7 @@
         office_id: me.office_id || null, center_id: me.center_id || null
       }, row));
       if (res.error && /feedback|does not exist|schema cache/i.test(res.error.message || '')) {
-        throw new Error('Could not send just now — please try again later.');
+        throw new Error('Could not send just now - please try again later.');
       }
       guard(res);
     },
@@ -442,7 +442,7 @@
       return rows(await sb.from('profiles').select('*')
         .in('role', ['super_admin', 'platform_admin']).order('created_at'));
     },
-    /* Everyone who has signed up and is still waiting — whether they have
+    /* Everyone who has signed up and is still waiting - whether they have
        filled in what they are joining as or not. */
     async pending() {
       return rows(await sb.from('profiles').select('*').eq('role', 'pending').order('req_at'));
@@ -475,7 +475,7 @@
   };
 
   /* Every new feature ships behind one of these, default off. Reading
-     straight from store.settings rather than a separate flags object —
+     straight from store.settings rather than a separate flags object -
      one source of truth, and a flag flipped elsewhere in the app shows
      up here on the next lookup rather than needing its own refresh. */
   const feature = (key) => (store.settings || {})['feature_' + key] === 'true';
@@ -523,7 +523,7 @@
   const announce = {
     /* audience: 'all' | 'office' | 'platform_admin' | 'super_admin'.
        The Edge Function is the one that actually checks the caller is
-       a Super Admin — this just carries the session token along so it
+       a Super Admin - this just carries the session token along so it
        can. */
     async send(subject, message, audience) {
       const { data: s } = await sb.auth.getSession();
@@ -561,8 +561,8 @@
       return d === null || d < 0 || ['past_due', 'cancelled'].indexOf(sub.status) > -1 && d < 0;
     },
     /* Asks the Edge Function to start a Paystack checkout. period is only
-       which of the three lengths was picked — 'monthly' | 'quarterly' |
-       'yearly' — the amount that goes with it is still decided entirely
+       which of the three lengths was picked - 'monthly' | 'quarterly' |
+       'yearly' - the amount that goes with it is still decided entirely
        server side, from the database, never from here. */
     async startCheckout(period) {
       const { data: s } = await sb.auth.getSession();
@@ -620,7 +620,7 @@
 
   /* ------------------------------------------------------------- join */
   const join = {
-    /* What a new account asks for. Nothing is created here — the row just
+    /* What a new account asks for. Nothing is created here - the row just
        goes on their own profile and waits for the Super Admin. */
     async request(kind, payload) {
       const office = kind === 'office';

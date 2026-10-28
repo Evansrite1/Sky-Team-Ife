@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — boot, auth, router and every action the app responds to.
+   Sky Team Ife - boot, auth, router and every action the app responds to.
    ===================================================================== */
 (function () {
   'use strict';
@@ -81,7 +81,7 @@
         { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'center', l: 'Your zone', i: 'layers' },
-        /* Hidden while the app is free — there is nothing to pay. */
+        /* Hidden while the app is free - there is nothing to pay. */
         ...(window.CONFIG.billingEnabled ? [{ p: 'subscriptions', l: 'Subscription', i: 'card' }] : []),
         { p: 'account', l: 'Account', i: 'lock' }
       ],
@@ -103,7 +103,7 @@
   const brand = () => (A.store.settings.organisation || window.CONFIG.organisation || 'Sky Team Ife');
 
   /* ============================== CHROME ============================= */
-  /* Not a light switch — a dice roll on the whole look. The app rolls one
+  /* Not a light switch - a dice roll on the whole look. The app rolls one
      for itself on every open; this is for rolling again on the spot. */
   const hueBtn = () => '<button class="sb-hue" data-act="hue" title="Roll a new look'
     + ' (now ' + esc(U.describeLook()) + ')" aria-label="Roll a new look">'
@@ -271,10 +271,10 @@
   const TOUR = {
     platform_admin: [
       { t: 'Welcome to ' , d: 'This is where the week is written down: who turned up, what each office sold, and how the zones compare. Five things in the sidebar, and that is the whole app.' },
-      { p: 'dashboard', t: 'Dashboard', d: 'Everything at a glance — the week\'s orders and amount across every zone, who is leading, and which offices have not filed yet.' },
+      { p: 'dashboard', t: 'Dashboard', d: 'Everything at a glance - the week\'s orders and amount across every zone, who is leading, and which offices have not filed yet.' },
       { p: 'centers', t: 'Zones', d: 'Your way into everything. Open a zone to see its offices ranked, its evaluation list, its sessions and its QR poster.' },
       { p: 'centers', t: 'Inside a zone', d: 'The evaluation list is right there, with orders, amount and headcount for every office. Download it as a PDF to read from on the Wednesday.' },
-      { p: 'centers', t: 'Then into an office', d: 'Tap any office in the ranking to see its own history — every report it has filed, week by week.' },
+      { p: 'centers', t: 'Then into an office', d: 'Tap any office in the ranking to see its own history - every report it has filed, week by week.' },
       { p: 'trainings', t: 'Attendance', d: 'Open scanning when a session starts and close it at the end. Anyone without a phone, you can mark present by hand from the session page.' },
       { p: 'monthly', t: 'Monthly summary', d: 'The same numbers over a month instead of a week, for when you want the shape of things rather than the detail.' }
     ],
@@ -284,7 +284,7 @@
       { p: 'reports', t: 'Weekly reports', d: 'The one thing you do every week. Orders, amount, who was in the office, which niches the orders came from, and anything that slowed you down.' },
       { p: 'reports', t: 'You get two weeks', d: 'The week running now and the one behind it. Once a week is two weeks old it locks, because its evaluation has already been read.' },
       { p: 'trainings', t: 'Attendance', d: 'Every session has a QR code. Open scanning when it starts, and your distributors sign themselves in with a phone camera.' },
-      { p: 'distributors', t: 'Distributors', d: 'Your people. Keep their phone numbers here — the last four digits are what proves it is really them at the door.' },
+      { p: 'distributors', t: 'Distributors', d: 'Your people. Keep their phone numbers here - the last four digits are what proves it is really them at the door.' },
       { p: 'center', t: 'Your zone', d: 'How your office is doing against the others in your zone. Same numbers your Director sees.' }
     ]
   };
@@ -353,7 +353,7 @@
     if (role === 'office') {
       return item('alert', 'Issues, one by one', 'On your weekly report, add each thing that slowed you down on its own. '
         + 'The Directors answer every one, and their solution shows up right under your issue.')
-        + item('star', 'How to do better', 'Your dashboard now shows what your own numbers say to work on — '
+        + item('star', 'How to do better', 'Your dashboard now shows what your own numbers say to work on - '
           + 'the office just above you, your trend, what is selling in your zone, and more.')
         + item('calendar', 'Last month is open again', 'Pick any week of last month or this month from the Week menu and file or fix it.')
         + common;
@@ -390,7 +390,7 @@
       '<button class="btn" data-act="fb-skip">Don\'t ask again</button>'
       + '<button class="btn btn-a" data-act="fb-send" disabled>Send</button>');
   }
-  /* Registered once ACT exists — see the call just after it. */
+  /* Registered once ACT exists - see the call just after it. */
   function registerFeedbackActs() {
   ACT['fb-pick'] = (el) => {
     const yes = el.dataset.v === 'yes';
@@ -421,13 +421,13 @@
         price_ngn: price !== '' && isFinite(Number(price)) ? Math.round(Number(price)) : null, features, needs });
       wnDone();
       closeModal();
-      toast('Thank you — that goes straight to the Super Admin.');
+      toast('Thank you - that goes straight to the Super Admin.');
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
   }
 
   /* Last tracking month and this one, grouped by month so "Week 2" is
-     never ambiguous — plus the picked week's own month if it is older
+     never ambiguous - plus the picked week's own month if it is older
      than that, so a week opened from history still shows as selected. */
   const weekDropdown = (sel, act) => {
     const weeks = U.fileableWeeks();
@@ -457,7 +457,7 @@
           ? '<div class="wk"><span class="wk-l">Week</span>' + weekDropdown(state.week, 'week-pick') + '</div>' : '';
     /* Live updates land on their own within a moment of a report being
        filed, but this is the guaranteed way to pull the latest right
-       now rather than trust the timing of a socket — every page that
+       now rather than trust the timing of a socket - every page that
        shows filed data gets it, the evaluation list included. */
     return '<header class="tb"><button class="burger" data-act="nav" aria-label="Menu">' + ico('menu', 18) + '</button>'
       + '<div>' + (v.crumbs ? '<div class="crumb">' + v.crumbs + '</div>' : '')
@@ -518,7 +518,7 @@
     try {
       const v = await V[page](id);
       /* The rail carries the credit too, but the rail is behind a menu on
-         a phone — which is where most of this is read. */
+         a phone - which is where most of this is read. */
       main.innerHTML = topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
@@ -538,9 +538,9 @@
 
   /* ------------------------------------------------- the names nudge */
   /* An office is asked for its distributors by name on the three days
-     the week actually turns over — Thursday it opens, Friday is the
+     the week actually turns over - Thursday it opens, Friday is the
      Distributor Training, Saturday is the last chance before the week
-     runs away — and on any day at all when the number of people it says
+     runs away - and on any day at all when the number of people it says
      are in the room is more than the number of names on file.
 
      Once a day, never twice: being nagged on every click is how a prompt
@@ -555,7 +555,7 @@
     if (state.page === 'distributors') return;      // they are already there
     if (namesChecked) return;
 
-    /* Keyed by office, not just by day — a shared device that dismissed
+    /* Keyed by office, not just by day - a shared device that dismissed
        the prompt for one office must not silently skip it for whichever
        office logs in next on the same day. */
     const key = NAMES_KEY + '-' + me.office.id;
@@ -580,12 +580,12 @@
 
     const short = claimed > named;
     const isNudgeDay = NUDGE_DAYS.indexOf(new Date().getDay()) !== -1;
-    /* Zero names on file is worth raising on any day at all — an office
+    /* Zero names on file is worth raising on any day at all - an office
        that cannot name a single distributor cannot scan anyone in, and
        that should not have to wait for Thursday to be pointed out. */
     const worthAsking = short || !named || isNudgeDay;
     if (!worthAsking) return;
-    /* Never on top of another popup — the update notice, or anything
+    /* Never on top of another popup - the update notice, or anything
        the office has opened itself while this was loading. Tomorrow. */
     if ($('#modal') && $('#modal').innerHTML) return;
 
@@ -605,7 +605,7 @@
   }
 
 
-  /* The shell — backdrop, rail, tab bar — is built once and then left in
+  /* The shell - backdrop, rail, tab bar - is built once and then left in
      place. Only <main> is swapped from page to page.
 
      It used to rebuild the whole of #root twice for every navigation:
@@ -625,8 +625,8 @@
     }
     const sb = shell.querySelector('.sb');
     if (sb) sb.outerHTML = sidebar(page);
-    /* Both live after <main> and both can come and go — the install bar
-       when it is snoozed, the badges on the tab bar as counts change —
+    /* Both live after <main> and both can come and go - the install bar
+       when it is snoozed, the badges on the tab bar as counts change -
        so they are dropped and re-laid in that order rather than patched. */
     const old = shell.querySelector('.inst');
     if (old) old.remove();
@@ -661,7 +661,7 @@
 
   function renderAuth(which) {
     const r = $('#root');
-    /* The fork. Nothing is asked for here but the choice itself — what
+    /* The fork. Nothing is asked for here but the choice itself - what
        an office has to fill in and what a director does barely overlap. */
     if (which === 'join') {
       const k = pick.read();
@@ -739,7 +739,7 @@
   }
 
   /* --------------------------------------------------- onboarding */
-  /* A new account picks what it is joining as. Nothing is created yet —
+  /* A new account picks what it is joining as. Nothing is created yet -
      it goes to the Super Admin, who approves it. */
   async function renderOnboard() {
     const me = A.store.me;
@@ -874,7 +874,7 @@
     busy(btn, true, 'Saving…');
     try {
       await A.auth.updatePassword($('#rs-pass').value);
-      /* Cleared before the redirect, not after — route() checks this
+      /* Cleared before the redirect, not after - route() checks this
          flag first, and would otherwise bounce the dashboard navigation
          straight back to the reset form it just left. */
       recovering = false;
@@ -894,7 +894,7 @@
 
   ACT['pick'] = (el) => { pick.save(el.dataset.v); go('#/signup'); };
 
-  /* Changing your mind after the account exists — back to the fork, but
+  /* Changing your mind after the account exists - back to the fork, but
      the account stays, so #/join has to send them on to the details. */
   ACT['ob-switch'] = (el, e) => {
     e.preventDefault();
@@ -1088,7 +1088,7 @@
       ]);
       /* config.js is what the app SHOWS; app_settings is what a charge
          actually uses. Keeping the in-memory copy in step means a
-         Super Admin sees the new price everywhere without a reload —
+         Super Admin sees the new price everywhere without a reload -
          it still only ever reads back from app_settings on the next
          full boot, so the two cannot drift for long even if this line
          did not exist. */
@@ -1100,7 +1100,7 @@
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
-  /* A real email to real people the moment it is confirmed — this is
+  /* A real email to real people the moment it is confirmed - this is
      the one admin action in the whole app that reaches outside it, so
      it is the one that stops for a confirm rather than just sending. */
   const AUDIENCE_LABEL = {
@@ -1185,8 +1185,8 @@
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
-  /* A sheet of names, not one name at a time. Two columns expected —
-     name, then status — status is optional and falls back to plain
+  /* A sheet of names, not one name at a time. Two columns expected -
+     name, then status - status is optional and falls back to plain
      Distributor; anything past those two columns is ignored rather
      than rejected, since a real export often carries extra columns. */
   ACT['dist-csv-pick'] = () => $('#dist-csv-file').click();
@@ -1239,7 +1239,7 @@
       : '<span class="sub">None marked.</span>';
   };
   /* Issues, one at a time. Whatever is still sitting in the box when the
-     report is filed counts too — nobody should lose an issue for not
+     report is filed counts too - nobody should lose an issue for not
      pressing Add. */
   const paintIssues = () => {
     const box = $('#issue-list');
@@ -1330,7 +1330,7 @@
   ACT['niche-pick'] = (el) => addNiche(el.dataset.v);
 
   /* Splits whatever is sitting in the niche box on commas and adds each
-     one — a whole typed list becomes separate products rather than one
+     one - a whole typed list becomes separate products rather than one
      run-on entry, which is the mistake that had to be untangled in the
      database once already. Shared by Enter and by leaving the field, so
      it also catches someone who pastes a list and clicks away without
@@ -1404,7 +1404,7 @@
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
-  /* One row per report, newest first — same shape as the table already
+  /* One row per report, newest first - same shape as the table already
      on screen, just handed to a file instead of the page. */
   ACT['export-reports'] = async (el) => {
     busy(el, true, 'Preparing…');
@@ -1559,12 +1559,12 @@
           dists: rep ? rep.num_distributors : null,
           sms: rep ? rep.num_senior_managers : null,
           newbies: rep ? rep.num_newbies : null,
-          issues: rep ? (rep.issues || '—') : '—'
+          issues: rep ? (rep.issues || '-') : '-'
         };
       });
       const t = V.helpers.totals(reps);
       const ok = U.printEvaluation({
-        title: zone.name + ' — evaluation',
+        title: zone.name + ' - evaluation',
         sub: U.weekLabel(ws) + '   ·   read on ' + U.fullDate(U.evalDate(ws)) + ' at 2:45pm'
           + '   ·   ' + reps.length + ' of ' + offs.length + ' offices filed',
         brand: brand(),
@@ -1614,7 +1614,7 @@
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
-  /* Tapping a week on an office's performance list — the full report for
+  /* Tapping a week on an office's performance list - the full report for
      that one week, fetched fresh rather than kept around from the page
      that led here. */
   ACT['week-detail'] = async (el) => {
@@ -1640,7 +1640,7 @@
         ? '<div class="field"><label>Sold for the first time</label><div class="chips">'
         + rep.new_niches.map(n => tag(n, 't-dark')).join(' ') + '</div></div>' : '')
       + '<div class="field"><label>What slowed them down</label>'
-      + '<p style="font-size:14px;line-height:1.6;white-space:pre-line;color:var(--muted);margin:0">' + esc(rep.issues || '—') + '</p></div>',
+      + '<p style="font-size:14px;line-height:1.6;white-space:pre-line;color:var(--muted);margin:0">' + esc(rep.issues || '-') + '</p></div>',
       '<button class="btn btn-g" data-act="modal-close">Close</button>');
   };
 
@@ -1708,7 +1708,7 @@
   };
 
   /* The manual pull in the topbar. Refetches the lookups too, not just
-     the page — an office approved or a zone renamed elsewhere should
+     the page - an office approved or a zone renamed elsewhere should
      show up here as surely as a freshly filed report does. */
   ACT['refresh-page'] = async (el) => {
     el.classList.add('spin');
@@ -1749,23 +1749,23 @@
     if (e.key !== 'Enter' || e.shiftKey) return;
     const t = e.target;
 
-    /* Enter adds whatever is typed — split on commas, matched against
+    /* Enter adds whatever is typed - split on commas, matched against
        the catalogue case-insensitively. See commitNicheInput. */
     if (t.id === 'niche-input') { e.preventDefault(); commitNicheInput(); return; }
     if (t.id === 'new-niche-input') { e.preventDefault(); ACT['new-niche-add'](); return; }
     if (t.id === 'issue-input') { e.preventDefault(); ACT['issue-add'](); return; }
 
     /* The weekly report is long and easy to send by accident. Enter never
-       files it — the button is the only way. */
+       files it - the button is the only way. */
     if (t.form && t.form.id === 'report-form' && t.tagName !== 'TEXTAREA') e.preventDefault();
   });
 
-  /* Leaving the box commits it too, the same way Enter does — so a list
+  /* Leaving the box commits it too, the same way Enter does - so a list
      that was pasted in and clicked away from still lands as separate
      niches instead of sitting there as one unsplit run of text.
 
      Clicking a suggestion in the menu also blurs the input, and
-     mousedown always fires before that blur — so a suggestion click
+     mousedown always fires before that blur - so a suggestion click
      raises this flag first and the blur below stands down, leaving the
      pick to add exactly what was clicked rather than the raw text too. */
   let suppressNicheBlur = false;
@@ -1783,7 +1783,7 @@
   /* =============================== BOOT ============================= */
   /* Live updates. A change lands, and the page being looked at repaints
      itself. Coalesced on a short timer because one action often moves
-     several rows — approving an office writes an office and a profile —
+     several rows - approving an office writes an office and a profile -
      and each of those would otherwise be a separate reload.
 
      Anything the lookups hold (offices, zones, counts) is refetched
@@ -1799,7 +1799,7 @@
   function applyLive() {
     clearTimeout(liveTimer);
     liveTimer = setTimeout(async () => {
-      /* Never yank the page out from under someone mid-edit — but hold
+      /* Never yank the page out from under someone mid-edit - but hold
          the update rather than dropping it, and lay it down as soon as
          they are done. This used to lose the refresh entirely. */
       const el = document.activeElement;

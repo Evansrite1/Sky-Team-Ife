@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — service worker.
+   Sky Team Ife - service worker.
 
    Only the shell is cached: the HTML, the CSS, the scripts and the two
    vendored libraries. Every call to Supabase goes to the network and is
@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v32';
+const CACHE = 'sti-shell-v33';
 
 const SHELL = [
   './',
@@ -51,17 +51,24 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : '' }; }
+  /* Absolute URLs: some phones draw nothing when the icon path is
+     relative. The app logo is the picture, and the notification stays
+     on screen until it is tapped so it cannot be missed. */
+  const icon = new URL('icons/icon-192.png', self.registration.scope).href;
   e.waitUntil(self.registration.showNotification(d.title || 'Sky Team Ife', {
-    body: d.body || '',
-    icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
+    body: d.body || 'Open Sky Team Ife to see what is new.',
+    icon: icon,
+    image: undefined,
     tag: d.tag || undefined,
     renotify: !!d.tag,
+    requireInteraction: true,
+    vibrate: [200, 100, 200],
+    timestamp: Date.now(),
     data: { url: d.url || './' }
   }));
 });
 
-/* Tapping a notification opens the app at the page it is about — the
+/* Tapping a notification opens the app at the page it is about - the
    window already open if there is one, a new one if not. */
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
@@ -80,7 +87,7 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(req.url);
 
-  /* Anything that is not ours — Supabase, Google Fonts — goes straight
+  /* Anything that is not ours - Supabase, Google Fonts - goes straight
      to the network. Never serve stale data from the database. */
   if (url.origin !== self.location.origin) return;
 
@@ -99,15 +106,15 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  /* The app's own code — its scripts, its stylesheet — goes to the
+  /* The app's own code - its scripts, its stylesheet - goes to the
      network first, with the cache as the fallback when there is no
      signal. Cache-first meant a deploy did not reach anyone until their
      second visit: they would run yesterday's JavaScript once, and only
      pick up the fix on the load after. Correctness beats a few
      milliseconds for four small files.
 
-     Everything else — the vendored libraries and the icons, which only
-     change when their name changes — stays cache first. */
+     Everything else - the vendored libraries and the icons, which only
+     change when their name changes - stays cache first. */
   const p = url.pathname;
   const ours = (p.indexOf('/js/') > -1 || p.indexOf('/css/') > -1)
     && p.indexOf('/vendor/') === -1;

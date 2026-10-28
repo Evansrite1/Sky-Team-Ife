@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — push notification sender (Vercel serverless function).
+   Sky Team Ife - push notification sender (Vercel serverless function).
 
    Deployed with the site on every push to GitHub, at /api/push.
 
@@ -9,7 +9,7 @@
 
    Needs one environment variable in Vercel (Settings -> Environment
    Variables): VAPID_PRIVATE_KEY. The public half lives below and in
-   config.js — it is meant to be public.
+   config.js - it is meant to be public.
 
    It talks to Supabase as the caller, with the caller's own session, so
    row level security still decides what it can see: it can only read
@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).send(JSON.stringify({ error: 'Sign in first.' }));
 
-  /* Who is calling — Supabase checks the session, not us. */
+  /* Who is calling - Supabase checks the session, not us. */
   const who = await sb('/auth/v1/user', token);
   if (!who.ok) return res.status(401).send(JSON.stringify({ error: 'Your session has expired. Sign in again.' }));
   const user = await who.json();
@@ -64,7 +64,7 @@ module.exports = async (req, res) => {
 
   const payload = JSON.stringify({
     title: 'Sky Team Ife',
-    body: 'Test notification — push is working on this device.',
+    body: 'Test notification - push is working on this device.',
     url: APP_URL + '/#/dashboard',
     tag: 'sti-test'
   });
@@ -76,7 +76,7 @@ module.exports = async (req, res) => {
       sent++;
     } catch (e) {
       failed++;
-      /* Gone for good — the browser unsubscribed or the app was removed. */
+      /* Gone for good - the browser unsubscribed or the app was removed. */
       if (e.statusCode === 404 || e.statusCode === 410) {
         await sb('/rest/v1/push_subscriptions?id=eq.' + s.id, token, { method: 'DELETE' });
       }

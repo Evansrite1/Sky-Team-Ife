@@ -1,7 +1,7 @@
 /* =====================================================================
-   Sky Team Ife — design system
+   Sky Team Ife - design system
    Dark throughout. Glass panels over a flat field, one accent colour,
-   generous radii, Roboto everywhere — the closest public, licensable
+   generous radii, Roboto everywhere - the closest public, licensable
    stand-in for Google Sans, which Google has never released as a
    downloadable or Google-Fonts-hosted family.
 
@@ -11,7 +11,7 @@
    THE ACCENT
    ----------
    Everything accented hangs off --hue, --sat and --l, and js/look.js
-   rolls a fresh set on every open — so the app is a different colour
+   rolls a fresh set on every open - so the app is a different colour
    each time you come to it, and the button in the sidebar rolls again
    on demand.
 
@@ -69,14 +69,14 @@
   --panel: rgba(10,16,36,.96);   /* top bar and tab bar */
   --font: "Roboto", "Google Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  /* Tells the browser to draw native widgets — select popups, scrollbars,
-     date pickers — in dark. Without it the option list comes back as
+  /* Tells the browser to draw native widgets - select popups, scrollbars,
+     date pickers - in dark. Without it the option list comes back as
      black on black. */
   color-scheme: dark;
 }
 
 /* Native dropdowns. The popup is drawn by the OS, so the only reliable
-   levers are color-scheme above and an explicit colour on the options —
+   levers are color-scheme above and an explicit colour on the options -
    without both, the option list comes back black on black. */
 select option, select optgroup {
   background-color: var(--dark);
@@ -178,7 +178,7 @@ svg { display: block; flex: none; }
   padding: 1px 7px; border-radius: var(--r-pill); color: #d3d4dc;
 }
 .sb-a.on .cnt { background: rgba(255,255,255,.22); color: var(--on-accent); }
-/* Accounts waiting to be approved — this one should catch the eye. */
+/* Accounts waiting to be approved - this one should catch the eye. */
 .sb-a .cnt-a { background: var(--blue); color: var(--on-accent); }
 .sb-a.on .cnt-a { background: var(--on-accent); color: var(--blue); }
 /* The folded half of the sidebar. */
@@ -714,7 +714,7 @@ textarea.input { min-height: 92px; resize: vertical; line-height: 1.55; }
   .toast { max-width: none; }
 }
 
-/* ====================== PHONE — APP BEHAVIOUR ======================== */
+/* ====================== PHONE - APP BEHAVIOUR ======================== */
 /* Installed to a home screen there is no browser chrome to lean on, so
    the app has to supply its own: a fixed header, a bottom tab bar, and
    padding that clears the notch and the home indicator. */
@@ -953,7 +953,7 @@ html.standalone .inst { display: none; }
 .step-d b { color: var(--ink); font-weight: 600; }
 .card-dark .ticks li { color: rgba(255,255,255,.86); }
 
-/* ============= SCAN — THE ZONE TABLE, AFTER SIGNING IN =============== */
+/* ============= SCAN - THE ZONE TABLE, AFTER SIGNING IN =============== */
 .rank-wrap { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
 .rank-h {
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
@@ -977,7 +977,7 @@ html.standalone .inst { display: none; }
 .rank-v { flex: none; text-align: right; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
 .rank-v em { display: block; font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--muted); }
 
-/* ================= SCAN — CONFIRMING IT IS YOU ======================= */
+/* ================= SCAN - CONFIRMING IT IS YOU ======================= */
 .who { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
 .who-av {
   width: 46px; height: 46px; border-radius: 50%; flex: none; background: var(--blue); color: var(--on-accent);
@@ -994,7 +994,7 @@ html.standalone .inst { display: none; }
 .ph-in { text-align: center; letter-spacing: .5em; font-size: 26px; font-weight: 600; padding: 14px 12px; }
 .ph-in::placeholder { letter-spacing: .5em; }
 
-/* ===================== JOINING AS — THE FORK ========================= */
+/* ===================== JOINING AS - THE FORK ========================= */
 .pick { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 4px 0 18px; }
 .pick-o {
   border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface);
@@ -1125,7 +1125,7 @@ html.standalone .inst { display: none; }
 }
 
 /* ---------------------------------------------------------------------
-   Issues, one by one — the office's list and the Directors' answers.
+   Issues, one by one - the office's list and the Directors' answers.
    --------------------------------------------------------------------- */
 .iss { border: 1px solid var(--hair); border-radius: var(--r-sm); background: var(--surface); padding: 10px 12px; margin-bottom: 8px; }
 .iss-h { display: flex; align-items: flex-start; gap: 10px; }
@@ -1143,7 +1143,7 @@ html.standalone .inst { display: none; }
 .iss-card { margin-bottom: 14px; }
 
 /* ---------------------------------------------------------------------
-   How to do better — insights from the office's own numbers.
+   How to do better - insights from the office's own numbers.
    --------------------------------------------------------------------- */
 .ins { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--hair); }
 .ins:last-child { border-bottom: 0; padding-bottom: 2px; }
@@ -1154,7 +1154,7 @@ html.standalone .inst { display: none; }
 .ins-t { font-weight: 600; font-size: 14px; color: var(--ink); line-height: 1.4; }
 .ins-d { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
 
-/* What's new — the one-time popup after an update. */
+/* What's new - the one-time popup after an update. */
 .wn { margin: 0; padding: 0; list-style: none; }
 .wn li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
 .wn li:last-child { border-bottom: 0; }

@@ -1,5 +1,5 @@
 /* =====================================================================
-   Sky Team Ife — the look
+   Sky Team Ife - the look
 
    The app is dark, and everything else about how it looks is rolled
    fresh every time it is opened: the accent hue, how saturated it is,
@@ -12,14 +12,14 @@
        are fixed, so nothing can reflow into a shape nobody has seen.
      · Every accent is corrected to the same *brightness* as the blue
        the app shipped with. Hues are not equally bright at the same
-       lightness — a 66% yellow is four times the luminance of a 66%
+       lightness - a 66% yellow is four times the luminance of a 66%
        blue, which is how you end up with white text on a highlighter.
        So the lightness is solved per hue rather than fixed: yellow
        comes out a deep gold, blue is untouched, and white on the
        accent reads exactly the same wherever the dice land.
      · --on-accent backs that up. It is the colour of text sitting on
        an accent fill, and it flips to dark ink if a fill ever does come
-       out bright. With the correction above it stays white — it is the
+       out bright. With the correction above it stays white - it is the
        guard rail, not the mechanism.
 
    This file is loaded in <head>, before the stylesheet, so the look is
@@ -29,7 +29,7 @@
 (function () {
   var R = document.documentElement;
 
-  /* Corner radii. Only the numbers change — every rule that uses them is
+  /* Corner radii. Only the numbers change - every rule that uses them is
      written against the variables, so the layout is untouched. Pills stay
      pills in all three. */
   var SHAPES = {
@@ -55,7 +55,7 @@
 
   function wrap(h) { return ((Math.round(h) % 360) + 360) % 360; }
 
-  /* hsl(224 100% 66%) — the blue the app shipped with. Every other hue is
+  /* hsl(224 100% 66%) - the blue the app shipped with. Every other hue is
      pushed to this luminance so no roll is ever brighter or duller than
      the colour the design was drawn around. */
   var TARGET = 0.2497;

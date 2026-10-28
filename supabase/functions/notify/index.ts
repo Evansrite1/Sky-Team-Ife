@@ -1,22 +1,22 @@
 /* =====================================================================
-   notify — renewal reminders, the Monday zone digest, and a broadcast
+   notify - renewal reminders, the Monday zone digest, and a broadcast
    the Super Admin sends by hand, all by email.
 
-   reminders and digest are not reachable from the browser at all —
+   reminders and digest are not reachable from the browser at all -
    pg_cron calls this on a schedule (see supabase/2026-09-features.sql
    for the exact commands), passing { type: 'reminders' } or
    { type: 'digest' }. Nothing checks who is asking for those two,
    because nothing outside your own database ever does.
 
    broadcast is different: it IS called from the browser, by a Super
-   Admin, on demand — "Send an announcement" in Admin -> Features — so
+   Admin, on demand - "Send an announcement" in Admin -> Features - so
    it is the one type here that checks a real Supabase session and
    confirms the role before sending a single email. The other two stay
    open because pg_cron carries no Supabase token to check in the
    first place.
 
    All three check their own feature flag before sending anything, so
-   deploying this function does nothing on its own — Admin -> Features
+   deploying this function does nothing on its own - Admin -> Features
    is still the only thing that turns any of it on.
 
    Secrets (Supabase dashboard -> Edge Functions -> Manage secrets):
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   if (type === 'reminders') {
     if ((await setting('feature_renewal_emails')) !== 'true') return json({ skipped: 'feature off' });
     /* Nothing to remind anyone about while the app is free. */
-    if ((await setting('billing_enabled')) !== 'true') return json({ skipped: 'billing off — app is free' });
+    if ((await setting('billing_enabled')) !== 'true') return json({ skipped: 'billing off - app is free' });
 
     const days = ((await setting('notify_reminder_days')) ?? '7,3,1')
       .split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => n > 0);
@@ -82,12 +82,12 @@ Deno.serve(async (req) => {
       const { data: office } = await db.from('offices').select('name').eq('id', s.office_id).maybeSingle();
       const noun = s.status === 'trial' ? 'your free trial ends' : 'your next charge is due';
       const html = '<p>Hi' + (profile.full_name ? ' ' + profile.full_name : '') + ',</p>'
-        + '<p><b>' + office?.name + '</b> — ' + noun + ' in <b>' + left + ' day' + (left === 1 ? '' : 's') + '</b>'
+        + '<p><b>' + office?.name + '</b> - ' + noun + ' in <b>' + left + ' day' + (left === 1 ? '' : 's') + '</b>'
         + ' (' + target + ').</p>'
         + '<p>Nothing to do if you are already set up to renew. If not, open the app and go to Subscription.</p>';
 
       const r = await sendEmail(apiKey, from, profile.email,
-        left <= 1 ? 'Sky Team Ife — renews tomorrow' : 'Sky Team Ife — ' + left + ' days left', html);
+        left <= 1 ? 'Sky Team Ife - renews tomorrow' : 'Sky Team Ife - ' + left + ' days left', html);
       if (r.ok) sent++; else failed++;
     }
     return json({ sent, failed });
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
   if (type === 'digest') {
     if ((await setting('feature_monthly_digest')) !== 'true') return json({ skipped: 'feature off' });
 
-    /* Last week, by whatever the app itself would call "last week" —
+    /* Last week, by whatever the app itself would call "last week" -
        computed the same way js/ui.js does, in plain JS rather than SQL,
        since the two never have to actually agree on it as long as this
        matches Thursday-anchored weeks. */
@@ -126,10 +126,10 @@ Deno.serve(async (req) => {
       const filed = new Set((reps ?? []).map(r => r.office_id)).size;
       const total = offices?.length ?? 0;
       const top = (reps ?? []).slice().sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0];
-      const topName = top ? offices?.find(o => o.id === top.office_id)?.name ?? '—' : '—';
+      const topName = top ? offices?.find(o => o.id === top.office_id)?.name ?? '-' : '-';
 
       const html = '<p>Hi' + (dir.full_name ? ' ' + dir.full_name : '') + ',</p>'
-        + '<p><b>' + (center?.name ?? 'Your zone') + '</b> — Week ' + weekNo + ':</p>'
+        + '<p><b>' + (center?.name ?? 'Your zone') + '</b> - Week ' + weekNo + ':</p>'
         + '<ul>'
         + '<li>' + orders.toLocaleString() + ' orders, ₦' + amount.toLocaleString() + '</li>'
         + '<li>' + filed + ' of ' + total + ' offices filed</li>'
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         + '</ul>'
         + '<p>Open the app for the full evaluation list.</p>';
 
-      const r = await sendEmail(apiKey, from, dir.email, 'Sky Team Ife — Week ' + weekNo + ' zone summary', html);
+      const r = await sendEmail(apiKey, from, dir.email, 'Sky Team Ife - Week ' + weekNo + ' zone summary', html);
       if (r.ok) sent++; else failed++;
     }
     return json({ sent, failed });
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     if ((await setting('feature_broadcast_email')) !== 'true') return json({ error: 'Announcements are turned off. Admin -> Features.' }, 403);
 
     /* The one type a real person calls, so the one type that checks who
-       they actually are — a valid session belonging to a super_admin,
+       they actually are - a valid session belonging to a super_admin,
        not just a body that says so. */
     const authHeader = req.headers.get('Authorization') ?? '';
     if (!authHeader.startsWith('Bearer ')) return json({ error: 'Not signed in.' }, 401);
@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     if (!subject || !message) return json({ error: 'Both a subject and a message are needed.' }, 400);
 
     /* Who it goes to. 'all' means every approved account with an email
-       — office, platform_admin and super_admin alike — not the pending
+       - office, platform_admin and super_admin alike - not the pending
        ones still waiting on approval, who have not agreed to anything
        yet and would not know what the app even was. */
     const audience = ['office', 'platform_admin', 'super_admin'].includes(body?.audience) ? body.audience : 'all';
