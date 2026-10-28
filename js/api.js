@@ -397,7 +397,8 @@
     },
     async list(filter) {
       filter = filter || {};
-      let q = sb.from('events').select('*');
+      /* The Wednesday Senior Manager Training is the only training. */
+      let q = sb.from('events').select('*').eq('type', 'SM');
       if (filter.week) q = q.eq('week_start', filter.week);
       if (filter.weeks) q = q.in('week_start', filter.weeks);
       if (filter.center) q = q.eq('center_id', filter.center);

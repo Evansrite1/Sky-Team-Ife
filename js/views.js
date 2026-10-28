@@ -1281,8 +1281,8 @@
       title: kind === 'training' ? 'Trainings' : 'Zone events', picker: 'week',
       crumbs: esc(U.weekLabel(ws)),
       html: (kind === 'training'
-        ? note('info', 'info', '<b>Senior Manager Training runs every Wednesday, Distributor Training every Friday, both at 2:45pm.</b> '
-          + 'The platform creates them for each zone. Open scanning when the session starts, and close it when it ends.')
+        ? note('info', 'info', '<b>Senior Manager Training runs every Wednesday, 3:00pm to 6:00pm.</b> '
+          + 'The app creates it for each zone. Check-in is with the Wednesday code, and after 2:45pm counts as late.')
         : '')
         + '<div class="card" style="margin-top:16px"><div class="card-h"><div>'
         + '<div class="card-t">' + (kind === 'training' ? 'This week\'s trainings' : 'Events this week') + '</div>'
@@ -1754,6 +1754,50 @@
     };
   }
 
+  /* A Director's home: the Wednesday code, and four places to go. */
+  async function directorDash() {
+    const me = A.store.me;
+    const weeks = U.weeksOfMonth(U.currentMonthNo()).filter(U.weekStarted);
+    const zone = me.center_id || '';
+    let open = 0;
+    try {
+      const reps = weeks.length ? await A.reports.list(zone ? { weeks, center: zone } : { weeks }) : [];
+      const sols = reps.length ? await A.issues.solutions({ weeks }).catch(() => []) : [];
+      reps.forEach(r => {
+        if (isEstimate(r)) return;
+        A.issues.split(r.issues).forEach(t => { if (!sols.find(x => x.report_id === r.id && x.issue === t)) open++; });
+      });
+    } catch (e) { open = 0; }
+    let codeCard = '';
+    if (A.feature('members')) {
+      let codes = [];
+      try { codes = await A.member.codes(U.weekStart()); } catch (e) { codes = []; }
+      const zones = A.store.centers.filter(c => !zone || c.id === zone);
+      codeCard = '<div class="card"><div class="card-h"><div><div class="card-t">Wednesday code</div>'
+        + '<div class="card-s">Give this to your Senior and Executive Managers at the training.</div></div></div>'
+        + (zones.map(z => {
+          const c = codes.find(x => x.center_id === z.id);
+          return '<div style="text-align:center;margin:6px 0 14px"><div class="sub">' + esc(z.name) + '</div>'
+            + (c ? '<div class="mono" style="font-size:38px;letter-spacing:.25em;font-weight:600">' + esc(c.code) + '</div>'
+              : '<div class="sub">Not ready yet. Refresh in a moment.</div>') + '</div>';
+        }).join('') || '<div class="sub">No zone yet.</div>')
+        + '</div><div style="height:16px"></div>';
+    }
+    const tile = (page, icon, title, sub) => '<a class="card" href="' + link(page) + '" style="display:block;text-decoration:none;color:inherit">'
+      + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico(icon, 18) + ' ' + esc(title) + '</div>'
+      + '<div class="card-s">' + esc(sub) + '</div></div></div></a>';
+    return {
+      title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
+      html: codeCard
+        + '<div class="grid g2">'
+        + tile('issues', 'alert', 'Issues & solutions', open ? open + ' waiting for your solution' : 'Everything is answered')
+        + tile('centers', 'layers', 'Zones and offices', 'Every office, its numbers and reports')
+        + tile('evaluation', 'clipboard', 'Evaluation list', 'For the Wednesday evaluation')
+        + tile('trainings', 'qr', 'Wednesday training', 'Senior Manager attendance')
+        + '</div>'
+    };
+  }
+
   /* ===================================================================
      SIGN-INS (Super Admin): every account, who has signed in and when
      =================================================================== */
@@ -1937,10 +1981,7 @@
         + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>1</i></div>'
         + '<div><div class="step-t">Senior Manager Training, Wednesday 2:45pm</div>'
         + '<div class="step-d">Senior Managers and above. Creates itself for every zone.</div></div></div>'
-        + '<div class="step"><div class="step-n">' + ico('qr', 18) + '<i>2</i></div>'
-        + '<div><div class="step-t">Distributor Training, Friday 2:45pm</div>'
-        + '<div class="step-d">Everyone. Also creates itself.</div></div></div>'
-        + '<div class="step"><div class="step-n">' + ico('clipboard', 18) + '<i>3</i></div>'
+        + '<div class="step"><div class="step-n">' + ico('clipboard', 18) + '<i>2</i></div>'
         + '<div><div class="step-t">Evaluation, the Wednesday after the week closes</div>'
         + '<div class="step-d">Read against the reports that were filed for that week.</div></div></div>'
         + '</div></div>'
@@ -2128,7 +2169,8 @@
        their own zone. It is visibility only: the two role checks inside
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
-    dashboard: () => A.isMember() ? memberDash() : A.isOffice() ? officeDash() : adminDash(),
+    dashboard: () => A.isMember() ? memberDash() : A.isOffice() ? officeDash()
+      : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()),
     people: peopleView, members: membersView, codes: codesView, signins,
     evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,

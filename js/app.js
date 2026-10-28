@@ -50,7 +50,6 @@
         { p: 'niches', l: 'Niches', i: 'layers' },
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
-        { p: 'events', l: 'Zone events', i: 'star' },
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
         { p: 'activityLog', l: 'Activity log', i: 'shield' },
@@ -140,19 +139,19 @@
     const nav = NAV[me.role] || { main: [], more: [] };
     /* Open if they asked for it, or if the page they are on lives in there. */
     const openMore = state.moreOpen || nav.more.some(n => n.p === active);
+    const bare = me.role === 'platform_admin';     // a Director's sidebar is the logo, who they are, sign out and colour
     return '<aside class="sb"><div class="sb-top"><div class="brand">'
       + '<span class="brand-mk">' + U.logo(22) + '</span>' + esc(brand()) + '</div></div>'
       + '<nav class="sb-nav">'
-      + nav.main.map(n => navLink(n, active)).join('')
+      + (bare ? '' : nav.main.map(n => navLink(n, active)).join(''))
       /* No fold when there is nothing folded into it. */
-      + (nav.more.length
+      + (nav.more.length && !bare
         ? '<button class="sb-more' + (openMore ? ' on' : '') + '" data-act="more">'
         + ico('down', 16) + '<span>More</span></button>'
         + '<div class="sb-sub' + (openMore ? ' open' : '') + '"><div>'
         + nav.more.map(n => navLink(n, active)).join('')
         + '</div></div>'
         : '')
-      + (me.role === 'platform_admin' ? sbRanksHtml() : '')
       + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
@@ -187,6 +186,7 @@
      does not re-query what has not changed. */
   async function loadSbRanks() {
     const me = A.store.me;
+    return;                                   // a Director's sidebar no longer carries the rank rail
     if (!me || me.role !== 'platform_admin') return;
     const wk = state.week;
     if (state.ranks && state.ranks.week === wk) return paintSbRanks();
@@ -242,6 +242,7 @@
   };
 
   function tabbar(active) {
+    if (A.store.me.role === 'platform_admin') return '';
     const tabs = TABS[A.store.me.role] || [];
     return '<nav class="tabs">'
       + tabs.map(n => {
@@ -547,7 +548,7 @@
       const v = await V[page](id);
       /* The rail carries the credit too, but the rail is behind a menu on
          a phone - which is where most of this is read. */
-      main.innerHTML = viewBanner() + topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
+      main.innerHTML = viewBanner() + backLink(page) + topbar(v) + '<div class="page enter">' + v.html + PAGE_CREDIT + '</div>';
       window.scrollTo(0, 0);
     } catch (e) {
       console.error(e);
@@ -1926,6 +1927,12 @@
     toast('You are only looking. Exit the view to make changes.', 'no');
     return true;
   };
+  /* A Director has no menu, so every page but the dashboard leads back to it. */
+  function backLink(page) {
+    const me = A.store.me;
+    if (!me || me.role !== 'platform_admin' || page === 'dashboard') return '';
+    return '<div style="padding:12px 16px 0"><a class="btn btn-sm" href="#/dashboard">' + ico('left', 14) + 'Dashboard</a></div>';
+  }
   function viewBanner() {
     if (!state.realMe) return '';
     const me = A.store.me;
