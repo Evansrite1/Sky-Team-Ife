@@ -1755,6 +1755,12 @@
     };
   }
 
+  /* The NeoLife anthem, at the foot of every dashboard. */
+  const anthemCard = () => '<div class="card" style="margin-top:16px"><div class="card-h"><div>'
+    + '<div class="card-t">NeoLife anthem</div><div class="card-s">Press play. About three minutes.</div></div></div>'
+    + '<video controls preload="none" playsinline poster="media/neolife-anthem.jpg" '
+    + 'style="width:100%;border-radius:12px;background:#000"><source src="media/neolife-anthem.mp4" type="video/mp4"></video></div>';
+
   /* Senior and Executive Managers asking to become Directors. */
   async function applicationsCard() {
     let apps = [];
@@ -2236,8 +2242,12 @@
        their own zone. It is visibility only: the two role checks inside
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
-    dashboard: () => A.isMember() ? memberDash() : A.isOffice() ? officeDash()
-      : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()),
+    dashboard: async () => {
+      const v = await (A.isMember() ? memberDash() : A.isOffice() ? officeDash()
+        : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()));
+      v.html += anthemCard();
+      return v;
+    },
     people: peopleView, members: membersView, codes: codesView, signins,
     evaluation, monthly, centers, offices, directors, rankings, niches, issues: issuesBoard,
     reports: reportsView,

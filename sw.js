@@ -8,7 +8,7 @@
    Bump CACHE when the shell changes and the old one is thrown away on
    the next activate.
    ===================================================================== */
-const CACHE = 'sti-shell-v40';
+const CACHE = 'sti-shell-v41';
 
 const SHELL = [
   './',
@@ -90,6 +90,9 @@ self.addEventListener('fetch', (e) => {
   /* Anything that is not ours - Supabase, Google Fonts - goes straight
      to the network. Never serve stale data from the database. */
   if (url.origin !== self.location.origin) return;
+
+  /* The anthem video streams in pieces; the cache cannot hold those. */
+  if (url.pathname.indexOf('/media/') > -1) return;
 
   /* Navigations: try the network so a deploy is picked up straight away,
      and fall back to the cached page when the phone is offline. */
