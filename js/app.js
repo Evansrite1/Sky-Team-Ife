@@ -534,6 +534,7 @@
     paintPushStatus();
     loadSbRanks();
     askForNames();
+    askForPush();
   }
 
   /* ------------------------------------------------- the names nudge */
@@ -1268,15 +1269,73 @@
   }
   ACT['push-on'] = async (el) => {
     busy(el, true, 'Turning on…');
-    try { await A.push.enable(); toast('Notifications are on for this device.'); }
-    catch (err) { toast(err.message, 'no'); }
+    try {
+      await A.push.enable();
+      toast('Notifications are on for this device.');
+      deviceGuide();
+    } catch (err) { toast(err.message, 'no'); }
     busy(el, false);
     paintPushStatus();
   };
+
+  /* The browser can only ask for permission; the phone's own settings
+     decide whether a banner pops up, makes a sound or shows on the lock
+     screen. So after yes, walk them through those, and let them see a
+     real notification right here to prove it. */
+  async function deviceGuide() {
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* ignore */ }
+    const ua = navigator.userAgent;
+    const ios = /iphone|ipad|ipod/i.test(ua), android = /android/i.test(ua);
+    const step = (t, d) => '<li style="margin-bottom:10px"><b>' + t + '</b><div class="sub" style="margin-top:2px">' + d + '</div></li>';
+    const steps = ios
+      ? step('Allow banners and sounds', 'Settings, Notifications, Sky Team Ife. Turn on Allow Notifications, Lock Screen, Notification Centre, Banners (set to Persistent) and Sounds.')
+        + step('Turn off Focus or Do Not Disturb', 'Otherwise the banner is hidden even though the phone buzzes.')
+      : android
+        ? step('Pop up on screen and make a sound', 'Press and hold the app icon, App info, Notifications, then set it to Alerting or Pop on screen. Make sure it is not Silent.')
+          + step('Show on the lock screen', 'In the same Notifications page, set Lock screen to Show all content.')
+          + step('Let it run in the background', 'App info, Battery, choose Unrestricted so alerts are not held back.')
+          + step('Turn off Do Not Disturb', 'It lets the vibration through but hides the banner.')
+        : step('Allow banners', 'Make sure your computer is not in Focus Assist or Do Not Disturb, and that the browser is allowed to show notifications in system settings.');
+    modal('One last step on this phone',
+      'Notifications are allowed. Your phone still decides how they look, so check these.',
+      '<ol style="padding-left:18px;margin:0;font-size:14px;line-height:1.5">' + steps + '</ol>',
+      '<button class="btn btn-g" data-act="modal-close">Done</button>'
+      + '<button class="btn btn-a" data-act="push-local">Show one on this phone now</button>');
+  }
+  ACT['push-local'] = async (el) => {
+    busy(el, true, 'Showing…');
+    try {
+      const reg = await A.push.registration();
+      await reg.showNotification('Sky Team Ife', {
+        body: 'If you can read this, notifications are set up on this phone.',
+        icon: new URL('icons/icon-192.png', location.href).href,
+        requireInteraction: true, vibrate: [200, 100, 200], tag: 'sti-local'
+      });
+      toast('Sent. Look at the top of your screen or pull the notification shade down. If you only felt a buzz, change the settings in the steps above.');
+    } catch (err) { toast(err.message, 'no'); }
+    busy(el, false);
+  };
+
+  /* Ask once per device, a few days apart, never on top of another popup. */
+  async function askForPush() {
+    if (!A.store.me || A.store.locked || !A.push.supported() || A.push.needsInstall()) return;
+    if (A.push.permission() !== 'default') return;
+    if ($('#modal') && $('#modal').innerHTML) return;
+    const key = 'sti-push-asked', today = U.iso(new Date());
+    let asked = '';
+    try { asked = localStorage.getItem(key) || ''; } catch (e) { /* ignore */ }
+    if (asked && U.toDate(today) - U.toDate(asked) < 3 * 86400000) return;
+    try { localStorage.setItem(key, today); } catch (e) { /* ignore */ }
+    modal('Never miss an update',
+      'Allow notifications and Sky Team Ife can tell you when a week needs filing, an issue gets a solution, or there is news.',
+      U.note('info', 'info', 'Your phone will ask for permission next. Tap <b>Allow</b>, then we will help you set it up so the alert actually pops up.'),
+      '<button class="btn btn-g" data-act="modal-close">Not now</button>'
+      + '<button class="btn btn-a" data-act="push-on">Allow notifications</button>');
+  }
   ACT['push-test'] = async (el) => {
     busy(el, true, 'Sending…');
     try {
-      if (!(await A.push.current())) await A.push.enable();
+      if (!(await A.push.current())) { await A.push.enable(); deviceGuide(); }
       const r = await A.push.send({ type: 'test' });
       toast(r.sent ? 'Test sent to ' + r.sent + ' device' + (r.sent === 1 ? '' : 's') + '. It should pop up in a moment.'
         : (r.note || 'Nothing was delivered.'), r.sent ? undefined : 'no');
