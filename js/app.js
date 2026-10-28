@@ -1914,6 +1914,40 @@
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  ACT['dir-check-in'] = async (el) => {
+    busy(el, true, 'Checking in…');
+    try {
+      const r = await A.member.directorCheckIn();
+      busy(el, false);
+      if (!r.ok) return toast(r.error, 'no');
+      toast(r.already ? 'You are already checked in.' : r.late ? 'Checked in at ' + r.at + '. That counts as late.' : 'Checked in at ' + r.at + '. On time.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['apply-director'] = async (el) => {
+    busy(el, true, 'Sending…');
+    try {
+      const r = await A.member.applyDirector();
+      busy(el, false);
+      if (!r.ok) return toast(r.error, 'no');
+      toast('Application sent. A Director or the Super Admin will decide.');
+      A.store.me.upgrade_status = 'pending';
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  const reviewApp = async (el, approve) => {
+    busy(el, true, '…');
+    try {
+      const r = await A.member.reviewApplication(el.dataset.id, approve);
+      busy(el, false);
+      if (!r.ok) return toast(r.error, 'no');
+      toast(approve ? 'Approved. They are now a Director of the same zone.' : 'Declined.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['app-approve'] = (el) => reviewApp(el, true);
+  ACT['app-decline'] = (el) => reviewApp(el, false);
+
   /* ============================ VIEW AS ============================= */
   /* The Super Admin looks at the app through one office's or one
      Director's eyes. Only what is drawn changes: the account underneath

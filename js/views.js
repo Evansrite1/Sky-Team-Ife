@@ -1740,6 +1740,7 @@
               + '</td></tr>'))
           + '</div>' : '')
 
+        + (await applicationsCard())
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
         + '<div class="card-s">Directors see every zone and run the Wednesday evaluation. They cannot create zones.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
@@ -1754,7 +1755,48 @@
     };
   }
 
-  /* A Director's home: the Wednesday code, and four places to go. */
+  /* Senior and Executive Managers asking to become Directors. */
+  async function applicationsCard() {
+    let apps = [];
+    try { apps = await A.member.applications(); } catch (e) { return ''; }
+    if (!apps.length) return '';
+    return '<div class="card"><div class="card-h"><div><div class="card-t">Director applications · ' + apps.length + '</div>'
+      + '<div class="card-s">Senior and Executive Managers asking to step up. Any Director or the Super Admin can decide.</div></div></div>'
+      + table([{ label: 'Name' }, { label: 'Office' }, { label: '' }],
+        apps.map(p => {
+          const off = A.officeById(p.member_office_id);
+          return '<tr><td class="nm">' + esc(p.full_name) + '<div class="sub">' + esc(p.rank || '') + (p.phone ? ' · ' + esc(p.phone) : '') + '</div></td>'
+            + '<td>' + esc(off ? off.name : '-') + '<div class="sub">' + esc((A.centerById(p.center_id) || {}).name || '') + '</div></td>'
+            + '<td style="white-space:nowrap"><button class="btn btn-sm btn-a" data-act="app-approve" data-id="' + p.id + '">Approve</button> '
+            + '<button class="btn btn-sm btn-g" data-act="app-decline" data-id="' + p.id + '">Decline</button></td></tr>';
+        }), { empty: '' })
+      + '</div><div style="height:16px"></div>';
+  }
+
+  /* A Director's own Wednesday check-in. Late after 3:00pm. */
+  async function directorCheckCard(me, thu) {
+    const mine = (await A.member.directorCheckins(thu)).find(x => x.user_id === me.id);
+    const ln = new Date(Date.now() + 3600000);
+    const isWed = ln.getUTCDay() === 3, hhmm = ln.toISOString().slice(11, 16);
+    let body;
+    if (mine) {
+      body = '<div class="row" style="gap:10px;align-items:center">' + tag(mine.late ? 'Checked in, late' : 'Checked in, on time', mine.late ? 't-warn' : 't-ok')
+        + '<span class="sub">at ' + esc(lagosClock(mine.scanned_at)) + '</span></div>';
+    } else if (isWed && hhmm >= '13:00' && hhmm <= '18:00') {
+      body = '<button class="btn btn-a btn-pop btn-lg btn-block" data-act="dir-check-in">' + ico('check', 16) + 'Check in to the training</button>'
+        + '<div class="hint" style="margin-top:8px">After 3:00pm counts as late.</div>';
+    } else if (isWed && hhmm < '13:00') {
+      body = note('info', 'clock', '<b>Check-in opens at 1:00pm today.</b>');
+    } else if (isWed) {
+      body = note('warn', 'clock', '<b>Today\'s training is over.</b>');
+    } else {
+      body = note('info', 'calendar', '<b>Next check-in: Wednesday.</b> The Senior Manager Training.');
+    }
+    return '<div class="card"><div class="card-h"><div><div class="card-t">Your check-in</div>'
+      + '<div class="card-s">Wednesday Senior Manager Training</div></div></div>' + body + '</div><div style="height:16px"></div>';
+  }
+
+  /* A Director's home: check in, the Wednesday code, and four places to go. */
   async function directorDash() {
     const me = A.store.me;
     const weeks = U.weeksOfMonth(U.currentMonthNo()).filter(U.weekStarted);
@@ -1768,13 +1810,16 @@
         A.issues.split(r.issues).forEach(t => { if (!sols.find(x => x.report_id === r.id && x.issue === t)) open++; });
       });
     } catch (e) { open = 0; }
-    let codeCard = '';
+    let codeCard = '', checkCard = '';
+    const apps = await applicationsCard();
     if (A.feature('members')) {
-      let codes = [];
-      try { codes = await A.member.codes(U.weekStart()); } catch (e) { codes = []; }
+      try { checkCard = await directorCheckCard(me, U.weekStart()); } catch (e) { checkCard = ''; }
+      let codes = [], codeErr = '';
+      try { codes = await A.member.codes(U.weekStart()); } catch (e) { codeErr = e.message || 'Could not load the code.'; }
       const zones = A.store.centers.filter(c => !zone || c.id === zone);
       codeCard = '<div class="card"><div class="card-h"><div><div class="card-t">Wednesday code</div>'
         + '<div class="card-s">Give this to your Senior and Executive Managers at the training.</div></div></div>'
+        + (codeErr ? note('warn', 'alert', '<b>' + esc(codeErr) + '</b> The database file for Member accounts may not have been run yet.') : '')
         + (zones.map(z => {
           const c = codes.find(x => x.center_id === z.id);
           return '<div style="text-align:center;margin:6px 0 14px"><div class="sub">' + esc(z.name) + '</div>'
@@ -1782,13 +1827,16 @@
               : '<div class="sub">Not ready yet. Refresh in a moment.</div>') + '</div>';
         }).join('') || '<div class="sub">No zone yet.</div>')
         + '</div><div style="height:16px"></div>';
+    } else {
+      codeCard = note('info', 'info', '<b>The Wednesday code is switched off.</b> The Super Admin turns on Member accounts and Wednesday check-in in Admin, Features.')
+        + '<div style="height:16px"></div>';
     }
     const tile = (page, icon, title, sub) => '<a class="card" href="' + link(page) + '" style="display:block;text-decoration:none;color:inherit">'
       + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico(icon, 18) + ' ' + esc(title) + '</div>'
       + '<div class="card-s">' + esc(sub) + '</div></div></div></a>';
     return {
       title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
-      html: codeCard
+      html: checkCard + codeCard + apps
         + '<div class="grid g2">'
         + tile('issues', 'alert', 'Issues & solutions', open ? open + ' waiting for your solution' : 'Everything is answered')
         + tile('centers', 'layers', 'Zones and offices', 'Every office, its numbers and reports')
@@ -2040,6 +2088,13 @@
     const orders = reps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
     const amount = reps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
     const zoneOffices = A.store.offices.filter(o => o.active && o.center_id === me.center_id);
+    const up = me.upgrade_status;
+    const stepUp = '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Step up</div>'
+      + '<div class="card-s">Ready to lead? Apply to be a Director. Any Director or the Super Admin can approve you.</div></div></div>'
+      + (up === 'pending' ? note('info', 'clock', '<b>Your application is waiting.</b> A Director or the Super Admin will decide.')
+        : (up === 'declined' ? note('warn', 'alert', 'Your last application was declined. You can apply again.') + '<div style="height:10px"></div>' : '')
+          + '<button class="btn btn-a" data-act="apply-director">' + ico('crown', 15) + 'Apply to be a Director</button>')
+      + '</div>';
     return {
       title: 'Dashboard', crumbs: esc((me.office || {}).name || '') + ' · ' + esc((me.center || {}).name || ''),
       html: '<div class="card"><div class="card-h"><div><div class="card-t">Wednesday check-in</div>'
@@ -2060,6 +2115,7 @@
           rowsAtt.map(r => '<tr><td class="nm">' + esc(U.dayLabel(r.ev.event_date)) + '</td><td>' + attTag(r.st) + '</td></tr>'),
           { empty: empty('qr', 'No trainings yet', 'Your first one is the next Wednesday.') })
         + '</div>'
+        + stepUp
         + '<div class="row" style="gap:10px;margin-top:16px;flex-wrap:wrap">'
         + '<a class="btn" href="' + link('offices') + '">' + ico('building', 15) + 'Offices in your zone</a>'
         + '<a class="btn" href="' + link('issues') + '">' + ico('alert', 15) + 'Issues &amp; solutions</a>'
@@ -2145,6 +2201,10 @@
     const codes = await A.member.codes(thu);
     const wed = U.iso(U.addDays(thu, 6));
     const zones = A.store.centers.filter(c => !me.center_id || c.id === me.center_id);
+    const [dirs, zscans] = await Promise.all([A.member.directorCheckins(thu).catch(() => []), A.member.zoneCheckins(thu).catch(() => [])]);
+    const inRows = zscans.map(x => ({ n: (x.distributors || {}).full_name || '-', r: (x.distributors || {}).status || '', z: (A.centerById(x.events.center_id) || {}).name || '', at: x.scanned_at, late: x.late }))
+      .concat(dirs.map(d => ({ n: (d.profiles || {}).full_name || (d.profiles || {}).email || '-', r: 'Director', z: '', at: d.scanned_at, late: d.late })))
+      .sort((p, q) => (p.at < q.at ? -1 : 1));
     return {
       title: 'Wednesday codes', crumbs: esc(U.fullDate(wed)),
       html: note('info', 'info', 'One code per zone, the same all day. Give it to your Senior and Executive Managers at the training. '
@@ -2159,6 +2219,13 @@
               : '<div class="sub">The code is not ready yet. Refresh in a moment.</div>')
             + '</div>';
         }).join('') + '</div>' : empty('layers', 'No zones', 'Create a zone first.'))
+        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Checked in this Wednesday · ' + inRows.length + '</div>'
+        + '<div class="card-s">Senior Managers, Executive Managers and Directors, in the order they checked in.</div></div></div>'
+        + table([{ label: 'Name' }, { label: 'Rank' }, { label: 'Zone' }, { label: 'Time' }, { label: 'Status' }],
+          inRows.map(x => '<tr><td class="nm">' + esc(x.n) + '</td><td>' + esc(x.r) + '</td><td>' + esc(x.z) + '</td><td>' + esc(lagosClock(x.at)) + '</td>'
+            + '<td>' + (x.late ? tag('Late', 't-warn') : tag('On time', 't-ok')) + '</td></tr>'),
+          { empty: empty('qr', 'Nobody yet', 'Names appear here as people check in.') })
+        + '</div>'
     };
   }
 

@@ -696,6 +696,22 @@
     roster: (officeId) => rpc('office_members', { p_office: officeId || null }),
     names: (officeId) => rpc('office_people_names', { p_office: officeId || null }),
     remove: (id) => rpc('remove_member', { p_member: id }),
+    directorCheckIn: () => rpc('director_check_in'),
+    applyDirector: () => rpc('apply_director'),
+    reviewApplication: (id, approve) => rpc('review_director_application', { p_user: id, p_approve: !!approve }),
+    async applications() {
+      return rows(await sb.from('profiles')
+        .select('id,full_name,email,phone,rank,sponsor_name,center_id,member_office_id,upgrade_at')
+        .eq('role', 'member').eq('upgrade_status', 'pending').order('upgrade_at'));
+    },
+    async directorCheckins(thu) {
+      return rows(await sb.from('director_checkins').select('user_id,scanned_at,late,profiles(full_name,email)').eq('week_start', thu));
+    },
+    async zoneCheckins(thu) {
+      return rows(await sb.from('scans')
+        .select('scanned_at,late,distributors(full_name,status),events!inner(center_id,week_start,type)')
+        .eq('status', 'accepted').eq('events.week_start', thu).eq('events.type', 'SM').order('scanned_at'));
+    },
     people: {
       async list() { return rows(await sb.from('member_people').select('*').order('created_at', { ascending: false })); },
       async add(p) {
