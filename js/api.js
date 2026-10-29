@@ -34,8 +34,6 @@
     offices: [],
     niches: [],
     settings: {},
-    sub: null,         // this office's subscription row
-    locked: false,     // trial is over and nothing has been paid
     waiting: 0,        // accounts asking to be approved (super admin only)
     leaders: 0         // super admins + directors, for the sidebar count
   };
@@ -112,16 +110,12 @@
 
   /* ------------------------------------------------------- lookup sets */
   async function loadLookups() {
-    /* Everything this boot needs goes out in one wave. The subscription
-       is only asked for while billing is on - while the app is free it
-       cannot lock anyone, so there is nothing to ask. */
-    const wantSub = isOffice() && CFG.billingEnabled;
-    const [c, o, n, s, sub, w, l] = await Promise.all([
+    /* Everything this boot needs goes out in one wave. */
+    const [c, o, n, s, w, l] = await Promise.all([
       sb.from('centers').select('*').order('name'),
       sb.from('offices').select('*').order('name'),
       sb.from('niches').select('*').order('name'),
       sb.from('app_settings').select('*'),
-      wantSub ? billing.mine().catch(() => null) : null,
       isSuper()
         ? sb.from('profiles').select('id', { count: 'exact', head: true }).eq('req_status', 'pending')
         : { count: 0 },
@@ -134,11 +128,6 @@
     store.niches = rows(n).map(r => r.name);
     store.settings = {};
     rows(s).forEach(r => { store.settings[r.key] = r.value; });
-
-    /* Is this office locked out? Worked out once per boot so the router
-       does not have to ask on every page change. */
-    store.sub = sub || null;
-    store.locked = isOffice() ? billing.locked(store.sub) : false;
 
     /* Counts the sidebar carries, so an admin can see the totals and the
        approval queue without opening anything. */
@@ -546,50 +535,6 @@
     }
   };
 
-  /* ---------------------------------------------------------- billing */
-  const billing = {
-    async subscriptions() { return rows(await sb.from('subscriptions').select('*')); },
-    async mine() {
-      if (!store.me || !store.me.office_id) return null;
-      return guard(await sb.from('subscriptions').select('*')
-        .eq('office_id', store.me.office_id).maybeSingle());
-    },
-    /* Days left before the office is locked out. Negative once it is. */
-    daysLeft(sub) {
-      if (!sub) return null;
-      const end = sub.status === 'trial' ? sub.trial_ends : sub.next_charge;
-      if (!end) return null;
-      return Math.ceil((new Date(end + 'T00:00:00') - new Date().setHours(0, 0, 0, 0)) / 86400000);
-    },
-    locked(sub) {
-      if (!CFG.billingEnabled) return false;
-      const d = billing.daysLeft(sub);
-      return d === null || d < 0 || ['past_due', 'cancelled'].indexOf(sub.status) > -1 && d < 0;
-    },
-    /* Asks the Edge Function to start a Paystack checkout. period is only
-       which of the three lengths was picked - 'monthly' | 'quarterly' |
-       'yearly' - the amount that goes with it is still decided entirely
-       server side, from the database, never from here. */
-    async startCheckout(period) {
-      const { data: s } = await sb.auth.getSession();
-      const token = s && s.session ? s.session.access_token : null;
-      if (!token) throw new Error('Sign in again, then try once more.');
-      const res = await fetch(CFG.supabaseUrl.replace('.supabase.co', '.functions.supabase.co') + '/paystack-init', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' },
-        body: JSON.stringify({ period: period || 'monthly' })
-      });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out.url) throw new Error(out.error || 'Could not reach Paystack.');
-      return out.url;
-    },
-    async payments(officeId) {
-      let q = sb.from('payments').select('*').order('paid_at', { ascending: false });
-      if (officeId) q = q.eq('office_id', officeId);
-      return rows(await q);
-    }
-  };
-
   /* Puts a distributor on the list without a scan, for anyone who has no
      phone. Admin only, enforced in the function. */
   scans.markPresent = async (eventId, distributorId) => {
@@ -610,7 +555,7 @@
   function watch(onChange) {
     if (!sb || live) return;
     const tables = ['reports', 'offices', 'centers', 'distributors',
-      'events', 'scans', 'profiles', 'subscriptions'];
+      'events', 'scans', 'profiles'];
     live = sb.channel('sti-live');
     tables.forEach(t => {
       live.on('postgres_changes', { event: '*', schema: 'public', table: t },
@@ -739,7 +684,7 @@
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
     isAdmin, isSuper, isOffice, isMember, member, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
-    people, settings, billing, join, watch, unwatch,
+    people, settings, join, watch, unwatch,
     feature, activity, goals, announce, issues, feedback, push
   };
 })();

@@ -395,22 +395,7 @@
         + (A.feature('streaks') && streak > 0
           ? ' · <span style="color:var(--blue)">' + streak + ' week' + (streak === 1 ? '' : 's') + ' straight</span>' : ''),
       html:
-        /* The trial countdown, first thing on the page - dashboard is
-           where every login lands, so this is what "tell them each time
-           they log in" means in practice rather than a separate popup
-           that would just be one more thing to dismiss. */
-        ((() => {
-          if (!window.CONFIG.billingEnabled) return '';
-          const sub = A.store.sub;
-          const left = A.billing.daysLeft(sub);
-          if (!sub || left === null || sub.status === 'active') return '';
-          const low = left <= 5;
-          return note(low ? 'warn' : 'info', 'clock',
-            '<b>' + (left <= 0 ? 'Your trial ends today.' : left + ' day' + (left === 1 ? '' : 's') + ' left on your trial.') + '</b> '
-            + 'After that it is ' + U.ngn((window.CONFIG.plan || {}).amountNgn) + ' a month, or pay for longer and save. '
-            + '<a href="' + link('subscriptions') + '" style="text-decoration:underline;font-weight:600">See the plans</a>.')
-            + '<div style="height:18px"></div>';
-        })())
+        ''
         /* One reminder, not a stack of them: whatever is still to file,
            last week first since it is the older of the two. */
         + ((() => {
@@ -1476,114 +1461,6 @@
   }
 
   /* ===================================================================
-     SUBSCRIPTIONS
-     =================================================================== */
-  /* What the office itself sees at the top: how long is left, or that
-     the time has run out, and the one button that fixes it. */
-  /* The three lengths, laid out as cards to pick from rather than one
-     flat "pay" button. Whichever is clicked carries its period to
-     startCheckout - the price shown here is display only, matching
-     what config.js says; paystack-init decides the real amount from
-     the database regardless of what this markup claims. */
-  function planCards(sub) {
-    const plans = window.CONFIG.plans || {};
-    const renewing = sub && sub.status === 'active';
-    return '<div class="grid g3" style="margin-top:14px">'
-      + Object.values(plans).map(p => '<div class="plan-c' + (p.period === 'monthly' ? ' plan-c-on' : '') + '">'
-        + '<div class="plan-l">' + esc(p.label) + '</div>'
-        + '<div class="plan-p">' + U.ngn(p.amountNgn) + '</div>'
-        + (p.note ? '<div class="plan-n">' + esc(p.note) + '</div>' : '<div class="plan-n">&nbsp;</div>')
-        + '<button class="btn btn-a btn-pop btn-block" style="margin-top:10px" data-act="pay-now" data-period="' + p.period + '">'
-        + ico('card', 15) + (renewing ? 'Renew' : 'Pay now') + '</button>'
-        + '</div>').join('')
-      + '</div>';
-  }
-
-  function ownPanel(sub, plan) {
-    const left = A.billing.daysLeft(sub);
-    const locked = A.store.locked;
-    const on = window.CONFIG.billingEnabled;
-    const pay = on ? planCards(sub) : '';
-    /* Free for now: no trial clock, no plans, nothing to count down to. */
-    if (!on) return '';
-
-    if (locked) {
-      return '<div class="card card-dark"><div class="card-h"><div>'
-        + '<div class="card-t" style="font-size:20px">Your free trial has ended</div>'
-        + '<div class="card-s">Filing reports and opening scanning are paused until the office pays. '
-        + 'Nothing has been deleted, and everything comes straight back.</div></div></div>'
-        + pay + '</div>'
-        + '<div style="height:18px"></div>';
-    }
-    if (!sub) return '';
-
-    const warn = left !== null && left <= 5;
-    return '<div class="card' + (warn ? ' card-dark' : '') + '"><div class="card-h"><div>'
-      + '<div class="card-t" style="font-size:20px">'
-      + (sub.status === 'trial'
-        ? (left === 0 ? 'Your trial ends today' : left + ' day' + (left === 1 ? '' : 's') + ' left on your trial')
-        : 'Your subscription is live') + '</div>'
-      + '<div class="card-s">'
-      + (sub.status === 'trial'
-        ? 'After that it is ' + U.ngn(plan.amountNgn) + ' every ' + plan.days + ' days - or pay for longer below and save.'
-        : 'Next charge ' + (sub.next_charge ? U.fullDate(sub.next_charge) : 'not set')
-        + (sub.method_last4 ? ' · card ending ' + esc(sub.method_last4) : '')) + '</div></div></div>'
-      + (warn || sub.status !== 'trial' || (sub.status === 'trial' && on) ? pay : '')
-      + '</div><div style="height:18px"></div>';
-  }
-
-  async function subscriptions() {
-    const own = A.isOffice();
-    const [subs, pays] = await Promise.all([
-      A.billing.subscriptions(), A.billing.payments(own ? A.store.me.office_id : null)
-    ]);
-    const plan = window.CONFIG.plan || {};
-    const billTag = st => st === 'active' ? tag('Active', 't-ok')
-      : st === 'trial' ? tag('Free trial', 't-b')
-        : st === 'past_due' ? tag('Payment failed', 't-err') : tag(st, 't-mute');
-
-    return {
-      title: own ? 'Subscription' : 'Subscriptions',
-      html: (own ? ownPanel(A.store.sub, plan) : '')
-        + (!window.CONFIG.billingEnabled ? note('info', 'card',
-          '<b>The app is free for now.</b> Every office can file its report and use everything in it - '
-          + 'nothing is charged, nobody is locked out, and no trial is running out.')
-          + '<div style="height:18px"></div>' : '')
-        /* While it is free an office sees only the note above - no plan,
-           no price, no trial dates. Super Admins still see the table. */
-        + (own && !window.CONFIG.billingEnabled ? '' : (''
-        + '<div class="card"><div class="card-h"><div>'
-        + '<div class="card-t">' + (own ? 'Your plan' : 'Every office') + '</div>'
-        + '<div class="card-s">' + U.ngn(plan.amountNgn) + ' a month, the same for every office - '
-        + 'or pay for 3 months or a year at once and it works out cheaper.</div></div></div>'
-        + table([{ label: 'Office' }, { label: 'Status' }, { label: 'Trial ends' }, { label: 'Next charge' }, { label: 'Amount', num: true }],
-          subs.filter(s => !own || s.office_id === A.store.me.office_id).map(s => {
-            const o = A.officeById(s.office_id) || {};
-            return '<tr><td class="nm">' + esc(o.name || '-') + '</td>'
-              + '<td>' + billTag(s.status) + '</td>'
-              + '<td>' + (s.trial_ends ? esc(U.fullDate(s.trial_ends)) : '-') + '</td>'
-              + '<td>' + (s.next_charge ? esc(U.fullDate(s.next_charge)) : '-') + '</td>'
-              + '<td class="num nm">' + U.ngn(s.amount_ngn) + '</td></tr>';
-          }),
-          { empty: empty('card', 'No offices on a plan yet', 'Every office starts a 30-day trial the moment it signs up.') })
-        + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Payments</div>'
-        + '<div class="card-s">Newest first.</div></div></div>'
-        + table([{ label: 'Office' }, { label: 'Date' }, { label: 'Reference' }, { label: 'Method' },
-        { label: 'Status' }, { label: 'Amount', num: true }],
-          pays.map(p => '<tr><td>' + esc((A.officeById(p.office_id) || {}).name || '-') + '</td>'
-            + '<td>' + esc(U.fullDate(p.paid_at)) + '</td>'
-            + '<td class="mono sub">' + esc(p.reference) + '</td>'
-            + '<td>' + esc(p.method || '-') + '</td>'
-            + '<td>' + (p.status === 'paid' ? tag('Paid', 't-ok') : tag(p.status, 't-err')) + '</td>'
-            + '<td class="num nm">' + U.ngn(p.amount_ngn) + '</td></tr>'),
-          { empty: empty('cash', 'No payments yet', 'Nothing has been charged.') })
-        + '</div>'))
-    };
-  }
-
-  /* ===================================================================
      CENTERS & ADMINS  (super admin)
      =================================================================== */
   /* The ten features, each behind its own switch, off until turned on.
@@ -1598,8 +1475,6 @@
     { flag: 'goals', label: 'Self-set monthly goals', sub: 'An office sets its own order and amount target for the month.' },
     { flag: 'csv_export', label: 'Export reports as CSV', sub: 'A download button on the weekly report history.' },
     { flag: 'activity_log', label: 'Activity log', sub: 'Who moved an office, edited a zone, or deleted what - with a time on it.' },
-    { flag: 'renewal_emails', label: 'Renewal reminder emails', sub: 'Sent 7, 3 and 1 day before a trial ends or a charge is due. Needs notify deployed.' },
-    { flag: 'receipt_emails', label: 'Payment receipt emails', sub: 'Sent the moment a charge succeeds. Needs Resend configured on paystack-webhook.' },
     { flag: 'monthly_digest', label: 'Monday zone digest', sub: 'Last week’s numbers, emailed to each Director. Needs notify deployed and scheduled.' },
     { flag: 'broadcast_email', label: 'Send an announcement', sub: 'A message to everyone in the app, or one role at a time, sent by you on demand. Needs notify deployed.' },
     { flag: 'whatsapp', label: 'WhatsApp notifications', sub: 'Coming soon - needs a WhatsApp Business API set up first.', soon: true },
@@ -1660,26 +1535,13 @@
       + '<div class="sub"><b>' + esc(p.req_office_name || '-') + '</b>'
       + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no zone') + '</div>'
       + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
-    const plans = window.CONFIG.plans || {};
     return {
       title: 'Zones & directors',
       html: pushCard()
         + feedbackCard(fb, fbMissing)
         + '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
-        + '<div class="card-s">Off until you turn it on. Nothing here changes what anyone sees or is charged by itself.</div></div></div>'
+        + '<div class="card-s">Off until you turn it on. Nothing here changes what anyone sees by itself.</div></div></div>'
         + FEATURES.map(f => U.toggleRow(f.flag, f.label, f.sub, A.feature(f.flag), f.soon)).join('')
-        + '</div>'
-
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Subscription pricing</div>'
-        + '<div class="card-s">What every office is charged. Changing a number here changes the real charge - '
-        + 'the Edge Functions read it live, nothing is cached.</div></div></div>'
-        + '<div class="grid g3" id="price-form">'
-        + Object.values(plans).map(p => '<div class="field"><label for="price-' + p.period + '">'
-          + esc(p.label) + ' (₦)</label>'
-          + '<input class="input" id="price-' + p.period + '" type="number" min="0" step="50" value="' + p.amountNgn + '"></div>').join('')
-        + '</div>'
-        + '<div class="row" style="justify-content:flex-end;margin-top:6px">'
-        + '<button class="btn btn-a btn-pop" data-act="save-pricing">' + ico('cash', 15) + 'Save prices</button></div>'
         + '</div>'
 
         + (!A.feature('broadcast_email') ? '' : '<div class="card"><div class="card-h"><div>'
@@ -1892,10 +1754,9 @@
       tile('evaluation', 'clipboard', 'Evaluation list', 'For the Wednesday evaluation, as a PDF'),
       tile('rankings', 'crown', 'Office rankings', 'Who is ahead, week by week'),
       tile('monthly', 'calendar', 'Monthly summary', 'The shape of the month'),
-      tile('trainings', 'qr', 'Wednesday training', 'Senior Manager attendance'),
       tile('niches', 'star', 'Niches', 'What is selling'),
       A.feature('members') ? tile('zonemembers', 'users', 'Members in your zone', 'Senior and Executive Managers') : '',
-      A.feature('members') ? tile('codes', 'qr', 'Wednesday codes', 'The code, and who has checked in') : ''
+      tile('codes', 'qr', 'Wednesday training', 'The code, who has checked in, and the records')
     ].join('');
     return {
       title: 'Dashboard', crumbs: esc(me.full_name || 'Director') + (me.center ? ' · ' + esc(me.center.name) : ''),
@@ -2084,7 +1945,6 @@
       ['clipboard', 'File one report a week', 'Open <b>Weekly report</b> before Tuesday closes and put in the number of orders you got, what they came to, the products they came from, and anything that slowed you down. That single form is what every ranking and every summary is built from.'],
       ['users', 'Keep your distributor list true', 'Add everyone under <b>Distributors</b>, with a phone number for each. The number matters: it is what a distributor completes at the door to prove the scan is really them.'],
       ['qr', 'Open scanning when a session starts', 'On <b>Trainings</b>, press open when the room fills. Everyone scans the zone QR, finds their name, completes their number, and they are in. Close it when the session ends.'],
-      ['card', 'Keep your subscription live', 'Your office has its own subscription. Check <b>Subscription</b> for when the next payment falls due.']
     ],
     platform_admin: [
       ['grid', 'Read the week at a glance', 'The <b>Dashboard</b> shows every zone for the week you pick: what came in, who filed and who has not.'],
@@ -2095,8 +1955,7 @@
     super_admin: [
       ['shield', 'Approve who gets in', 'Nobody sees anything until you approve them. <b>Zones & directors</b> carries a blue count whenever somebody is waiting. Approving an office is what creates that office.'],
       ['layers', 'Create the zones first', 'Everything hangs off a zone. Offices pick one when they sign up, and each zone runs its own Wednesday evaluation and has its own permanent QR poster.'],
-      ['building', 'Watch every office', '<b>Offices</b>, <b>Office rankings</b> and <b>Weekly reports</b> give you the whole picture, week by week.'],
-      ['card', 'Keep an eye on billing', '<b>Subscriptions</b> shows which offices are on trial, which are paying, and which have lapsed.']
+      ['building', 'Watch every office', '<b>Offices</b>, <b>Office rankings</b> and <b>Weekly reports</b> give you the whole picture, week by week.']
     ]
   };
 
@@ -2298,7 +2157,8 @@
   /* Directors and the Super Admin: this Wednesday's code, one per zone. */
   async function codesView() {
     const me = A.store.me;
-    if (!A.feature('members')) return { title: 'Wednesday codes', html: empty('lock', 'Not open yet', 'Turn on Member accounts in Admin, Features first.') };
+    if (!A.feature('members')) return { title: 'Wednesday training', html: empty('lock', 'Not open yet', 'Turn on Member accounts in Admin, Features first.')
+      + '<div class="row" style="justify-content:center;margin-top:12px"><a class="btn" href="' + link('trainings') + '">Session records</a></div>' };
     const thu = U.weekStart();
     const codes = await A.member.codes(thu);
     const wed = U.iso(U.addDays(thu, 6));
@@ -2308,7 +2168,7 @@
       .concat(dirs.map(d => ({ n: (d.profiles || {}).full_name || (d.profiles || {}).email || '-', r: 'Director', z: '', at: d.scanned_at, late: d.late })))
       .sort((p, q) => (p.at < q.at ? -1 : 1));
     return {
-      title: 'Wednesday codes', crumbs: esc(U.fullDate(wed)),
+      title: 'Wednesday training', crumbs: esc(U.fullDate(wed)),
       html: note('info', 'info', 'One code per zone, the same all day. Give it to your Senior and Executive Managers at the training. '
         + 'It is also sent to your phone at 2:00pm and 3:05pm. Check-in is open from 1:00pm to 6:00pm, and after 2:45pm counts as late.')
         + '<div style="height:16px"></div>'
@@ -2328,6 +2188,7 @@
             + '<td>' + (x.late ? tag('Late', 't-warn') : tag('On time', 't-ok')) + '</td></tr>'),
           { empty: empty('qr', 'Nobody yet', 'Names appear here as people check in.') })
         + '</div>'
+        + '<div class="row" style="margin-top:16px"><a class="btn" href="' + link('trainings') + '">' + ico('qr', 15) + 'Session records and scan sheets</a></div>'
     };
   }
 
@@ -2349,7 +2210,7 @@
     reports: reportsView,
     trainings: (id) => sessions('training', id),
     events: (id) => sessions('event', id),
-    distributors, center: myCenter, subscriptions, admin: adminPanel, account, activityLog,
+    distributors, center: myCenter, admin: adminPanel, account, activityLog,
     helpers: { rankOffices, totals, nicheTally, nicheChips, issueList, statusTag, STATUSES, SM_PLUS, LEADER, peopleIn }
   };
 })();

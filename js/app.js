@@ -38,10 +38,9 @@
         { p: 'offices', l: 'Offices', i: 'building', c: () => A.store.offices.length },
         { p: 'directors', l: 'Directors', i: 'users' },
         { p: 'signins', l: 'Sign-ins', i: 'clock' },
-        { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' },
+        { p: 'codes', l: 'Wednesday training', i: 'qr' },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'issues', l: 'Issues & solutions', i: 'alert' },
-        { p: 'trainings', l: 'Attendance', i: 'qr' },
         { p: 'admin', l: 'Approvals & zones', i: 'shield', alertC: () => A.store.waiting || '' }
       ],
       more: [
@@ -51,7 +50,6 @@
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
         { p: 'centers', l: 'Zones', i: 'layers', c: () => A.store.centers.length },
         { p: 'distributors', l: 'Distributors', i: 'users' },
-        { p: 'subscriptions', l: 'Subscriptions', i: 'card' },
         { p: 'activityLog', l: 'Activity log', i: 'shield' },
         { p: 'account', l: 'Account', i: 'lock' },
         { p: 'guide', l: 'Guide', i: 'info' }
@@ -69,9 +67,8 @@
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
         { p: 'rankings', l: 'Office rankings', i: 'crown' },
         { p: 'niches', l: 'Niches', i: 'star' },
-        { p: 'trainings', l: 'Attendance', i: 'qr' },
-        { p: 'zonemembers', l: 'Members', i: 'users', feat: 'members' },
-        { p: 'codes', l: 'Wednesday codes', i: 'qr', feat: 'members' }
+        { p: 'codes', l: 'Wednesday training', i: 'qr' },
+        { p: 'zonemembers', l: 'Members', i: 'users', feat: 'members' }
       ],
       more: [
         { p: 'monthly', l: 'Monthly summary', i: 'calendar' },
@@ -86,8 +83,6 @@
         { p: 'distributors', l: 'Distributors', i: 'users' },
         { p: 'members', l: 'Members', i: 'users', feat: 'members' },
         { p: 'center', l: 'Your zone', i: 'layers' },
-        /* Hidden while the app is free - there is nothing to pay. */
-        ...(window.CONFIG.billingEnabled ? [{ p: 'subscriptions', l: 'Subscription', i: 'card' }] : []),
         { p: 'account', l: 'Account', i: 'lock' }
       ],
       more: []
@@ -111,7 +106,7 @@
     platform_admin: ['dashboard', 'centers', 'monthly', 'trainings', 'account',
       'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues', 'codes', 'zonemembers'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
-      'subscriptions', 'account', 'offices', 'monthly', 'niches', 'members'],
+      'account', 'offices', 'monthly', 'niches', 'members'],
     member: ['dashboard', 'offices', 'issues', 'people', 'account']
   };
 
@@ -226,7 +221,7 @@
       { p: 'dashboard', l: 'Home', i: 'grid' },
       { p: 'centers', l: 'Zones', i: 'layers' },
       { p: 'monthly', l: 'Monthly', i: 'calendar' },
-      { p: 'trainings', l: 'Attendance', i: 'qr' }
+      { p: 'codes', l: 'Training', i: 'qr' }
     ],
     office: [
       { p: 'dashboard', l: 'Home', i: 'grid' },
@@ -529,14 +524,6 @@
     const allowed = ALLOWED[me.role];
     if (!V[page] || (allowed && allowed.indexOf(page) === -1)) { go('#/dashboard'); return; }
 
-    /* An office whose trial ran out with nothing paid can reach its
-       subscription, its account and the guide. Nothing else, until it
-       pays. The database refuses the writes regardless; this is so they
-       are told why rather than hitting a wall. */
-    if (me.role === 'office' && A.store.locked
-      && ['subscriptions', 'account', 'guide'].indexOf(page) === -1) {
-      go('#/subscriptions'); return;
-    }
     state.page = page;
 
     if (routing) return;
@@ -582,7 +569,7 @@
   async function askForNames() {
     if (state.realMe) return;
     const me = A.store.me;
-    if (!me || me.role !== 'office' || !me.office || A.store.locked) return;
+    if (!me || me.role !== 'office' || !me.office) return;
     if (state.page === 'distributors') return;      // they are already there
     if (namesChecked) return;
 
@@ -1103,35 +1090,6 @@
     }
   };
 
-  ACT['save-pricing'] = async (el) => {
-    const plans = window.CONFIG.plans || {};
-    const patch = {};
-    for (const p of Object.values(plans)) {
-      const v = Number(val('#price-' + p.period));
-      if (!isFinite(v) || v < 0) return toast('Every price needs to be a real number.', 'no');
-      patch[p.period] = v;
-    }
-    busy(el, true, 'Saving…');
-    try {
-      await Promise.all([
-        A.settings.set('plan_amount_ngn', String(patch.monthly)),
-        A.settings.set('plan_amount_ngn_quarterly', String(patch.quarterly)),
-        A.settings.set('plan_amount_ngn_yearly', String(patch.yearly))
-      ]);
-      /* config.js is what the app SHOWS; app_settings is what a charge
-         actually uses. Keeping the in-memory copy in step means a
-         Super Admin sees the new price everywhere without a reload -
-         it still only ever reads back from app_settings on the next
-         full boot, so the two cannot drift for long even if this line
-         did not exist. */
-      Object.keys(plans).forEach(k => { window.CONFIG.plans[k].amountNgn = patch[k]; });
-      window.CONFIG.plan.amountNgn = patch.monthly;
-      A.activity.log('pricing.update', { kind: 'settings', detail: JSON.stringify(patch) });
-      toast('Prices saved. Live from the next charge.');
-      route();
-    } catch (err) { busy(el, false); toast(err.message, 'no'); }
-  };
-
   /* A real email to real people the moment it is confirmed - this is
      the one admin action in the whole app that reaches outside it, so
      it is the one that stops for a confirm rather than just sending. */
@@ -1350,7 +1308,7 @@
   /* Ask once per device, a few days apart, never on top of another popup. */
   async function askForPush() {
     if (state.realMe) return;
-    if (!A.store.me || A.store.locked || !A.push.supported() || A.push.needsInstall()) return;
+    if (!A.store.me || !A.push.supported() || A.push.needsInstall()) return;
     if (A.push.permission() !== 'default') return;
     if ($('#modal') && $('#modal').innerHTML) return;
     const key = 'sti-push-asked', today = U.iso(new Date());
@@ -1589,17 +1547,6 @@
     busy(el, true, 'Removing…');
     try { await A.people.setRole(el.dataset.id, 'pending'); toast('Director access removed.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
-  };
-
-  /* --- billing ----------------------------------------------------- */
-  /* The Edge Function decides the amount and returns a Paystack URL.
-     Nothing about the price is settled in the browser. */
-  ACT['pay-now'] = async (el) => {
-    busy(el, true, 'Opening Paystack…');
-    try {
-      const url = await A.billing.startCheckout(el.dataset.period);
-      window.location.href = url;
-    } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
   /* --- account ----------------------------------------------------- */
@@ -1998,7 +1945,6 @@
     }
     state.realMe = real;
     A.store.me = fake;
-    A.store.locked = false;
     state.ranks = null;
     go('#/dashboard');
     await route();
@@ -2144,7 +2090,7 @@
      Anything the lookups hold (offices, zones, counts) is refetched
      first; everything else the view will pull for itself on render. */
   let liveTimer = null, liveNeedsLookups = false, livePending = false;
-  const LOOKUP_TABLES = ['offices', 'centers', 'profiles', 'subscriptions'];
+  const LOOKUP_TABLES = ['offices', 'centers', 'profiles'];
 
   /* Short enough that a report filed in one office is on the Director's
      screen while they are still looking at it, long enough that one
