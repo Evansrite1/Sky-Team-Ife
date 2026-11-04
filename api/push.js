@@ -54,8 +54,28 @@ module.exports = async (req, res) => {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = {}; } }
   const type = (body || {}).type;
 
-  if (type !== 'test') return res.status(400).send(JSON.stringify({ error: 'Unknown type.' }));
-  if (role !== 'super_admin') return res.status(403).send(JSON.stringify({ error: 'Only the Super Admin can send a test.' }));
+  if (type !== 'test' && type !== 'announce') return res.status(400).send(JSON.stringify({ error: 'Unknown type.' }));
+  if (role !== 'super_admin') return res.status(403).send(JSON.stringify({ error: 'Only the Super Admin can send notifications.' }));
+
+  /* A message to everyone's devices, or to one role. The Super Admin's own
+     session is what lets this read every device (push_super_read). */
+  if (type === 'announce') {
+    const title = String(body.title || '').trim().slice(0, 80) || 'Sky Team Ife';
+    const text = String(body.body || '').trim().slice(0, 240);
+    if (!text) return res.status(400).send(JSON.stringify({ error: 'Write the message first.' }));
+    const aud = String(body.audience || 'all');
+    const roleFilter = /^(office|member|platform_admin|super_admin)$/.test(aud) ? '&role=eq.' + aud : '';
+    const all = await (await sb('/rest/v1/push_subscriptions?select=id,user_id,endpoint,p256dh,auth&limit=5000' + roleFilter, token)).json();
+    if (!Array.isArray(all) || !all.length) {
+      return res.status(200).send(JSON.stringify({ sent: 0, failed: 0, note: 'Nobody has notifications turned on yet.' }));
+    }
+    const msg = JSON.stringify({ title, body: text, url: APP_URL + '/#/dashboard', tag: 'sti-announce-' + Date.now() });
+    let ok = 0, bad = 0;
+    await Promise.all(all.map(s => webpush.sendNotification(
+      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, msg, { TTL: 86400 })
+      .then(() => { ok++; }).catch(() => { bad++; })));
+    return res.status(200).send(JSON.stringify({ sent: ok, failed: bad, people: new Set(all.map(s => s.user_id)).size }));
+  }
 
   const subs = await (await sb('/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth&user_id=eq.' + user.id, token)).json();
   if (!Array.isArray(subs) || !subs.length) {

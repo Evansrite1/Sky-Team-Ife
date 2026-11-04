@@ -635,7 +635,7 @@
               + '<td>' + ((rep.new_niches || []).map(n => tag(n, 't-dark')).join(' ') || '<span class="sub">-</span>') + '</td>'
               + '<td style="max-width:260px;white-space:pre-line">' + esc(rep.issues || '-') + '</td></tr>';
           }),
-          { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here once they sign up and you approve them.') })
+          { empty: empty('clipboard', 'No offices in this zone', 'Offices appear here the moment they sign up.') })
         + '</div>'
     };
   }
@@ -781,7 +781,7 @@
             + '<div class="sub">' + esc(r.office.manager_name || '') + '</div></td>'
             + '<td class="num">' + (r.missing ? tag('Not filed', 't-warn') : r.orders) + '</td>'
             + '<td class="num nm">' + (r.missing ? '-' : usdFull(r.amount)) + '</td></tr>'),
-          { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear once approved.') })
+          { empty: empty('building', 'No offices yet', 'Offices pick this zone when they sign up, and appear straight away.') })
         + '</div>'
 
         + '<div class="card"><div class="card-h"><div><div class="card-t">Attendance</div>'
@@ -829,7 +829,7 @@
               + (A.isSuper() ? '<td><button class="btn btn-sm" data-act="view-as" data-kind="office" data-id="' + o.id + '">View as</button></td>' : '')
               + '</tr>';
           }),
-          { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its zone, and appears once you approve it.') })
+          { empty: empty('building', 'No offices yet', 'An office signs up on this site, picks its zone, and appears straight away.') })
         + '</div>'
     };
   }
@@ -846,7 +846,7 @@
             + '<td>' + esc((A.centerById(p.center_id) || {}).name || 'All zones') + '</td>'
             + '<td>' + (p.last_seen ? esc(U.timeAgo(p.last_seen)) : '-') + '</td>'
             + '<td><button class="btn btn-sm" data-act="view-as" data-kind="director" data-id="' + p.id + '">View as</button></td></tr>'),
-          { empty: empty('users', 'No Directors yet', 'A Director signs up, picks Director, and appears here once you approve them.') })
+          { empty: empty('users', 'No Directors yet', 'A Director signs up, picks Director, and appears here straight away.') })
         + '</div>'
     };
   }
@@ -1518,25 +1518,28 @@
       + '<div class="row" style="gap:8px;flex-wrap:wrap">'
       + '<button class="btn btn-a" data-act="push-on">' + ico('drop', 14) + 'Turn on for this device</button>'
       + '<button class="btn" data-act="push-test">' + ico('play', 14) + 'Send me a test</button>'
-      + '</div></div>';
+      + '</div>'
+      + (A.isSuper() ? '<div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(128,128,128,.25)">'
+        + '<div class="card-t" style="font-size:14px">Notify people now</div>'
+        + '<div class="card-s" style="margin-bottom:10px">Goes straight to every device that turned notifications on. No undo.</div>'
+        + '<div class="field"><label for="pn-aud">Who</label><select class="select" id="pn-aud">'
+        + '<option value="all">Everyone</option><option value="member">Senior Managers</option>'
+        + '<option value="office">Offices</option><option value="platform_admin">Directors</option></select></div>'
+        + '<div class="field"><label for="pn-title">Title</label><input class="input" id="pn-title" value="Do not forget to check in"></div>'
+        + '<div class="field"><label for="pn-body">Message</label><input class="input" id="pn-body" '
+        + 'value="Wednesday Senior Manager Training. Check in on your dashboard with the code from your Director."></div>'
+        + '<button class="btn btn-a btn-pop" data-act="push-announce">' + ico('mail', 14) + 'Send notification</button></div>' : '')
+      + '</div>';
   }
 
   async function adminPanel() {
     let fbMissing = '';
-    const [admins, pending, all, fb] = await Promise.all([
-      A.people.admins(), A.people.pending(), A.people.everyone(),
+    const [admins, fb] = await Promise.all([
+      A.people.admins(),
       A.feedback.list().catch(e => { fbMissing = e.missingTable ? e.message : 'Could not load the answers: ' + e.message; return []; })
     ]);
-    const asked = pending.filter(p => p.req_status === 'pending');
-    const quiet = pending.filter(p => p.req_status !== 'pending');
-    const wants = p => p.req_kind === 'leader'
-      ? tag('Director', 't-gold')
-      : tag('An office', 't-ok')
-      + '<div class="sub"><b>' + esc(p.req_office_name || '-') + '</b>'
-      + ' · ' + esc((A.centerById(p.req_center_id) || {}).name || 'no zone') + '</div>'
-      + '<div class="sub">' + esc(p.req_address || 'no address') + '</div>';
     return {
-      title: 'Zones & directors',
+      title: 'Zones & settings',
       html: pushCard()
         + feedbackCard(fb, fbMissing)
         + '<div class="card"><div class="card-h"><div><div class="card-t">Features</div>'
@@ -1575,34 +1578,6 @@
           { empty: empty('layers', 'No zones yet', 'Everything else hangs off a zone, so start here.') })
         + '</div>'
 
-        + (asked.length ? '<div class="card"><div class="card-h"><div>'
-          + '<div class="card-t">Waiting on you · ' + asked.length + '</div>'
-          + '<div class="card-s">They have signed up and said what they are joining as. '
-          + 'Approving an office creates it; nothing exists until you do.</div></div></div>'
-          + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Asking to join as' }, { label: 'Asked' }, { label: '' }],
-            asked.map(p => '<tr><td class="nm">' + esc(p.full_name || '-')
-              + '<div class="sub">' + esc(p.phone || 'no phone') + '</div></td>'
-              + '<td>' + esc(p.email) + '</td><td>' + wants(p) + '</td>'
-              + '<td class="sub">' + esc(U.timeAgo(p.req_at || p.created_at)) + '</td>'
-              + '<td class="num"><button class="btn btn-sm btn-d" data-act="decline-req" data-id="' + p.id + '"'
-              + ' data-name="' + esc(p.full_name || p.email) + '">Decline</button> '
-              + '<button class="btn btn-sm btn-a" data-act="approve-req" data-id="' + p.id + '"'
-              + ' data-name="' + esc(p.full_name || p.email) + '">' + ico('check', 13) + 'Approve</button></td></tr>'))
-          + '</div>' : '')
-
-        + (quiet.length ? '<div class="card"><div class="card-h"><div>'
-          + '<div class="card-t">Signed up, nothing asked · ' + quiet.length + '</div>'
-          + '<div class="card-s">These accounts exist but have not said what they are joining as, '
-          + 'or you turned their request down. They see nothing until they ask and you approve.</div></div></div>'
-          + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Signed up' }, { label: '' }],
-            quiet.map(p => '<tr><td class="nm">' + esc(p.full_name || '-') + '</td>'
-              + '<td>' + esc(p.email) + '</td><td class="sub">' + esc(U.timeAgo(p.created_at)) + '</td>'
-              + '<td class="num">' + (p.req_status === 'declined'
-                ? tag('Declined', 't-mute') + '<div class="sub">' + esc(p.req_note || '') + '</div>' : '')
-              + '</td></tr>'))
-          + '</div>' : '')
-
-        + (await applicationsCard())
         + '<div class="card"><div class="card-h"><div><div class="card-t">Admins · ' + admins.length + '</div>'
         + '<div class="card-s">Directors see every zone and run the Wednesday evaluation. They cannot create zones.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Email' }, { label: 'Role' }, { label: 'Added' }, { label: '' }],
@@ -1622,24 +1597,6 @@
     + '<div class="card-t">NeoLife anthem</div><div class="card-s">Press play. About three minutes.</div></div></div>'
     + '<video controls preload="none" playsinline poster="media/neolife-anthem.jpg" '
     + 'style="width:100%;border-radius:12px;background:#000"><source src="media/neolife-anthem.mp4" type="video/mp4"></video></div>';
-
-  /* Senior and Executive Managers asking to become Directors. */
-  async function applicationsCard() {
-    let apps = [];
-    try { apps = await A.member.applications(); } catch (e) { return ''; }
-    if (!apps.length) return '';
-    return '<div class="card"><div class="card-h"><div><div class="card-t">Director applications · ' + apps.length + '</div>'
-      + '<div class="card-s">Senior and Executive Managers asking to step up. Any Director or the Super Admin can decide.</div></div></div>'
-      + table([{ label: 'Name' }, { label: 'Office' }, { label: '' }],
-        apps.map(p => {
-          const off = A.officeById(p.member_office_id);
-          return '<tr><td class="nm">' + esc(p.full_name) + '<div class="sub">' + esc(p.rank || '') + (p.phone ? ' · ' + esc(p.phone) : '') + '</div></td>'
-            + '<td>' + esc(off ? off.name : '-') + '<div class="sub">' + esc((A.centerById(p.center_id) || {}).name || '') + '</div></td>'
-            + '<td style="white-space:nowrap"><button class="btn btn-sm btn-a" data-act="app-approve" data-id="' + p.id + '">Approve</button> '
-            + '<button class="btn btn-sm btn-g" data-act="app-decline" data-id="' + p.id + '">Decline</button></td></tr>';
-        }), { empty: '' })
-      + '</div><div style="height:16px"></div>';
-  }
 
   /* A Director's own Wednesday check-in. Late after 3:00pm. */
   async function directorCheckCard(me, thu) {
@@ -1736,13 +1693,12 @@
     } catch (e) { weekHtml = ''; }
 
     /* What needs the Director. */
-    const apps = await applicationsCard();
     if (open) {
       needs = '<a class="card" href="' + link('issues') + '" style="display:block;text-decoration:none;color:inherit">'
         + '<div class="card-h" style="margin:0"><div><div class="card-t">' + ico('alert', 18) + ' ' + open + ' issue' + (open === 1 ? '' : 's') + ' waiting for your solution</div>'
         + '<div class="card-s">Tap to answer them. The office sees your answer straight away.</div></div></div></a>' + gap + needs;
     }
-    const needsHtml = (apps || needs) ? sec('Needs you') + apps + needs : '';
+    const needsHtml = needs ? sec('Needs you') + needs : '';
 
     /* Everywhere a Director can go. */
     const tile = (page, icon, title, sub) => '<a class="card" href="' + link(page) + '" style="display:block;text-decoration:none;color:inherit">'
@@ -1882,7 +1838,7 @@
 
   async function account() {
     const me = A.store.me;
-    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', pending: 'Waiting for approval' };
+    const roleLabel = { super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', pending: 'Not in an office yet', member: me.rank || 'Senior Manager' };
     return {
       title: 'Account',
       html: '<div class="card"><div class="card-h"><div><div class="card-t">You</div></div></div>'
@@ -1897,7 +1853,10 @@
         + '<div class="row" style="justify-content:flex-end;margin-top:14px">'
         + '<button class="btn btn-p" data-act="name-save">' + ico('check', 15) + 'Save</button></div></div>'
 
-        + (A.isOffice() ? '<div class="card"><div class="card-h"><div><div class="card-t">Your office</div>'
+        + (A.isMember() ? '<div class="card"><div class="card-h"><div><div class="card-t">Leave this office</div>'
+          + '<div class="card-s">You work inside ' + esc(me.office ? me.office.name : 'this office') + '. You can leave any time. Only the office login can remove you otherwise.</div></div></div>'
+          + '<div class="row"><button class="btn btn-d" data-act="leave-office">Leave this office</button></div></div>' : '')
+        + (A.isOwner() ? '<div class="card"><div class="card-h"><div><div class="card-t">Your office</div>'
           + '<div class="card-s">What the zone sees next to your reports.</div></div></div>'
           + '<div class="two">'
           + '<div class="field"><label for="o-name">Office name</label>'
@@ -1953,7 +1912,7 @@
       ['qr', 'Keep attendance honest', 'Open and close scanning for your zones, and check <b>Trainings</b> afterwards for who actually came.']
     ],
     super_admin: [
-      ['shield', 'Approve who gets in', 'Nobody sees anything until you approve them. <b>Zones & directors</b> carries a blue count whenever somebody is waiting. Approving an office is what creates that office.'],
+      ['shield', 'Nobody waits for you', 'Offices and Directors are let in the moment they sign up. <b>Zones & settings</b> is where you create zones and switch features on.'],
       ['layers', 'Create the zones first', 'Everything hangs off a zone. Offices pick one when they sign up, and each zone runs its own Wednesday evaluation and has its own permanent QR poster.'],
       ['building', 'Watch every office', '<b>Offices</b>, <b>Office rankings</b> and <b>Weekly reports</b> give you the whole picture, week by week.']
     ]
@@ -2016,10 +1975,7 @@
     }
     const thu = U.weekStart();
     await A.member.ensureWeek(me.center_id, thu);
-    const [att, reps] = await Promise.all([
-      A.member.attendance(me.center_id, me.distributor_id ? [me.distributor_id] : []),
-      A.reports.list({ week: thu, center: me.center_id })
-    ]);
+    const att = await A.member.attendance(me.center_id, me.distributor_id ? [me.distributor_id] : []);
     const joined = me.created_at;
     const rowsAtt = att.events.map(ev => ({ ev, st: A.member.classify(att, ev, me.distributor_id, joined) }))
       .filter(r => r.st !== 'none');
@@ -2046,15 +2002,9 @@
       check = note('info', 'calendar', '<b>Next check-in: Wednesday.</b> The Senior Manager Training. Your Director gives you the code that day.');
     }
 
-    const orders = reps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
-    const amount = reps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
-    const zoneOffices = A.store.offices.filter(o => o.active && o.center_id === me.center_id);
-    const up = me.upgrade_status;
     const stepUp = '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Step up</div>'
-      + '<div class="card-s">Ready to lead? Apply to be a Director. Any Director or the Super Admin can approve you.</div></div></div>'
-      + (up === 'pending' ? note('info', 'clock', '<b>Your application is waiting.</b> A Director or the Super Admin will decide.')
-        : (up === 'declined' ? note('warn', 'alert', 'Your last application was declined. You can apply again.') + '<div style="height:10px"></div>' : '')
-          + '<button class="btn btn-a" data-act="apply-director">' + ico('crown', 15) + 'Apply to be a Director</button>')
+      + '<div class="card-s">Ready to lead? Become a Director. It takes effect straight away, and you leave the office team.</div></div></div>'
+      + '<button class="btn btn-a" data-act="apply-director">' + ico('crown', 15) + 'Become a Director</button>'
       + '</div>';
     return {
       title: 'Dashboard', crumbs: esc((me.office || {}).name || '') + ' · ' + esc((me.center || {}).name || ''),
@@ -2065,11 +2015,6 @@
         + kpi('Late', count('late'), 'after 2:45pm', 'clock')
         + kpi('Absent', count('absent'), 'no check-in', 'alert')
         + '</div>'
-        + '<div class="grid g3" style="margin-top:16px">'
-        + kpi('Zone orders', orders, esc(U.weekName(thu)), 'trend')
-        + kpi('Zone amount', usdFull(amount), esc(U.weekRange(thu)), 'cash', 'kpi-blue')
-        + kpi('Offices filed', reps.length + ' / ' + zoneOffices.length, 'this week', 'building')
-        + '</div>'
         + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your attendance</div>'
         + '<div class="card-s">Newest first.</div></div></div>'
         + table([{ label: 'Wednesday' }, { label: 'Status' }],
@@ -2077,7 +2022,7 @@
           { empty: empty('qr', 'No trainings yet', 'Your first one is the next Wednesday.') })
         + '</div>'
         + stepUp
-        + '<div class="row" style="gap:10px;margin-top:16px;flex-wrap:wrap">'
+        + '<div class="row" style="gap:10px;margin:16px 0 24px;flex-wrap:wrap">'
         + '<a class="btn" href="' + link('offices') + '">' + ico('building', 15) + 'Offices in your zone</a>'
         + '<a class="btn" href="' + link('issues') + '">' + ico('alert', 15) + 'Issues &amp; solutions</a>'
         + '<a class="btn" href="' + link('people') + '">' + ico('users', 15) + 'My distributors</a></div>'
@@ -2117,9 +2062,11 @@
 
   async function membersView() {
     const off = (A.store.me && A.store.me.office) || null;
-    if (!off) return { title: 'Members', html: empty('building', 'No office', 'This page belongs to an office.') };
-    if (!A.feature('members')) return { title: 'Members', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on. The Super Admin turns them on.') };
-    const [code, roster, names] = await Promise.all([A.member.joinCode(off.id), A.member.roster(off.id), A.member.names(off.id)]);
+    if (!off) return { title: 'Senior managers', html: empty('building', 'No office', 'This page belongs to an office.') };
+    if (!A.feature('members')) return { title: 'Senior managers', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on.') };
+    const owner = A.isOwner();
+    const [code, roster, names] = await Promise.all([
+      owner ? A.member.joinCode(off.id) : '', A.member.roster(off.id), owner ? A.member.names(off.id) : []]);
     const att = await A.member.attendance(off.center_id, roster.map(m => m.distributor_id).filter(Boolean));
     const url = window.CONFIG.appUrl + '/#/m/' + code;
     const stat = m => {
@@ -2128,29 +2075,29 @@
       return tag(c('present') + ' on time', 't-ok') + ' ' + tag(c('late') + ' late', 't-warn') + ' ' + tag(c('absent') + ' absent', 't-mute');
     };
     return {
-      title: 'Members', crumbs: esc(off.name),
-      html: '<div class="card"><div class="card-h"><div><div class="card-t">Your sign-up link</div>'
-        + '<div class="card-s">Send this to your Senior and Executive Managers. They sign up through it and land in your office. No approval needed.</div></div></div>'
+      title: 'Senior managers', crumbs: esc(off.name),
+      html: (owner ? '<div class="card"><div class="card-h"><div><div class="card-t">Your sign-up link</div>'
+        + '<div class="card-s">Send this to your Senior Managers. They pick their rank, sign up through it, and work inside your office with the same view you have. No approval needed. Only you can remove them, and they can leave any time.</div></div></div>'
         + '<div class="field"><input class="input mono" readonly value="' + esc(url) + '" onclick="this.select()"></div>'
         + '<div class="row" style="gap:8px;flex-wrap:wrap">'
         + '<button class="btn btn-a" data-act="copy" data-v="' + esc(url) + '">' + ico('copy', 14) + 'Copy link</button>'
         + '<button class="btn" data-act="join-regen">' + ico('refresh', 14) + 'New link</button></div>'
-        + '<div class="hint" style="margin-top:8px">A new link stops the old one working. People already in stay in.</div></div>'
-        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">Your members</div>'
+        + '<div class="hint" style="margin-top:8px">A new link stops the old one working. People already in stay in.</div></div>' : '')
+        + '<div class="card"' + (owner ? ' style="margin-top:16px"' : '') + '><div class="card-h"><div><div class="card-t">Senior managers in this office</div>'
         + '<div class="card-s">' + roster.length + ' signed in. Attendance is the last 12 Wednesdays.</div></div></div>'
         + table([{ label: 'Name' }, { label: 'Rank' }, { label: 'Attendance' }, { label: 'Following up', num: true }, { label: '' }],
           roster.map(m => '<tr><td class="nm">' + esc(m.name) + '<div class="sub">' + esc(m.phone || '') + (m.sponsor ? ' · Sponsor: ' + esc(m.sponsor) : '') + '</div></td>'
             + '<td>' + esc(m.rank || '-') + '</td><td>' + stat(m) + '</td>'
             + '<td class="num">' + m.tracking + '</td>'
-            + '<td><button class="btn btn-sm btn-g" data-act="member-del" data-id="' + m.id + '" aria-label="Remove">' + ico('trash', 14) + '</button></td></tr>'),
-          { empty: empty('users', 'No members yet', 'Share your link above. They appear here the moment they join.') })
+            + '<td>' + (owner ? '<button class="btn btn-sm btn-g" data-act="member-del" data-id="' + m.id + '" aria-label="Remove">' + ico('trash', 14) + '</button>' : '') + '</td></tr>'),
+          { empty: empty('users', 'No senior managers yet', 'Share your link above. They appear here the moment they join.') })
         + '</div>'
-        + '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">People your members are following up</div>'
+        + (!owner ? '' : '<div class="card" style="margin-top:16px"><div class="card-h"><div><div class="card-t">People your members are following up</div>'
         + '<div class="card-s">Names and stages only. The phone numbers stay private to each member.</div></div></div>'
         + table([{ label: 'Member' }, { label: 'Name' }, { label: 'Stage' }],
           names.map(x => '<tr><td>' + esc(x.member) + '</td><td class="nm">' + esc(x.name) + '</td><td>' + tag(x.stage, 't-mute') + '</td></tr>'),
           { empty: empty('users', 'Nothing yet', 'When members add people to follow up, their names show here.') })
-        + '</div>'
+        + '</div>')
     };
   }
 
@@ -2200,8 +2147,13 @@
        adminDash keep the create-a-zone link and button Super Admin only,
        so nothing here hands a Director a power they did not have. */
     dashboard: async () => {
-      const v = await (A.isMember() ? memberDash() : A.isOffice() ? officeDash()
+      /* A senior manager sees the office's own dashboard, with their
+         Wednesday check-in on top. */
+      let v, mine = null;
+      if (A.isMember()) { [mine, v] = await Promise.all([memberDash(), officeDash()]); }
+      else v = await (A.isOffice() ? officeDash()
         : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()));
+      if (mine) v.html = mine.html + v.html;
       v.html += anthemCard();
       return v;
     },

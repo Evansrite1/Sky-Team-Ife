@@ -41,7 +41,7 @@
         { p: 'codes', l: 'Wednesday training', i: 'qr' },
         { p: 'reports', l: 'Weekly reports', i: 'file' },
         { p: 'issues', l: 'Issues & solutions', i: 'alert' },
-        { p: 'admin', l: 'Approvals & zones', i: 'shield', alertC: () => A.store.waiting || '' }
+        { p: 'admin', l: 'Zones & settings', i: 'shield' }
       ],
       more: [
         { p: 'evaluation', l: 'Evaluation list', i: 'clipboard' },
@@ -87,11 +87,15 @@
       ],
       more: []
     },
+    /* A senior manager has the office's own pages, plus their own list. */
     member: {
       main: [
         { p: 'dashboard', l: 'Dashboard', i: 'grid' },
-        { p: 'offices', l: 'Offices', i: 'building' },
-        { p: 'issues', l: 'Issues & solutions', i: 'alert' },
+        { p: 'reports', l: 'Weekly reports', i: 'clipboard' },
+        { p: 'trainings', l: 'Attendance', i: 'qr' },
+        { p: 'distributors', l: 'Distributors', i: 'users' },
+        { p: 'members', l: 'Members', i: 'users', feat: 'members' },
+        { p: 'center', l: 'Your zone', i: 'layers' },
         { p: 'people', l: 'My distributors', i: 'users' },
         { p: 'account', l: 'Account', i: 'lock' }
       ],
@@ -107,7 +111,8 @@
       'offices', 'evaluation', 'rankings', 'reports', 'niches', 'issues', 'codes', 'zonemembers'],
     office: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
       'account', 'offices', 'monthly', 'niches', 'members'],
-    member: ['dashboard', 'offices', 'issues', 'people', 'account']
+    member: ['dashboard', 'reports', 'trainings', 'distributors', 'center',
+      'account', 'offices', 'monthly', 'niches', 'members', 'issues', 'people']
   };
 
   function go(hash) { location.hash = hash; }
@@ -151,7 +156,7 @@
       + '</nav>'
       + '<div class="sb-btm"><div class="sb-user"><div class="av">' + esc(U.initials(me.full_name || me.email)) + '</div>'
       + '<div><div class="sb-user-nm">' + esc(me.full_name || (me.role === 'office' && me.office ? me.office.name : 'Signed in')) + '</div>'
-      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', member: 'Member' }[me.role] || '') + '</div></div></div>'
+      + '<div class="sb-user-em">' + esc({ super_admin: 'Super Admin', platform_admin: 'Director', office: 'Office', member: me.rank || 'Senior Manager' }[me.role] || '') + '</div></div></div>'
       + '<div class="sb-row">'
       + '<button class="sb-out" data-act="signout">' + ico('out', 16) + 'Sign out</button>'
       + hueBtn()
@@ -215,7 +220,7 @@
       { p: 'dashboard', l: 'Home', i: 'grid' },
       { p: 'offices', l: 'Offices', i: 'building' },
       { p: 'rankings', l: 'Ranks', i: 'crown' },
-      { p: 'admin', l: 'Approve', i: 'shield', badge: () => A.store.waiting }
+      { p: 'admin', l: 'Zones', i: 'shield' }
     ],
     platform_admin: [
       { p: 'dashboard', l: 'Home', i: 'grid' },
@@ -363,25 +368,33 @@
   /* Shown once per update, the first time each person opens the app
      after it. Bump WHATS_NEW_ID with the next update worth announcing.
      Someone brand new gets the walkthrough instead, never both. */
-  const WHATS_NEW_ID = '2026-10-issues-2';
+  const WHATS_NEW_ID = '2026-11-senior-managers';
   const WN_KEY = 'sti-whatsnew';
   const whatsNewItems = (role) => {
     const item = (i, t, d) => '<li><div class="ins-i">' + ico(i, 16) + '</div><div><div class="ins-t">' + t + '</div>'
       + '<div class="ins-d">' + d + '</div></div></li>';
-    const common = item('trend', 'Faster to open', 'The app now loads its data all at once instead of one piece at a time.');
+    const forget = item('clock', 'Do not forget to check in', 'Every Wednesday, Senior Managers and above check in to the training. '
+      + 'Check-in opens at 1:00pm, after 2:45pm counts as late, and no check-in means absent.');
+    const anthem = item('play', 'The NeoLife anthem is on your dashboard', 'Scroll to the bottom of the dashboard and press play. About three minutes.');
     if (role === 'office') {
-      return item('alert', 'Issues, one by one', 'On your weekly report, add each thing that slowed you down on its own. '
-        + 'The Directors answer every one, and their solution shows up right under your issue.')
-        + item('star', 'How to do better', 'Your dashboard now shows what your own numbers say to work on - '
-          + 'the office just above you, your trend, what is selling in your zone, and more.')
-        + item('calendar', 'Last month is open again', 'Pick any week of last month or this month from the Week menu and file or fix it.')
-        + common;
+      return item('users', 'Add your Senior Managers', 'Open <b>Senior managers</b> in the menu and send them your office link. '
+        + 'They sign up, and work inside your office with the same view you have. Only you can remove one.')
+        + item('qr', 'Senior Managers check in from their own interface', 'Each one checks in on their own dashboard with the code from their Director. '
+          + 'You do not have to do it for them.')
+        + forget + anthem;
     }
-    return item('alert', 'Issues & solutions', 'A new page in the menu lists every issue offices raised this month, one card each. '
-      + 'Write a solution and the office sees it under its own issue.')
-      + item('star', 'Insights for offices', 'Each office\'s dashboard now tells it what to work on, from its own numbers against its zone.')
-      + item('calendar', 'Last month is open again', 'Offices can file or fix any week of last month or this month.')
-      + common;
+    if (role === 'member') {
+      return item('qr', 'Check in from your own dashboard', 'On Wednesday your dashboard shows a check-in box at the top. Type the code your Director gives you.')
+        + item('users', 'You work inside your office', 'You see the same pages as your office. Only the office login can remove you, and you can leave any time from Account.')
+        + forget + anthem;
+    }
+    if (role === 'platform_admin' || role === 'super_admin') {
+      return item('qr', 'Where to find the Wednesday code', 'Open <b>Wednesday training</b> in the menu. Each zone\'s code is there, with a Copy button. '
+        + 'Only Directors can see it.')
+        + item('users', 'Senior Managers join through their office', 'Each office has its own link. Senior Managers who join it work inside that office and check in with your code.')
+        + forget + anthem;
+    }
+    return forget + anthem;
   };
   /* Closing it without answering brings it back next time, up to three
      showings; answering, or "Don't ask again", ends it for good. */
@@ -389,7 +402,7 @@
   const wnDone = () => { try { localStorage.setItem(WN_KEY, WHATS_NEW_ID); } catch (e) { /* ignore */ } };
   function maybeWhatsNew(force) {
     const me = A.store.me;
-    if (!me || me.role === 'pending' || me.role === 'member') return;
+    if (!me || me.role === 'pending') return;
     let seen = '', shown = 0;
     try {
       seen = localStorage.getItem(WN_KEY) || '';
@@ -758,7 +771,7 @@
 
   /* --------------------------------------------------- onboarding */
   /* A new account picks what it is joining as. Nothing is created yet -
-     it goes to the Super Admin, who approves it. */
+     it is granted as soon as it is sent. */
   async function renderOnboard() {
     const me = A.store.me;
     /* The choice made on #/join wins; a returning account falls back to
@@ -792,14 +805,14 @@
       + '<p class="auth-s">' + (turned
         ? 'Your last request came back. Fix what is below and send it again.'
         : 'Joining as ' + KIND_LABEL[kind] + '. <a href="#" data-act="ob-switch" style="text-decoration:underline">Not right?</a>'
-        + ' A director approves this, and then your dashboard opens up.') + '</p>'
+        + ' Your dashboard opens the moment you send this.') + '</p>'
       + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
 
       + '<form id="ob-form" data-kind="' + kind + '">'
       + mine
       + (kind === 'office' ? officeFields : '')
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-request">'
-      + (turned ? 'Send it again' : 'Ask to join') + '</button>'
+      + (turned ? 'Send it again' : 'Join') + '</button>'
       + '</form>'
 
       + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>');
@@ -817,8 +830,8 @@
     }
     $('#root').innerHTML = authShell(
       '<h1 class="auth-h">You are on the list</h1>'
-      + '<p class="auth-s">You asked to join as ' + what + '. A director will approve it, '
-      + 'and the moment they do, this page opens onto your dashboard.</p>'
+      + '<p class="auth-s">You asked to join as ' + what + '. You are being let in. '
+      + 'Press Check again if this page does not open.</p>'
       + U.note('ok', 'check', 'Nothing else to do. You can close this and come back later. Just '
         + 'sign in with <b>' + esc(me.email) + '</b>.')
       + '<div class="row" style="margin-top:18px">'
@@ -951,8 +964,9 @@
       pick.clear();
       state.editRequest = false;
       await boot(true);
+      go('#/dashboard');
       await route();
-      toast('Sent. A director takes it from here.');
+      toast('You are in. Welcome.');
     } catch (err) { busy(btn, false); toast(err.message, 'no'); }
   };
 
@@ -968,7 +982,7 @@
       await route();
     } else {
       busy(el, false);
-      toast('Not yet. It has not been approved.');
+      toast('Not yet. Try again in a moment.');
     }
   };
 
@@ -1331,6 +1345,20 @@
         : (r.note || 'Nothing was delivered.'), r.sent ? undefined : 'no');
     } catch (err) { toast(err.message, 'no'); }
     busy(el, false);
+  };
+
+  ACT['push-announce'] = (el) => {
+    if (!val('#pn-body')) return toast('Write the message first.', 'no');
+    const who = { all: 'everyone', member: 'all Senior Managers', office: 'all offices', platform_admin: 'all Directors' }[val('#pn-aud')] || 'everyone';
+    U.confirmDialog('Send this to ' + who + '?', 'It goes out immediately and cannot be taken back.', 'Send', 'push-announce-yes');
+  };
+  ACT['push-announce-yes'] = async (el) => {
+    busy(el, true, 'Sending…');
+    try {
+      const r = await A.push.send({ type: 'announce', audience: val('#pn-aud'), title: val('#pn-title'), body: val('#pn-body') });
+      closeModal();
+      toast(r.sent ? 'Sent to ' + r.sent + ' device' + (r.sent === 1 ? '' : 's') + '.' : (r.note || 'Nothing was delivered.'), r.sent ? undefined : 'no');
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
   ACT['issue-show'] = (el) => { state.issueShow = el.dataset.v; route(); };
@@ -1725,7 +1753,7 @@
       joining = false;
       go('#/dashboard');
       await route();
-      toast('You are in.');
+      toast(A.store.me && A.store.me.role === 'platform_admin' ? 'You are in as a Director.' : 'You are in.');
     } catch (err) {
       clearJoin(); joining = false;
       toast(err.message, 'no');
@@ -1749,7 +1777,7 @@
     const names = info.names || [];
     r.innerHTML = authShell(
       '<h1 class="auth-h">Join ' + esc(info.office) + '</h1>'
-      + '<p class="auth-s">' + esc(info.zone || '') + '. For Senior Managers and Executive Managers.</p>'
+      + '<p class="auth-s">' + esc(info.zone || '') + '. For Senior Managers and above. You will work inside this office.</p>'
       + '<form id="join-form">'
       + '<div class="field"><label for="jn-name">Your name</label><input class="input" id="jn-name" required autocomplete="name"></div>'
       + '<div class="field"><label for="jn-sponsor">Your sponsor\'s name</label><input class="input" id="jn-sponsor" autocomplete="off"></div>'
@@ -1759,7 +1787,8 @@
         + '<div class="field"><label for="jn-pass">Password</label>'
         + '<input class="input" id="jn-pass" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></div>')
       + '<div class="field"><label for="jn-rank">Your rank</label><select class="select" id="jn-rank">'
-      + '<option>Senior Manager</option><option>Executive Manager</option></select></div>'
+      + '<option>Senior Manager</option><option>Executive Manager</option><option>Director</option><option>Emerald Director</option>'
+      + '<option value="Distributor">Distributor (below Senior Manager)</option></select></div>'
       + (names.length ? '<div class="field"><label for="jn-pick">Already on your office list? Pick yourself (optional)</label>'
         + '<select class="select" id="jn-pick" data-act="jn-pick"><option value="">No, I will type my details</option>'
         + names.map(n => '<option value="' + esc(n.id) + '" data-name="' + esc(n.name) + '" data-rank="' + esc(n.status) + '">'
@@ -1778,6 +1807,7 @@
       phone: val('#jn-phone'), sponsor: val('#jn-sponsor'), dist: sel && sel.value ? sel.value : null
     };
     if (!d.name) return toast('Your name is needed.', 'no');
+    if (d.rank === 'Distributor') return toast('This link is for Senior Managers and above. Ask your office to add you to its distributor list.', 'no');
     busy(btn, true, 'Joining…');
     try {
       saveJoin(d);
@@ -1861,6 +1891,19 @@
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 
+  /* A senior manager can leave their office whenever they like. */
+  ACT['leave-office'] = () => U.confirmDialog('Leave this office?',
+    'You lose access to the office straight away. You can join again later with the office link.', 'Leave', 'leave-office-yes', true);
+  ACT['leave-office-yes'] = async (el) => {
+    busy(el, true, 'Leaving…');
+    try {
+      const r = await A.member.leave();
+      if (!r.ok) { busy(el, false); return toast(r.error, 'no'); }
+      closeModal(); toast('You have left the office.');
+      await boot(true); go('#/dashboard'); route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
   ACT['dir-check-in'] = async (el) => {
     busy(el, true, 'Checking in…');
     try {
@@ -1877,8 +1920,9 @@
       const r = await A.member.applyDirector();
       busy(el, false);
       if (!r.ok) return toast(r.error, 'no');
-      toast('Application sent. A Director or the Super Admin will decide.');
-      A.store.me.upgrade_status = 'pending';
+      toast('You are a Director now.');
+      await boot(true);
+      go('#/dashboard');
       route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };

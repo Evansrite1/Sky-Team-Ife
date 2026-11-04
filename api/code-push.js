@@ -57,7 +57,23 @@ module.exports = async (req, res) => {
   codes.forEach(c => { codeOf[c.events.center_id] = c.code; });
 
   const directors = await getJson('/rest/v1/profiles?select=id,full_name,center_id&role=eq.platform_admin');
-  if (!directors.length) return send(200, { sent: 0, note: 'No Directors.' });
+
+  /* Senior Managers get the reminder, not the code: their Director gives that out. */
+  let remind = 0;
+  const members = await getJson('/rest/v1/profiles?select=id&role=eq.member');
+  if (members.length) {
+    const msubs = await getJson('/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth&user_id=in.('
+      + members.map(m => m.id).join(',') + ')');
+    const mpay = JSON.stringify({
+      title: 'Do not forget to check in',
+      body: 'Wednesday Senior Manager Training. Get the code from your Director and check in on your dashboard.',
+      url: APP_URL + '/#/dashboard', tag: 'sti-remind'
+    });
+    await Promise.all(msubs.map(s => webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, mpay, { TTL: 3600 })
+      .then(() => { remind++; })
+      .catch(async (e) => { if (e.statusCode === 404 || e.statusCode === 410) await sb('/rest/v1/push_subscriptions?id=eq.' + s.id, { method: 'DELETE' }); })));
+  }
+  if (!directors.length) return send(200, { sent: 0, remind, note: 'No Directors.' });
   const subs = await getJson('/rest/v1/push_subscriptions?select=id,user_id,endpoint,p256dh,auth&user_id=in.('
     + directors.map(d => d.id).join(',') + ')');
 
@@ -83,5 +99,5 @@ module.exports = async (req, res) => {
     });
   });
   await Promise.all(jobs);
-  return send(200, { sent, failed, week: thu });
+  return send(200, { sent, failed, remind, week: thu });
 };

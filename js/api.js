@@ -89,6 +89,10 @@
     const p = guard(await sb.from('profiles').select('*').eq('id', s.user.id).maybeSingle());
     if (!p) { store.me = null; return null; }
     store.me = p;
+    /* A senior manager works inside the office they joined, as the office
+       does. Every page and query reads office_id, so give them theirs here,
+       in memory only: the database row is never touched. */
+    if (p.role === 'member' && p.member_office_id) store.me.office_id = p.member_office_id;
     /* Stamps last_seen, at most once every five minutes. Fire and
        forget: a failure here must never block signing in. */
     sb.rpc('touch_last_seen').then(() => {}, () => {});
@@ -105,7 +109,10 @@
 
   const isAdmin = () => !!store.me && (store.me.role === 'super_admin' || store.me.role === 'platform_admin');
   const isSuper = () => !!store.me && store.me.role === 'super_admin';
-  const isOffice = () => !!store.me && store.me.role === 'office';
+  /* A senior manager has the office's view and powers. Only the office
+     login itself (isOwner) edits the office, its link, and its people. */
+  const isOffice = () => !!store.me && (store.me.role === 'office' || store.me.role === 'member');
+  const isOwner = () => !!store.me && store.me.role === 'office';
   const isMember = () => !!store.me && store.me.role === 'member';
 
   /* ------------------------------------------------------- lookup sets */
@@ -116,9 +123,7 @@
       sb.from('offices').select('*').order('name'),
       sb.from('niches').select('*').order('name'),
       sb.from('app_settings').select('*'),
-      isSuper()
-        ? sb.from('profiles').select('id', { count: 'exact', head: true }).eq('req_status', 'pending')
-        : { count: 0 },
+      { count: 0 },
       isAdmin()
         ? sb.from('profiles').select('id', { count: 'exact', head: true }).in('role', ['super_admin', 'platform_admin'])
         : { count: 0 }
@@ -571,8 +576,8 @@
 
   /* ------------------------------------------------------------- join */
   const join = {
-    /* What a new account asks for. Nothing is created here - the row just
-       goes on their own profile and waits for the Super Admin. */
+    /* What a new account asks for. It is granted on the spot: the office is
+       created, or the Director is made, as this call returns. */
     async request(kind, payload) {
       const office = kind === 'office';
       const { error } = await sb.rpc('submit_access_request', {
@@ -648,6 +653,7 @@
     roster: (officeId) => rpc('office_members', { p_office: officeId || null }),
     names: (officeId) => rpc('office_people_names', { p_office: officeId || null }),
     remove: (id) => rpc('remove_member', { p_member: id }),
+    leave: () => rpc('leave_office'),
     zoneMembers: (centerId) => rpc('zone_members_summary', { p_center: centerId || null }),
     directorCheckIn: () => rpc('director_check_in'),
     applyDirector: () => rpc('apply_director'),
@@ -682,7 +688,7 @@
 
   window.API = {
     sb, ready: !!sb, store, auth, loadMe, loadLookups,
-    isAdmin, isSuper, isOffice, isMember, member, centerById, officeById, officesOf,
+    isAdmin, isSuper, isOffice, isOwner, isMember, member, centerById, officeById, officesOf,
     centers, offices, distributors, reports, events, scans, niches,
     people, settings, join, watch, unwatch,
     feature, activity, goals, announce, issues, feedback, push
