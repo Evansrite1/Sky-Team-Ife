@@ -89,10 +89,24 @@ sign-up form has to offer.
 
 ---
 
+## Database setup after the first install
+
+Everything added since `schema.sql` is in **one file**: [`supabase/RUN-THIS-ONCE.sql`](supabase/RUN-THIS-ONCE.sql).
+Paste the whole of it into the Supabase SQL editor and press Run. It is safe to run again.
+Part 10 schedules the reminders, and needs your `CRON_SECRET` in place of
+`PUT-YOUR-CRON-SECRET-HERE` (the copy kept on the owner's computer already has it).
+
+## Everybody checks in
+
+Every Wednesday, from 1:00pm, Senior Managers, offices and Directors check in to the Senior Manager
+Training from their own dashboard. Every Director can read the zone's code on *Wednesday training*;
+Directors check in without it, everyone else types it. After 2:45pm counts as late for Senior
+Managers (after 3:00pm for Directors and offices). Eight wrong codes locks a person out.
+
 ## Reminders
 
 Push notifications go to anyone who turned them on. They are driven by `pg_cron`
-(`supabase/2026-11-reminders.sql`) calling two Vercel functions:
+(`supabase/RUN-THIS-ONCE.sql`, PART 10) calling two Vercel functions:
 
 | When (Lagos) | What |
 |---|---|

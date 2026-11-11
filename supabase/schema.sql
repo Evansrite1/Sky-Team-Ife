@@ -794,7 +794,7 @@ begin
       values (c.id, 'training', 'SM', 'Senior Manager Training', 'sm', v_week, v_week + 6,
               coalesce(setting('training_time'), '2:45pm'),
               'SM-' || upper(left(replace(c.id::text, '-', ''), 6)) || '-' || to_char(v_week, 'IYYYIW'),
-              case when v_week > current_date then 'scheduled' else 'closed' end);
+              case when v_week > current_date then 'scheduled'::event_status else 'closed'::event_status end);
       v_made := v_made + 1;
     end if;
 
@@ -805,7 +805,7 @@ begin
       values (c.id, 'training', 'DT', 'Distributor Training', 'all', v_week, v_week + 1,
               coalesce(setting('training_time'), '2:45pm'),
               'DT-' || upper(left(replace(c.id::text, '-', ''), 6)) || '-' || to_char(v_week, 'IYYYIW'),
-              case when v_week + 1 > current_date then 'scheduled' else 'closed' end);
+              case when v_week + 1 > current_date then 'scheduled'::event_status else 'closed'::event_status end);
       v_made := v_made + 1;
     end if;
   end loop;
@@ -1025,7 +1025,7 @@ begin
     values (p_center, 'training', 'SM', 'Senior Manager Training', 'sm', p_week, p_week + 6,
             coalesce(setting('training_time'), '2:45pm'),
             'SM-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
-            case when p_week > current_date then 'scheduled' else 'closed' end);
+            case when p_week > current_date then 'scheduled'::event_status else 'closed'::event_status end);
   end if;
 
   if not exists (select 1 from events where center_id = p_center and week_start = p_week and type = 'DT') then
@@ -1033,7 +1033,7 @@ begin
     values (p_center, 'training', 'DT', 'Distributor Training', 'all', p_week, p_week + 1,
             coalesce(setting('training_time'), '2:45pm'),
             'DT-' || upper(left(replace(p_center::text, '-', ''), 6)) || '-' || to_char(p_week, 'IYYYIW'),
-            case when p_week + 1 > current_date then 'scheduled' else 'closed' end);
+            case when p_week + 1 > current_date then 'scheduled'::event_status else 'closed'::event_status end);
   end if;
 end $$;
 

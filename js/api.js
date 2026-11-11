@@ -666,6 +666,7 @@
     decide: (id, approve, reason) => rpc('decide_manager', { p_user: id, p_approve: !!approve, p_reason: reason || '' }),
     zoneMembers: (centerId) => rpc('zone_members_summary', { p_center: centerId || null }),
     directorCheckIn: () => rpc('director_check_in'),
+    officeCheckIn: (code) => rpc('office_check_in', { p_code: code }),
     applyDirector: () => rpc('apply_director'),
     reviewApplication: (id, approve) => rpc('review_director_application', { p_user: id, p_approve: !!approve }),
     async applications() {
@@ -674,7 +675,7 @@
         .eq('role', 'member').eq('upgrade_status', 'pending').order('upgrade_at'));
     },
     async directorCheckins(thu) {
-      return rows(await sb.from('director_checkins').select('user_id,scanned_at,late,profiles(full_name,email)').eq('week_start', thu));
+      return rows(await sb.from('director_checkins').select('user_id,scanned_at,late,profiles(full_name,email,role)').eq('week_start', thu));
     },
     async zoneCheckins(thu) {
       return rows(await sb.from('scans')

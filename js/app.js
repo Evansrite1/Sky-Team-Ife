@@ -373,7 +373,7 @@
   const whatsNewItems = (role) => {
     const item = (i, t, d) => '<li><div class="ins-i">' + ico(i, 16) + '</div><div><div class="ins-t">' + t + '</div>'
       + '<div class="ins-d">' + d + '</div></div></li>';
-    const forget = item('clock', 'Do not forget to check in', 'Every Wednesday, Senior Managers and above check in to the training. '
+    const forget = item('clock', 'Do not forget to check in', 'Every Wednesday everyone checks in to the Senior Manager Training from their own dashboard: Senior Managers, offices and Directors. '
       + 'Check-in opens at 1:00pm, after 2:45pm counts as late, and no check-in means absent.');
     const proj = item('trend', 'See where your orders take you', 'The dashboard graph is now a what-if. Drag the orders a week and watch the line, the money and the orders per person move.');
     const numbers = item('users', 'Tell us your team numbers', 'Put your distributor numbers in the weekly report, even without the names. It lets everyone track how the team is growing.');
@@ -1972,6 +1972,21 @@
       if (!r.ok) { busy(el, false); return toast(r.error, 'no'); }
       closeModal(); toast('You have left the office.');
       await boot(true); go('#/dashboard'); route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+
+  ACT['office-check-in'] = async (el, e) => {
+    if (e) e.preventDefault();
+    const code = val('#oc-code');
+    if (!code) return toast('Type the code your Director gave you.', 'no');
+    busy(el, true, 'Checking in…');
+    try {
+      const r = await A.member.officeCheckIn(code);
+      busy(el, false);
+      if (!r.ok) return toast(r.error, 'no');
+      toast(r.already ? 'You are already checked in.'
+        : r.late ? 'Checked in at ' + r.at + '. That counts as late.' : 'Checked in at ' + r.at + '. On time.');
+      route();
     } catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
 

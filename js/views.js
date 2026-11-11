@@ -1637,6 +1637,33 @@
     + '<video controls preload="none" playsinline poster="media/neolife-anthem.jpg" '
     + 'style="width:100%;border-radius:12px;background:#000"><source src="media/neolife-anthem.mp4" type="video/mp4"></video></div>';
 
+  /* The office login's own Wednesday check-in. It types the zone's code,
+     which any Director can read on the Wednesday training page. */
+  async function officeCheckCard(me, thu) {
+    const mine = (await A.member.directorCheckins(thu)).find(x => x.user_id === me.id);
+    const ln = new Date(Date.now() + 3600000);
+    const isWed = ln.getUTCDay() === 3, hhmm = ln.toISOString().slice(11, 16);
+    let body;
+    if (mine) {
+      body = '<div class="row" style="gap:10px;align-items:center">' + tag(mine.late ? 'Checked in, late' : 'Checked in, on time', mine.late ? 't-warn' : 't-ok')
+        + '<span class="sub">at ' + esc(lagosClock(mine.scanned_at)) + '</span></div>';
+    } else if (isWed && hhmm >= '13:00' && hhmm <= A.member.endFor(ln.toISOString().slice(0, 10))) {
+      body = '<form id="oc-form"><div class="field"><label for="oc-code">Code from your Director</label>'
+        + '<input class="input" id="oc-code" maxlength="8" autocomplete="off" autocapitalize="characters" '
+        + 'style="text-transform:uppercase;letter-spacing:.2em;font-size:20px" placeholder="ABCDE"></div>'
+        + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="office-check-in">' + ico('check', 16) + 'Check in</button>'
+        + '<div class="hint" style="margin-top:8px">After 3:00pm counts as late.</div></form>';
+    } else if (isWed && hhmm < '13:00') {
+      body = note('info', 'clock', '<b>Check-in opens at 1:00pm today.</b> Your Director will give you the code.');
+    } else if (isWed) {
+      body = note('warn', 'clock', '<b>Today\'s training is over.</b>');
+    } else {
+      body = note('info', 'calendar', '<b>Next check-in: Wednesday.</b> The Senior Manager Training. Your Director gives you the code that day.');
+    }
+    return '<div class="card" style="margin-bottom:16px"><div class="card-h"><div><div class="card-t">Wednesday check-in</div>'
+      + '<div class="card-s">Senior Manager Training, 2:45pm</div></div></div>' + body + '</div>';
+  }
+
   /* A Director's own Wednesday check-in. Late after 3:00pm. */
   async function directorCheckCard(me, thu) {
     const mine = (await A.member.directorCheckins(thu)).find(x => x.user_id === me.id);
@@ -2169,7 +2196,7 @@
     const zones = A.store.centers.filter(c => !me.center_id || c.id === me.center_id);
     const [dirs, zscans] = await Promise.all([A.member.directorCheckins(thu).catch(() => []), A.member.zoneCheckins(thu).catch(() => [])]);
     const inRows = zscans.map(x => ({ n: (x.distributors || {}).full_name || '-', r: (x.distributors || {}).status || '', z: (A.centerById(x.events.center_id) || {}).name || '', at: x.scanned_at, late: x.late }))
-      .concat(dirs.map(d => ({ n: (d.profiles || {}).full_name || (d.profiles || {}).email || '-', r: 'Director', z: '', at: d.scanned_at, late: d.late })))
+      .concat(dirs.map(d => ({ n: (d.profiles || {}).full_name || (d.profiles || {}).email || '-', r: (d.profiles || {}).role === 'office' ? 'Office' : 'Director', z: '', at: d.scanned_at, late: d.late })))
       .sort((p, q) => (p.at < q.at ? -1 : 1));
     return {
       title: 'Wednesday training', crumbs: esc(U.fullDate(wed)),
@@ -2211,6 +2238,10 @@
       else v = await (A.isOffice() ? officeDash()
         : (A.store.me.role === 'platform_admin' ? directorDash() : adminDash()));
       if (mine) v.html = mine.html + v.html;
+      /* The office login checks in too, with the zone's code. */
+      if (A.isOwner() && A.feature('members')) {
+        try { v.html = await officeCheckCard(A.store.me, U.weekStart()) + v.html; } catch (e) { /* the dashboard still loads */ }
+      }
       v.html += anthemCard();
       return v;
     },

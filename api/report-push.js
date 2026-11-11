@@ -2,7 +2,7 @@
    Sky Team Ife - heads-up to offices that a weekly report is not filed.
 
    Called by the database's scheduler (pg_cron, see
-   supabase/2026-11-reminders.sql) at 10:00am Lagos time, Monday to
+   supabase/RUN-THIS-ONCE.sql (PART 10)) at 10:00am Lagos time, Monday to
    Thursday. For every active office it looks at last week's report and
    this week's report. Offices with both in get nothing. Offices missing
    one or both get a push on every device the office login and its

@@ -2,7 +2,7 @@
    Sky Team Ife - Wednesday code, pushed to the Directors.
 
    Called by the database's scheduler (pg_cron, see
-   supabase/2026-11-reminders.sql) three times on Wednesdays, all
+   supabase/RUN-THIS-ONCE.sql (PART 10)) three times on Wednesdays, all
    BEFORE the 2:45pm meeting: 1:00pm (check-in opens), 2:00pm and 2:30pm
    Lagos time. It sends each Director the code for their zone, and every
    Senior Manager a reminder to check in, as push notifications on
