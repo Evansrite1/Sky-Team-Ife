@@ -68,7 +68,7 @@ create or replace function office_members(p_office uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare v_off uuid := coalesce(p_office, my_office());
 begin
-  if not (is_admin() or my_office() = v_off) then raise exception 'Not allowed.'; end if;
+  if not (is_admin() or coalesce(my_office() = v_off, false)) then raise exception 'Not allowed.'; end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
       'id', p.id, 'name', p.full_name, 'rank', p.rank, 'phone', p.phone,

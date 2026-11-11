@@ -347,6 +347,29 @@
       + '</div>';
   }
 
+  /* The size of the team, so the whole thing can be tracked. Numbers are
+     enough: names are better, but an office that only fills in the numbers
+     still counts. */
+  function teamCard(rep, dists, filedThisWeek) {
+    const named = dists.filter(d => d.active !== false).length;
+    const n = k => (rep ? Number(rep[k]) || 0 : 0);
+    const rows = [['Distributors', n('num_distributors')], ['Senior Managers', n('num_senior_managers')],
+      ['Newbies', n('num_newbies')], ['Prospects', n('num_prospects')]];
+    const total = rows.reduce((a, r) => a + r[1], 0);
+    return '<div class="card"><div class="card-h"><div><div class="card-t">Your team</div>'
+      + '<div class="card-s">' + (rep ? 'From your ' + esc(U.weekName(rep.week_start)) + ' report.' : 'Not told us yet.') + '</div></div></div>'
+      + (total === 0
+        ? note('gold', 'users', '<b>Tell us how big your team is.</b> Even just the numbers, without the names, '
+          + 'lets us see how the whole team is growing. Put them in ' + (filedThisWeek ? 'your report' : 'this week\'s report') + '.')
+          + '<div style="height:10px"></div>'
+        : rows.map(r => '<div class="spread" style="padding:8px 0;border-bottom:1px solid #edf0f7"><span>' + r[0]
+          + '</span><span class="nm num">' + r[1] + '</span></div>').join(''))
+      + '<div class="spread" style="padding:8px 0"><span class="sub">Names on file</span><span class="nm num">' + named + '</span></div>'
+      + '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">'
+      + '<a class="btn btn-sm btn-a" href="' + link('reports') + '">' + (total === 0 ? 'Add numbers' : 'Update numbers') + '</a>'
+      + '<a class="btn btn-sm" href="' + link('distributors') + '">Add names</a></div></div>';
+  }
+
   async function officeDash() {
     const me = A.store.me, off = me.office, ws = S().week;
     const prev = U.iso(U.addDays(ws, -7));
@@ -357,7 +380,7 @@
        how to add several weeks of reports together. */
     const mn = U.currentMonthNo();
     const monthWeeks = U.weeksOfMonth(mn).filter(U.weekStarted);
-    const [mine, prevMine, monthReps, histReps, dists, evs, goal, sols] = await Promise.all([
+    const [mine, prevMine, monthReps, histReps, dists, evs, goal, sols, asks] = await Promise.all([
       A.reports.get(off.id, ws),
       A.reports.get(off.id, prev),
       A.reports.list({ weeks: monthWeeks, center: off.center_id }),
@@ -365,7 +388,8 @@
       A.distributors.list({ office: off.id }),
       A.events.list({ week: ws, center: off.center_id }),
       A.feature('goals') ? A.goals.get(off.id, mn) : null,
-      A.issues.solutions({ office: off.id }).catch(() => [])
+      A.issues.solutions({ office: off.id }).catch(() => []),
+      A.isOwner() && A.feature('members') ? A.member.requests(off.id).catch(() => []) : []
     ]);
     const myMonth = totals(monthReps.filter(r => r.office_id === off.id));
     const ranked = rankOffices(monthReps, A.officesOf(off.center_id).filter(o => o.active));
@@ -378,10 +402,24 @@
        more". Floored at zero so a leader never reads a negative gap. */
     const amountGap = leader && !iLead ? Math.max(0, leader.amount - (meRank.amount || 0)) : 0;
     const orderGap = leader && !iLead ? Math.max(0, leader.orders - (meRank.orders || 0)) : 0;
-    const series = hist.map(w => {
+    /* The what-if graph: orders per week so far, and where a chosen number
+       of orders a week would take the office. Money per order comes from the
+       weeks that were actually filed. */
+    const histOrders = hist.map(w => {
       const r = histReps.find(x => x.week_start === w);
-      return { l: 'W' + U.weekNo(w), v: r ? Number(r.amount) : 0 };
+      return { l: 'W' + U.weekNo(w), v: r ? Number(r.orders) || 0 : 0 };
     });
+    const filedRows = histReps.filter(r => Number(r.orders) > 0);
+    const filedOrders = filedRows.reduce((a, r) => a + Number(r.orders), 0);
+    const aov = filedOrders ? filedRows.reduce((a, r) => a + Number(r.amount), 0) / filedOrders : 0;
+    const teamRep = mine || prevMine || histReps.slice().sort((a, b) => (a.week_start < b.week_start ? 1 : -1))[0] || null;
+    const headcount = teamRep ? peopleIn(teamRep) : 0;
+    const lastHist = hist[hist.length - 1];
+    const nextLabels = [1, 2, 3, 4].map(k => 'W' + (U.weekNo(lastHist) + k));
+    const projM = U.projModel(histOrders, nextLabels, aov, headcount, leader && !iLead ? leader.amount : 0);
+    const baseOrders = U.projBaseline(projM);
+    const goalWeekly = goal && Number(goal.target_orders) > 0 ? Math.ceil(Number(goal.target_orders) / Math.max(1, monthWeeks.length || 4)) : 0;
+    const projStart = goalWeekly || (baseOrders > 0 ? Math.max(Math.round(baseOrders) + 1, Math.round(baseOrders * 1.25)) : 10);
     const scanCounts = evs.length ? await A.scans.forEvents(evs.map(e => e.id)) : [];
     const mineScans = scanCounts.filter(s => s.office_id === off.id && s.status === 'accepted');
     /* hist is oldest-first for the chart above; the streak needs the
@@ -395,7 +433,9 @@
         + (A.feature('streaks') && streak > 0
           ? ' · <span style="color:var(--blue)">' + streak + ' week' + (streak === 1 ? '' : 's') + ' straight</span>' : ''),
       html:
-        ''
+        (asks.length ? note('gold', 'users', '<b>' + asks.length + ' Senior Manager' + (asks.length === 1 ? ' is' : 's are')
+          + ' waiting for you.</b> <a href="' + link('members') + '" style="text-decoration:underline;font-weight:600">Open Senior managers</a> to accept them.')
+          + '<div style="height:18px"></div>' : '')
         /* One reminder, not a stack of them: whatever is still to file,
            last week first since it is the older of the two. */
         + ((() => {
@@ -445,12 +485,11 @@
         + solutionsCard(sols)
 
         + '<div class="grid g-2-1" style="margin-top:18px">'
-        + '<div class="card"><div class="card-h"><div><div class="card-t">Your amount by week</div>'
-        + '<div class="card-s">The last eight weeks you filed.</div></div>'
-        + '<div class="card-a">' + chartToggle(S().chartType) + '</div></div>'
-        + chart(series, series.length - 1, S().chartType) + '</div>'
+        + U.projectionCard(projM, projStart, { sub: goalWeekly
+          ? 'Starts at the pace your ' + esc(U.monthLabel(mn)) + ' goal needs. Drag to try other numbers. Solid is what you filed, dashed is the plan.' : '' })
 
         + '<div class="stack">'
+        + teamCard(teamRep, dists, !!mine)
         + '<div class="card"><div class="card-h"><div><div class="card-t">This month in your zone</div>'
         + '<div class="card-s">' + esc(U.monthLabel(mn)) + ' · ' + RANK_BASIS + '</div></div></div>'
         + (ranked.length ? ranked.slice(0, 6).map(r =>
@@ -1673,11 +1712,20 @@
       const orders = wreps.reduce((a, r) => a + (Number(r.orders) || 0), 0);
       const amount = wreps.reduce((a, r) => a + (Number(r.amount) || 0), 0);
       const notFiled = offs.filter(o => !wreps.find(r => r.office_id === o.id));
+      const team = wreps.reduce((a, r) => a + peopleIn(r), 0);
+      const withNumbers = wreps.filter(r => peopleIn(r) > 0).length;
       weekHtml = sec(esc(U.weekName(ws)) + ', ' + esc(U.weekRange(ws)))
         + '<div class="grid g3">'
         + kpi('Offices filed', wreps.length + ' / ' + offs.length, 'this week', 'building')
         + kpi('Orders', orders, 'zone total', 'trend')
         + kpi('Amount', usdFull(amount), 'zone total', 'cash', 'kpi-blue')
+        + '</div>'
+        /* How big the team is, as the offices tell us in their reports.
+           Numbers count even where the names are not on file. */
+        + gap + '<div class="grid g3">'
+        + kpi('People counted', team.toLocaleString(), 'from the reports', 'users')
+        + kpi('Gave their numbers', withNumbers + ' / ' + wreps.length, 'of the offices that filed', 'check')
+        + kpi('Orders per person', team ? (orders / team).toFixed(1) : '-', 'zone average', 'trend', 'kpi-blue')
         + '</div>'
         + (ranked.length ? gap + '<div class="card"><div class="card-h"><div><div class="card-t">Top offices this week</div></div>'
           + '<div class="card-a"><a class="btn btn-sm" href="' + link('rankings') + '">All rankings</a></div></div>'
@@ -2065,8 +2113,9 @@
     if (!off) return { title: 'Senior managers', html: empty('building', 'No office', 'This page belongs to an office.') };
     if (!A.feature('members')) return { title: 'Senior managers', html: empty('lock', 'Not open yet', 'Member accounts have not been switched on.') };
     const owner = A.isOwner();
-    const [code, roster, names] = await Promise.all([
-      owner ? A.member.joinCode(off.id) : '', A.member.roster(off.id), owner ? A.member.names(off.id) : []]);
+    const [code, roster, names, asks] = await Promise.all([
+      owner ? A.member.joinCode(off.id) : '', A.member.roster(off.id), owner ? A.member.names(off.id) : [],
+      owner ? A.member.requests(off.id).catch(() => []) : []]);
     const att = await A.member.attendance(off.center_id, roster.map(m => m.distributor_id).filter(Boolean));
     const url = window.CONFIG.appUrl + '/#/m/' + code;
     const stat = m => {
@@ -2076,7 +2125,15 @@
     };
     return {
       title: 'Senior managers', crumbs: esc(off.name),
-      html: (owner ? '<div class="card"><div class="card-h"><div><div class="card-t">Your sign-up link</div>'
+      html: (asks.length ? '<div class="card" style="margin-bottom:16px"><div class="card-h"><div><div class="card-t">Waiting for you · ' + asks.length + '</div>'
+        + '<div class="card-s">They signed up and picked your office. Accept the ones who are on your team.</div></div></div>'
+        + table([{ label: 'Name' }, { label: 'Rank' }, { label: 'Sponsor' }, { label: '' }],
+          asks.map(a => '<tr><td class="nm">' + esc(a.name) + '<div class="sub">' + esc(a.phone || '') + ' · ' + esc(a.email || '') + '</div></td>'
+            + '<td>' + esc(a.rank || '-') + '</td><td>' + esc(a.sponsor || '-') + '</td>'
+            + '<td style="white-space:nowrap"><button class="btn btn-sm btn-g" data-act="mgr-decline" data-id="' + a.id + '" data-name="' + esc(a.name) + '">Decline</button> '
+            + '<button class="btn btn-sm btn-a" data-act="mgr-accept" data-id="' + a.id + '" data-name="' + esc(a.name) + '">' + ico('check', 13) + 'Accept</button></td></tr>'))
+        + '</div>' : '')
+        + (owner ? '<div class="card"><div class="card-h"><div><div class="card-t">Your sign-up link</div>'
         + '<div class="card-s">Send this to your Senior Managers. They pick their rank, sign up through it, and work inside your office with the same view you have. No approval needed. Only you can remove them, and they can leave any time.</div></div></div>'
         + '<div class="field"><input class="input mono" readonly value="' + esc(url) + '" onclick="this.select()"></div>'
         + '<div class="row" style="gap:8px;flex-wrap:wrap">'

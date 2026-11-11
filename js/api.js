@@ -593,6 +593,12 @@
     /* The sign-up screen needs the zones before the user has a role. */
     async publicCenters() {
       return rows(await sb.from('centers').select('id,name').order('name'));
+    },
+    /* Names of the offices a Senior Manager can ask to join. */
+    async publicOffices() {
+      const { data, error } = await sb.rpc('public_offices');
+      if (error) throw new Error(error.message);
+      return data || [];
     }
   };
 
@@ -654,6 +660,10 @@
     names: (officeId) => rpc('office_people_names', { p_office: officeId || null }),
     remove: (id) => rpc('remove_member', { p_member: id }),
     leave: () => rpc('leave_office'),
+    /* A Senior Manager picks an office; that office's login decides. */
+    requestManager: (d) => rpc('request_manager', { p_name: d.name, p_phone: d.phone, p_rank: d.rank, p_office: d.office, p_sponsor: d.sponsor || '' }),
+    requests: (officeId) => rpc('office_requests', { p_office: officeId || null }),
+    decide: (id, approve, reason) => rpc('decide_manager', { p_user: id, p_approve: !!approve, p_reason: reason || '' }),
     zoneMembers: (centerId) => rpc('zone_members_summary', { p_center: centerId || null }),
     directorCheckIn: () => rpc('director_check_in'),
     applyDirector: () => rpc('apply_director'),

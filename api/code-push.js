@@ -2,10 +2,11 @@
    Sky Team Ife - Wednesday code, pushed to the Directors.
 
    Called by the database's scheduler (pg_cron, see
-   supabase/2026-11-member-cron.sql) at 14:00 and 15:05
-   Lagos time on Wednesdays. It sends each Director the same code
-   for their zone, as a push notification on every device they turned
-   notifications on for.
+   supabase/2026-11-reminders.sql) three times on Wednesdays, all
+   BEFORE the 2:45pm meeting: 1:00pm (check-in opens), 2:00pm and 2:30pm
+   Lagos time. It sends each Director the code for their zone, and every
+   Senior Manager a reminder to check in, as push notifications on
+   every device they turned notifications on for.
 
    POST /api/code-push    header  x-cron-secret: <CRON_SECRET>
 
@@ -66,7 +67,7 @@ module.exports = async (req, res) => {
       + members.map(m => m.id).join(',') + ')');
     const mpay = JSON.stringify({
       title: 'Do not forget to check in',
-      body: 'Wednesday Senior Manager Training. Get the code from your Director and check in on your dashboard.',
+      body: 'The Senior Manager Training starts at 2:45pm. Get the code from your Director and check in on your dashboard.',
       url: APP_URL + '/#/dashboard', tag: 'sti-remind'
     });
     await Promise.all(msubs.map(s => webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, mpay, { TTL: 3600 })
@@ -85,7 +86,7 @@ module.exports = async (req, res) => {
       if (!codeOf[z.id]) return;
       const payload = JSON.stringify({
         title: 'Wednesday code: ' + codeOf[z.id],
-        body: z.name + ' Senior Manager Training. Give this code to your Senior and Executive Managers to check in.',
+        body: z.name + ' Senior Manager Training, 2:45pm. Give this code to your Senior and Executive Managers to check in.',
         url: APP_URL + '/#/codes',
         tag: 'sti-code-' + z.id
       });

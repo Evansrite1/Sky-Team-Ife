@@ -310,6 +310,126 @@
   const chart = (items, hiIdx, type) => type === 'bar' ? barChart(items, hiIdx)
     : lineChart(items, hiIdx, type === 'area');
 
+
+  /* ------------------------------------------------- projection (what if) */
+  /* "If you get this many orders a week, this is where the office is
+     heading." The model is plain numbers so the slider can redraw it
+     without going back to the database:
+       hist    [{l, v}]  orders per week, oldest first (0 where nothing was filed)
+       next    [label]   the next weeks, for the axis
+       aov     money per order, from the weeks that were filed (0 if none yet)
+       people  how many are on the team (0 if the office has not said)
+       leader  the zone leader's money this month (0 if unknown)           */
+  const projModel = (hist, next, aov, people, leader) => ({ hist, next, aov: Number(aov) || 0, people: Number(people) || 0, leader: Number(leader) || 0 });
+
+  /* Average weekly orders over the most recent filed weeks. */
+  const projBaseline = (m) => {
+    const filed = m.hist.filter(h => h.v > 0).slice(-4);
+    return filed.length ? filed.reduce((a, h) => a + h.v, 0) / filed.length : 0;
+  };
+
+  const projNumbers = (m, target) => {
+    target = Math.max(0, Math.round(Number(target) || 0));
+    const base = projBaseline(m), weeks = m.next.length;
+    const weekMoney = target * m.aov;
+    const total = weekMoney * weeks;
+    const pace = base * m.aov * weeks;
+    return {
+      target, base, weeks, weekMoney, total, pace,
+      gain: total - pace,
+      pct: pace > 0 ? Math.round(100 * (total - pace) / pace) : null,
+      perPerson: m.people > 0 ? target / m.people : null
+    };
+  };
+
+  const projSvg = (m, target) => {
+    const W = 640, H = 236, pl = 44, pr = 12, pb = 30, pt = 16;
+    const n = m.hist.length + m.next.length;
+    const vals = m.hist.map(h => h.v).concat(m.next.map(() => target));
+    const max = Math.max.apply(null, vals.concat([1])) * 1.12;
+    const step = (W - pl - pr) / Math.max(1, n - 1);
+    const X = i => pl + step * i;
+    const Y = v => H - pb - (v / max) * (H - pt - pb);
+    let g = '';
+    for (let i = 0; i <= 3; i++) {
+      const y = pt + ((H - pt - pb) / 3) * i;
+      g += '<line class="gl" x1="' + pl + '" y1="' + y.toFixed(1) + '" x2="' + (W - pr) + '" y2="' + y.toFixed(1) + '"/>'
+        + '<text class="lb" x="' + (pl - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">'
+        + Math.round(max - (max / 3) * i) + '</text>';
+    }
+    const hi = m.hist.length - 1;
+    /* The shaded block is "from here on is a what-if, not a record". */
+    const shade = '<rect class="pj-zone" x="' + X(hi).toFixed(1) + '" y="' + pt + '" width="' + (W - pr - X(hi)).toFixed(1)
+      + '" height="' + (H - pt - pb) + '" rx="6"/>';
+    const solid = m.hist.map((h, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(h.v).toFixed(1)).join(' ');
+    const dash = 'M' + X(hi).toFixed(1) + ' ' + Y(m.hist[hi] ? m.hist[hi].v : 0).toFixed(1)
+      + m.next.map((_, j) => ' L' + X(hi + 1 + j).toFixed(1) + ' ' + Y(target).toFixed(1)).join('');
+    const dots = m.hist.map((h, i) => '<circle class="dt" cx="' + X(i).toFixed(1) + '" cy="' + Y(h.v).toFixed(1) + '" r="3.4"/>').join('')
+      + m.next.map((_, j) => '<circle class="dt pj-dt" cx="' + X(hi + 1 + j).toFixed(1) + '" cy="' + Y(target).toFixed(1) + '" r="3.8"/>').join('');
+    const labels = m.hist.map((h, i) => ({ l: h.l, i })).concat(m.next.map((l, j) => ({ l, i: hi + 1 + j })))
+      .map(o => '<text class="lb' + (o.i > hi ? ' pj-lb' : '') + '" x="' + X(o.i).toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle">' + esc(o.l) + '</text>').join('');
+    return '<svg class="chart pj" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Orders per week, with a projection" style="height:auto">'
+      + g + shade + '<path class="ln" d="' + solid + '"/><path class="ln pj-ln" d="' + dash + '"/>' + dots + labels + '</svg>';
+  };
+
+  const projStats = (m, target) => {
+    const p = projNumbers(m, target);
+    const stat = (t, v, s) => '<div class="pj-s"><div class="pj-sv">' + v + '</div><div class="pj-st">' + esc(t) + '</div>'
+      + (s ? '<div class="sub">' + s + '</div>' : '') + '</div>';
+    const money = m.aov > 0;
+    const lines = [];
+    if (money) {
+      lines.push('At <b>' + p.target + '</b> orders a week, the next ' + p.weeks + ' weeks bring in about <b>' + usd(p.total) + '</b>'
+        + (p.pct !== null && p.target !== Math.round(p.base)
+          ? ', ' + (p.gain >= 0 ? usd(p.gain) + ' more' : usd(-p.gain) + ' less') + ' than your recent pace (' + (p.pct >= 0 ? '+' : '') + p.pct + '%).' : '.'));
+    } else {
+      lines.push('File a report with orders and an amount and this will show the money too.');
+    }
+    if (money && m.leader > 0) {
+      lines.push(p.total >= m.leader ? 'That is more than the zone leader\'s ' + usd(m.leader) + ' this month.'
+        : 'The zone leader has ' + usd(m.leader) + ' this month; that is ' + usd(m.leader - p.total) + ' more than this plan.');
+    }
+    return '<div class="pj-grid">'
+      + stat('Orders a week', p.target.toLocaleString(), p.base > 0 ? 'now about ' + Math.round(p.base) : 'no history yet')
+      + stat('Money a week', money ? usd(p.weekMoney) : '-', money ? 'at ' + usd(m.aov) + ' an order' : '')
+      + stat('Next ' + p.weeks + ' weeks', money ? usd(p.total) : '-', '')
+      + stat('Per person', p.perPerson !== null ? p.perPerson.toFixed(1) : '-',
+        p.perPerson !== null ? 'orders each, of ' + m.people + ' on the team' : 'add your team numbers')
+      + '</div><div class="pj-note">' + lines.join(' ') + '</div>';
+  };
+
+  /* The whole card. Redrawn in place by paintProjection as the slider moves. */
+  const projectionCard = (m, target, opts) => {
+    opts = opts || {};
+    const base = projBaseline(m);
+    const top = Math.max(50, Math.ceil(Math.max(base, target, 5) * 3));
+    const chip = (label, v) => '<button type="button" class="chipbtn" data-act="proj-set" data-v="' + v + '">' + esc(label) + '</button>';
+    return '<div class="card" id="proj-card" data-proj="' + esc(JSON.stringify(m)) + '">'
+      + '<div class="card-h"><div><div class="card-t">If you get this many orders</div>'
+      + '<div class="card-s">' + esc(opts.sub || 'Drag to see where your office is heading. The solid line is what you filed; the dashed one is the plan.') + '</div></div></div>'
+      + '<div class="pj-ctl"><label for="proj-n">Orders a week</label>'
+      + '<input type="range" id="proj-n" data-act="proj" min="0" max="' + top + '" step="1" value="' + target + '">'
+      + '<div class="pj-chips">' + chip('Same as now', Math.round(base)) + chip('+25%', Math.round(base * 1.25)) + chip('Double', Math.round(base * 2)) + '</div></div>'
+      + '<div id="proj-svg">' + projSvg(m, target) + '</div>'
+      + '<div id="proj-stats">' + projStats(m, target) + '</div></div>';
+  };
+
+  /* Slider moved (or a chip pressed): redraw the chart and the numbers. */
+  const paintProjection = (target) => {
+    const card = $('#proj-card');
+    if (!card) return;
+    let m;
+    try { m = JSON.parse(card.dataset.proj); } catch (e) { return; }
+    target = Math.max(0, Math.round(Number(target) || 0));
+    const slider = $('#proj-n');
+    if (slider) {
+      if (target > Number(slider.max)) slider.max = target;
+      slider.value = target;
+    }
+    $('#proj-svg').innerHTML = projSvg(m, target);
+    $('#proj-stats').innerHTML = projStats(m, target);
+  };
+
   /* ---------------------------------------------------------------- qr */
   /* The QR library is 60 KB that only the session pages and the poster
      download use, so it is fetched the first time one of them asks for
@@ -708,7 +828,7 @@
     ico, IC, logo, drawLogo, LOGO_PATH, backdrop3d, isStandalone, isIOS, isHandheld,
     rollLook, readLook, describeLook,
     kpi, tag, note, empty, bar, change, table,
-    chart, chartToggle, barChart, lineChart, qrSvg, loadQr, downloadQrPoster, printEvaluation,
+    chart, chartToggle, barChart, lineChart, projModel, projBaseline, projNumbers, projectionCard, paintProjection, qrSvg, loadQr, downloadQrPoster, printEvaluation,
     toast, modal, closeModal, busy, confirmDialog,
     toggleRow, toCsv, parseCsv, downloadText, filingStreak
   };

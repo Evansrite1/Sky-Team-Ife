@@ -54,7 +54,7 @@ invitation — there are no codes to hand out.
 
 Sign-up is open, and approval is the gate.
 
-1. **They pick first.** An office, or a leader/director. The two need different things,
+1. **They pick first.** An office, a leader/director, or a Senior Manager. The two need different things,
    so the choice comes before anything is typed and only the right fields are ever shown.
 2. **They create the account** — an email and a password, nothing else on that screen.
 3. **They fill in their details,** which depend on the choice:
@@ -71,17 +71,35 @@ Sign-up is open, and approval is the gate.
    no area. An office is its name, its address and the person who runs it, and two offices
    in the same center may not share a name.
 
-4. **The Super Admin approves.** It shows under *Centers & leaders* with a count in the
-   sidebar. Approving an office is what creates it; nothing exists before that.
-5. Declining sends a reason back, and the form comes back pre-filled so they can fix it
-   and ask again.
+4. **Nobody waits for the Super Admin.** An office is created the moment it signs up, and a
+   Director is a Director the moment they sign up.
+5. **A Senior Manager picks an office** (or opens that office's own link). Through the link they
+   are in at once. If they signed up on the front page and picked an office instead, **that
+   office's login** sees them under *Senior managers* and presses Accept. Below Senior Manager
+   cannot join this way.
 
-Until approval the account is `pending`. It has no navigation, no dashboard, and the row
-level security policies return nothing to it: not a report, not a distributor, not even
-the list of offices. A pending account can read the names of your centers, because the
-sign-up form has to offer them, and nothing else.
+A Senior Manager who is let in works **inside that office** with the same view and powers as the
+office login: weekly reports, evaluation, distributors, attendance. Only the office login can
+remove one, change the office's details, or reissue its link, and a Senior Manager can leave at
+any time from *Account*.
+
+Anyone with no office yet is a `pending` account. It has no navigation, no dashboard, and the row
+level security policies return nothing to it, apart from the names of the zones and offices the
+sign-up form has to offer.
 
 ---
+
+## Reminders
+
+Push notifications go to anyone who turned them on. They are driven by `pg_cron`
+(`supabase/2026-11-reminders.sql`) calling two Vercel functions:
+
+| When (Lagos) | What |
+|---|---|
+| Wednesday 1:00pm, 2:00pm, 2:30pm | Directors get the zone's check-in code; Senior Managers are told to check in (`/api/code-push`) |
+| Monday to Thursday 10:00am | Offices and their Senior Managers are told if last week's or this week's report is not filed (`/api/report-push`) |
+
+The Super Admin can also send one by hand from *Zones & settings*, to everyone or one role.
 
 ## Who can do what
 

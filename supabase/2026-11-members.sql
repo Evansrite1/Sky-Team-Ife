@@ -104,7 +104,7 @@ create or replace function regenerate_join_code(p_office uuid)
 returns text language plpgsql security definer set search_path = public as $$
 declare v text;
 begin
-  if not (is_admin() or my_office() = p_office) then raise exception 'Not allowed.'; end if;
+  if not (is_admin() or coalesce(my_office() = p_office, false)) then raise exception 'Not allowed.'; end if;
   loop
     v := gen_code(6);
     exit when not exists (select 1 from office_join_codes where code = v);
@@ -325,7 +325,7 @@ create or replace function office_members(p_office uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare v_off uuid := coalesce(p_office, my_office());
 begin
-  if not (is_admin() or my_office() = v_off) then raise exception 'Not allowed.'; end if;
+  if not (is_admin() or coalesce(my_office() = v_off, false)) then raise exception 'Not allowed.'; end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
       'id', p.id, 'name', p.full_name, 'rank', p.rank, 'phone', p.phone,
@@ -340,7 +340,7 @@ create or replace function office_people_names(p_office uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare v_off uuid := coalesce(p_office, my_office());
 begin
-  if not (is_admin() or my_office() = v_off) then raise exception 'Not allowed.'; end if;
+  if not (is_admin() or coalesce(my_office() = v_off, false)) then raise exception 'Not allowed.'; end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('member', p.full_name, 'name', m.name, 'stage', m.stage)
                      order by p.full_name, m.created_at)
@@ -354,7 +354,7 @@ declare v_off uuid;
 begin
   select member_office_id into v_off from profiles where id = p_member and role::text = 'member';
   if v_off is null then raise exception 'Not a member.'; end if;
-  if not (is_admin() or my_office() = v_off) then raise exception 'Not allowed.'; end if;
+  if not (is_admin() or coalesce(my_office() = v_off, false)) then raise exception 'Not allowed.'; end if;
   perform set_config('sti.member_join', '1', true);
   update profiles
      set role = 'pending'::user_role, center_id = null, member_office_id = null,

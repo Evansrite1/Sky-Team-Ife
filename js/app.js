@@ -368,25 +368,29 @@
   /* Shown once per update, the first time each person opens the app
      after it. Bump WHATS_NEW_ID with the next update worth announcing.
      Someone brand new gets the walkthrough instead, never both. */
-  const WHATS_NEW_ID = '2026-11-senior-managers';
+  const WHATS_NEW_ID = '2026-11-projection';
   const WN_KEY = 'sti-whatsnew';
   const whatsNewItems = (role) => {
     const item = (i, t, d) => '<li><div class="ins-i">' + ico(i, 16) + '</div><div><div class="ins-t">' + t + '</div>'
       + '<div class="ins-d">' + d + '</div></div></li>';
     const forget = item('clock', 'Do not forget to check in', 'Every Wednesday, Senior Managers and above check in to the training. '
       + 'Check-in opens at 1:00pm, after 2:45pm counts as late, and no check-in means absent.');
+    const proj = item('trend', 'See where your orders take you', 'The dashboard graph is now a what-if. Drag the orders a week and watch the line, the money and the orders per person move.');
+    const numbers = item('users', 'Tell us your team numbers', 'Put your distributor numbers in the weekly report, even without the names. It lets everyone track how the team is growing.');
     const anthem = item('play', 'The NeoLife anthem is on your dashboard', 'Scroll to the bottom of the dashboard and press play. About three minutes.');
     if (role === 'office') {
       return item('users', 'Add your Senior Managers', 'Open <b>Senior managers</b> in the menu and send them your office link. '
         + 'They sign up, and work inside your office with the same view you have. Only you can remove one.')
         + item('qr', 'Senior Managers check in from their own interface', 'Each one checks in on their own dashboard with the code from their Director. '
           + 'You do not have to do it for them.')
+        + item('check', 'Accept Senior Managers who pick your office', 'A Senior Manager can now sign up and choose your office. They appear under <b>Senior managers</b>, and you press Accept.')
+        + proj + numbers + item('alert', 'Report reminders', 'If a weekly report is not filed, you get a notification Monday to Thursday morning.')
         + forget + anthem;
     }
     if (role === 'member') {
       return item('qr', 'Check in from your own dashboard', 'On Wednesday your dashboard shows a check-in box at the top. Type the code your Director gives you.')
         + item('users', 'You work inside your office', 'You see the same pages as your office. Only the office login can remove you, and you can leave any time from Account.')
-        + forget + anthem;
+        + proj + forget + anthem;
     }
     if (role === 'platform_admin' || role === 'super_admin') {
       return item('qr', 'Where to find the Wednesday code', 'Open <b>Wednesday training</b> in the menu. Each zone\'s code is there, with a Copy button. '
@@ -688,7 +692,7 @@
     save(k) { try { sessionStorage.setItem('sti-join', k); } catch (e) { /* ignore */ } },
     clear() { try { sessionStorage.removeItem('sti-join'); } catch (e) { /* ignore */ } }
   };
-  const KIND_LABEL = { office: 'an office', leader: 'a director' };
+  const KIND_LABEL = { office: 'an office', leader: 'a director', manager: 'a senior manager' };
 
   function renderAuth(which) {
     const r = $('#root');
@@ -698,7 +702,7 @@
       const k = pick.read();
       r.innerHTML = authShell(
         '<h1 class="auth-h">How are you joining?</h1>'
-        + '<p class="auth-s">The two ask for different things, so pick first and we will only ask you for yours.</p>'
+        + '<p class="auth-s">Each asks for different things, so pick first and we will only ask you for yours.</p>'
         + '<div class="pick">'
         + '<button type="button" class="pick-o ' + (k === 'office' ? 'on' : '') + '" data-act="pick" data-v="office">'
         + '<span class="pick-ic">' + ico('building', 19) + '</span><span class="pick-t">An office</span>'
@@ -706,6 +710,9 @@
         + '<button type="button" class="pick-o ' + (k === 'leader' ? 'on' : '') + '" data-act="pick" data-v="leader">'
         + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A director</span>'
         + '<span class="pick-d">You oversee zones. You see every office and run the Wednesday evaluation.</span></button>'
+        + '<button type="button" class="pick-o ' + (k === 'manager' ? 'on' : '') + '" data-act="pick" data-v="manager">'
+        + '<span class="pick-ic">' + ico('users', 19) + '</span><span class="pick-t">A senior manager</span>'
+        + '<span class="pick-d">You belong to an office. Pick it, and that office lets you in.</span></button>'
         + '</div>'
         + '<div class="auth-alt">Already have an account? <a href="#/login">Sign in</a></div>');
       return;
@@ -776,9 +783,12 @@
     const me = A.store.me;
     /* The choice made on #/join wins; a returning account falls back to
        whatever it asked for last time. */
-    const kind = pick.read() || (me.req_kind === 'leader' ? 'leader' : 'office');
+    const kind = pick.read() || (me.req_kind === 'leader' ? 'leader' : me.req_kind === 'manager' ? 'manager' : 'office');
     const turned = me.req_status === 'declined';
     const zones = kind === 'office' ? await A.join.publicCenters() : [];
+    const offices = kind === 'manager' ? await A.join.publicOffices() : [];
+    const zoneName = {};
+    if (kind === 'manager') (await A.join.publicCenters()).forEach(c => { zoneName[c.id] = c.name; });
 
     const mine = '<div class="field"><label for="ob-you">Your full name</label>'
       + '<input class="input" id="ob-you" required autocomplete="name" placeholder="Evans Large" value="'
@@ -800,19 +810,35 @@
       + '<input class="input" id="ob-address" required placeholder="12 Ede Road, opposite the filling station" value="'
       + esc(me.req_address || '') + '"></div>';
 
+    const managerFields = '<div class="field"><label for="ob-office">Which office are you in?</label>'
+      + '<select class="select" id="ob-office" required>'
+      + (offices.length
+        ? '<option value="">Pick your office</option>' + Object.keys(zoneName).sort((a, b) => zoneName[a].localeCompare(zoneName[b])).map(z => {
+          const list = offices.filter(o => o.center_id === z);
+          return list.length ? '<optgroup label="' + esc(zoneName[z]) + '">' + list.map(o => '<option value="' + o.id + '"'
+            + (o.id === me.req_office_id ? ' selected' : '') + '>' + esc(o.name) + '</option>').join('') + '</optgroup>' : '';
+        }).join('')
+        : '<option value="">No offices exist yet</option>') + '</select></div>'
+      + '<div class="field"><label for="ob-rank">Your rank</label><select class="select" id="ob-rank">'
+      + ['Senior Manager', 'Executive Manager'].map(r => '<option' + (me.req_rank === r ? ' selected' : '') + '>' + r + '</option>').join('')
+      + '</select></div>'
+      + '<div class="field"><label for="ob-sponsor">Your sponsor\'s name</label>'
+      + '<input class="input" id="ob-sponsor" autocomplete="off" value="' + esc(me.sponsor_name || '') + '"></div>';
+
     $('#root').innerHTML = authShell(
-      '<h1 class="auth-h">' + (turned ? 'Have another go' : kind === 'office' ? 'About your office' : 'About you') + '</h1>'
+      '<h1 class="auth-h">' + (turned ? 'Have another go' : kind === 'office' ? 'About your office' : kind === 'manager' ? 'Which office are you in?' : 'About you') + '</h1>'
       + '<p class="auth-s">' + (turned
         ? 'Your last request came back. Fix what is below and send it again.'
         : 'Joining as ' + KIND_LABEL[kind] + '. <a href="#" data-act="ob-switch" style="text-decoration:underline">Not right?</a>'
-        + ' Your dashboard opens the moment you send this.') + '</p>'
+        + (kind === 'manager' ? ' The office you pick lets you in, and you will get in the moment it does.'
+          : ' Your dashboard opens the moment you send this.')) + '</p>'
       + (turned ? U.note('gold', 'alert', esc(me.req_note || 'No reason was given.')) : '')
 
       + '<form id="ob-form" data-kind="' + kind + '">'
       + mine
-      + (kind === 'office' ? officeFields : '')
+      + (kind === 'office' ? officeFields : kind === 'manager' ? managerFields : '')
       + '<button class="btn btn-a btn-pop btn-lg btn-block" type="submit" data-act="do-request">'
-      + (turned ? 'Send it again' : 'Join') + '</button>'
+      + (turned ? 'Send it again' : kind === 'manager' ? 'Ask to join' : 'Join') + '</button>'
       + '</form>'
 
       + '<div class="auth-alt"><a href="#" data-act="signout">Sign out</a></div>');
@@ -823,6 +849,21 @@
   async function renderWaiting() {
     const me = A.store.me;
     let what = 'a director';
+    if (me.req_kind === 'manager') {
+      const offs = await A.join.publicOffices().catch(() => []);
+      const o = offs.find(x => x.id === me.req_office_id);
+      $('#root').innerHTML = authShell(
+        '<h1 class="auth-h">Waiting for your office</h1>'
+        + '<p class="auth-s">You asked to join <b>' + esc(o ? o.name : 'your office') + '</b> as a ' + esc(me.req_rank || 'Senior Manager')
+        + '. The moment the office accepts, this page opens onto your dashboard.</p>'
+        + U.note('ok', 'check', 'Nothing else to do. Ask your office to open <b>Senior managers</b> and press Accept. '
+          + 'You can close this and sign in again later with <b>' + esc(me.email) + '</b>.')
+        + '<div class="row" style="margin-top:18px">'
+        + '<button class="btn btn-a btn-block" data-act="check-approval">' + ico('refresh', 15) + 'Check again</button></div>'
+        + '<div class="auth-alt"><a href="#" data-act="ob-edit">Change what I asked for</a> · '
+        + '<a href="#" data-act="signout">Sign out</a></div>');
+      return;
+    }
     if (me.req_kind !== 'leader') {
       /* A pending account has no lookups loaded, so name the zone here. */
       const c = (await A.join.publicCenters()).find(x => x.id === me.req_center_id);
@@ -939,6 +980,9 @@
       + '<button type="button" class="pick-o" data-act="ob-switch-to" data-v="leader">'
       + '<span class="pick-ic">' + ico('crown', 19) + '</span><span class="pick-t">A director</span>'
       + '<span class="pick-d">Sees every office, runs the Wednesday evaluation.</span></button>'
+      + '<button type="button" class="pick-o" data-act="ob-switch-to" data-v="manager">'
+      + '<span class="pick-ic">' + ico('users', 19) + '</span><span class="pick-t">A senior manager</span>'
+      + '<span class="pick-d">Belongs to an office. That office lets you in.</span></button>'
       + '</div>',
       '<button class="btn btn-g" data-act="modal-close">Cancel</button>');
   };
@@ -951,6 +995,20 @@
     const btn = $('[data-act="do-request"]');
     if (kind === 'office' && !val('#ob-zone')) {
       return toast('There are no zones yet. A director has to create one first.', 'no');
+    }
+    if (kind === 'manager') {
+      if (!val('#ob-office')) return toast('Pick the office you belong to.', 'no');
+      busy(btn, true, 'Sending…');
+      try {
+        await A.member.requestManager({ name: val('#ob-you'), phone: val('#ob-phone'), rank: val('#ob-rank'),
+          office: val('#ob-office'), sponsor: val('#ob-sponsor') });
+        pick.clear();
+        state.editRequest = false;
+        await boot(true);
+        await route();
+        toast('Sent. Your office will let you in.');
+      } catch (err) { busy(btn, false); toast(err.message, 'no'); }
+      return;
     }
     busy(btn, true, 'Sending…');
     try {
@@ -982,7 +1040,8 @@
       await route();
     } else {
       busy(el, false);
-      toast('Not yet. Try again in a moment.');
+      toast(A.store.me && A.store.me.req_status === 'declined' ? 'Your office turned this down.' : 'Not yet. Try again in a moment.');
+      if (A.store.me && A.store.me.req_status === 'declined') await route();
     }
   };
 
@@ -1881,6 +1940,18 @@
     try { await A.member.regenCode(A.store.me.office.id); closeModal(); toast('New link ready.'); route(); }
     catch (err) { busy(el, false); toast(err.message, 'no'); }
   };
+  /* The office login accepts or declines a Senior Manager who asked to join. */
+  const decideMgr = async (el, approve) => {
+    busy(el, true, '…');
+    try {
+      const r = await A.member.decide(el.dataset.id, approve, approve ? '' : 'The office turned this request down.');
+      if (!r.ok) { busy(el, false); return toast(r.error, 'no'); }
+      toast(approve ? el.dataset.name + ' is in.' : 'Declined.');
+      route();
+    } catch (err) { busy(el, false); toast(err.message, 'no'); }
+  };
+  ACT['mgr-accept'] = (el) => decideMgr(el, true);
+  ACT['mgr-decline'] = (el) => decideMgr(el, false);
   ACT['member-del'] = (el) => {
     state.pendingMember = el.dataset.id;
     U.confirmDialog('Remove this member?', 'They lose access to your office. They can join again with your link.', 'Remove', 'member-del-yes', true);
@@ -2071,7 +2142,9 @@
       return;
     }
     if (e.target.id === 'niche-input') paintNicheMenu(e.target.value);
+    if (el && el.dataset.act === 'proj') U.paintProjection(el.value);
   });
+  ACT['proj-set'] = (el) => U.paintProjection(el.dataset.v);
 
   function paintNicheMenu(q) {
     const menu = $('#niche-menu');
